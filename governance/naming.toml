@@ -879,7 +879,7 @@ rename_count = { python = 0, typescript = 0 }
 [[entry]]
 concept    = "generated object types"
 python     = "idfkit._generated_types"
-typescript = "@idfkit/core/types"
+typescript = "@idfkit/types-v26-1"
 kind       = "divergent"
 divergence_reason = """
 Python generates one stub set at a time, ships it for the newest EnergyPlus release, and applies it
@@ -892,7 +892,30 @@ implicit set is the only thing available; TypeScript has generics, so an opt-in 
 and necessary for version-generic code. The consequence for a reader is recorded in the parity
 ledger under `generated-object-types` rather than left here.
 """
-rename_count = { python = 0, typescript = 0 }
+notes = """
+The TypeScript name was `@idfkit/core/types` until the maps were split out of core, which took
+`@idfkit/core` from 7.2 MB to 285 KB and made the types an opt-in install. There is one package per
+EnergyPlus version, `@idfkit/types-v26-1` and `@idfkit/types-v9-4` today, and this entry names the
+package per EnergyPlus version: `@idfkit/types-v26-1` and `@idfkit/types-v9-4` today.
+
+This entry names one of those packages rather than a `@idfkit/types-*` pattern, because the gate
+resolves a registered name against the public surface and a pattern matches nothing. It was tried:
+the gate reports "registered as @idfkit/types-* with a rename already spent, and no such name is
+public", which is the correct answer.
+
+Naming one version does not put the entry on a treadmill. `@idfkit/types-v26-1` stays published and
+resolvable once it exists, so a later `@idfkit/types-v26-2` is an addition and not a rename, and
+this entry never needs touching again. That matters here because `rename_count` is a budget of one
+and this entry has now spent it: a second change would need an amendment reviewed by both languages,
+whatever its merits.
+
+Those packages are deliberately outside `governs`. They hold roughly 1,676 generated interface
+names, one per EnergyPlus object type, which are schema output rather than designed vocabulary. The
+register governs names somebody chose; putting these inside it would demand a register entry per
+EnergyPlus object and say nothing about whether the two libraries agree. The naming gate counts them
+as outside the governs list and does not fail, which is the intended behaviour and not an oversight.
+"""
+rename_count = { python = 0, typescript = 1 }
 
 [[entry]]
 concept    = "a version type map"
