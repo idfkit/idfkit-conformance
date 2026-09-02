@@ -169,9 +169,7 @@ id         = "validation"
 title      = "Model validation"
 tier       = "tier-1"
 python     = "complete"
-typescript = "absent"
-absence_kind = "not-yet"
-issue      = "https://github.com/idfkit/idfkit-js/issues/25"
+typescript = "complete"
 names      = [
   "validate a document",
   "validate an object",
@@ -188,9 +186,23 @@ id         = "introspection"
 title      = "Describing an object type from the schema"
 tier       = "tier-1"
 python     = "complete"
-typescript = "absent"
-absence_kind = "not-yet"
-issue      = "https://github.com/idfkit/idfkit-js/issues/26"
+typescript = "partial"
+differences = """
+TypeScript never populates `memo` or `note`. Both are members of the two types, so the field set
+matches, but they are always undefined. Python fills `memo` for 845 of 858 object types and `note`
+for 6,212 of 12,712 fields in 26.1.0, both from epJSON keys that `@idfkit/schemas` drops on purpose
+to keep the bundle off the parse critical path. The `@idfkit/schemas/docs` subpath its own header
+comment promises does not exist. Describing a type is what a REPL, a notebook, and an LSP hover are
+for, so the prose is most of the value; this is partial rather than complete.
+
+Two further differences, both small and both pinned by tests. `enumValues` omits the empty string
+that Python includes for 1,378 of its 2,293 enum-bearing fields, and omits the sentinel lists
+(`Autosize`, `Autocalculate`) Python recovers from an anyOf branch for 769 fields. Field ORDER
+differs for exactly two types in 26.1.0, `ZoneProperty:UserViewFactors:BySurfaceName` and
+`ZoneTerminalUnitList`, and for six more in 8.9.0 through 9.2.0, because the bundle sorts property
+keys for content-addressing and those types carry no positional field list to restore declaration
+order from.
+"""
 names      = [
   "describe an object type",
   "object description",
@@ -205,9 +217,7 @@ id         = "documentation-urls"
 title      = "Building EnergyPlus documentation URLs"
 tier       = "tier-1"
 python     = "complete"
-typescript = "absent"
-absence_kind = "not-yet"
-issue      = "https://github.com/idfkit/idfkit-js/issues/27"
+typescript = "complete"
 names      = [
   "resolved documentation URL",
   "documentation URL for an object type",
