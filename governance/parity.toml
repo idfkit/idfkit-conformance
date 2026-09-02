@@ -77,6 +77,8 @@ names      = [
   "read epJSON from disk",
   "the parse error type",
   "detect a document version",
+  "an epJSON document value",
+  "read IDF from disk, keeping diagnostics",
 ]
 
 # Python: write_idf, write_epjson (splitting into write_* and save_* in the rename batch)
@@ -92,6 +94,8 @@ names      = [
   "serialize epJSON to a string",
   "write IDF to disk",
   "write epJSON to disk",
+  "serialize a document to an epJSON value",
+  "serialize one object",
 ]
 
 # Python: IDFDocument, IDFCollection, IDFObject, new_document
@@ -132,6 +136,7 @@ typescript = "complete"
 names      = [
   "the reference graph",
   "objects referencing a name",
+  "a reference edge",
 ]
 
 # Python: EpJSONSchema, SchemaManager, get_schema, get_schema_manager, ENERGYPLUS_VERSIONS,
@@ -149,6 +154,10 @@ names      = [
   "load a schema for a version",
   "the supported version list",
   "resolve a version string",
+  "one version's schema",
+  "the difference between two schema versions",
+  "resolve the schema for a detected version",
+  "the process-wide schema source",
 ]
 
 # Python: validate_document, validate_object, ValidationResult, ValidationError
@@ -159,7 +168,9 @@ id         = "validation"
 title      = "Model validation"
 tier       = "tier-1"
 python     = "complete"
-typescript = "complete"
+typescript = "absent"
+absence_kind = "not-yet"
+issue      = "https://github.com/idfkit/idfkit-js/issues/25"
 names      = [
   "validate a document",
   "validate an object",
@@ -176,7 +187,9 @@ id         = "introspection"
 title      = "Describing an object type from the schema"
 tier       = "tier-1"
 python     = "complete"
-typescript = "complete"
+typescript = "absent"
+absence_kind = "not-yet"
+issue      = "https://github.com/idfkit/idfkit-js/issues/26"
 names      = [
   "describe an object type",
   "object description",
@@ -191,7 +204,9 @@ id         = "documentation-urls"
 title      = "Building EnergyPlus documentation URLs"
 tier       = "tier-1"
 python     = "complete"
-typescript = "complete"
+typescript = "absent"
+absence_kind = "not-yet"
+issue      = "https://github.com/idfkit/idfkit-js/issues/27"
 names      = [
   "resolved documentation URL",
   "documentation URL for an object type",
