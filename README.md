@@ -16,7 +16,7 @@ happened on the first fixture written.
 
 ## Read this first: the coverage this corpus does NOT have
 
-Partial coverage is easy to mistake for complete coverage. Three gaps are open at landing.
+Partial coverage is easy to mistake for complete coverage. Four gaps are open.
 
 ### EnergyPlus 26.1.0 only
 
@@ -68,6 +68,24 @@ for. It has no members yet.
 A second consequence, worth stating separately: cases are curated from a sweep of the EnergyPlus
 example files, so the corpus only sees hazards that EnergyPlus's own files exhibit. Byte-order marks,
 CRLF line endings, and the other things real editors emit are not in that set.
+
+### Weather retrieval is not covered, and `tier1` does not claim it
+
+Four Tier 1 capabilities were ported into the JavaScript library under the API unification.
+`conformance-2026.6` proves three of them: validation, type introspection and documentation
+addresses. The fourth, `weather-index`, has no case and cannot have one in this corpus's shape.
+
+A case is an input file, a parsed document, and an assertion about what the library made of it.
+Resolving a weather station is none of those. There is no IDF that names a station, no document
+state that changes when one is found, and nothing for an expectation file to hold. Closing this
+needs the same `checks/` directory the file-reading gap needs, and for the same reason: the claim
+is about a library's behaviour rather than about a document's content.
+
+`weather-index` is `partial` for TypeScript in the parity ledger, which records what the two
+libraries do and does not depend on this corpus. What proves the port instead is a documented
+build-time warm-up and a run with the network switched off, which is where the specification puts
+it. The `tier1` tag therefore means "the Tier 1 capabilities this corpus can express", not "every
+Tier 1 capability", and a green `--tag tier1` is not a statement about weather.
 
 ## Why `known-divergence.toml` ships populated
 
