@@ -79,9 +79,22 @@ Both runners implement the same exit contract.
 | An allowlisted case now passes | 1 | Case id, and the instruction to remove the stale entry |
 | A case's `expected.epJSON` is missing while `truth = "oracle"` | 1 | Case id |
 
-**Case count**: TODO. **Measured runtime**: TODO. Both are filled in once the corpus is populated
-and timed (tasks T048 and T161). The budget is under 5 minutes per library on a machine with no
-simulation software installed.
+**Case count**: 41 cases, 117 assertions, at level `conformance-2026.3`.
+
+**Measured runtime** (SC-005), on a machine with no EnergyPlus installed, measured 2026-09-02:
+
+| Library | Wall clock | Result |
+| ------- | ---------- | ------ |
+| Python `idfkit` | 0.57 s | 97 passed, 17 failed and allowlisted, 3 skipped |
+| TypeScript `@idfkit/core` | 0.13 s | 106 passed, 8 failed and allowlisted, 3 skipped |
+
+The budget is under 5 minutes per library. Both runners are three orders of magnitude inside it, so
+the budget is not a constraint on how the corpus grows: at this rate the case set could grow past
+10,000 cases before the limit came into view. The 3 skipped assertions on each side are the deferred
+diagnostics assertion on the three malformed cases.
+
+Every failure above is a recorded entry in `known-divergence.toml`, which is why both runners exit 0.
+That is the corpus landing green on arrival with its disagreements visible, not hidden.
 
 ## Layout
 

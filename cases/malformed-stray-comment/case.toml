@@ -1,0 +1,29 @@
+title = "A block comment is not a comment, and the two parsers name the intruder differently"
+why = """
+IDF has one comment syntax, an exclamation mark to end of line. A /* ... */ block, which is the
+reflex of anyone who opens the file in a JSON or C editor, is not a comment at all: it is text in
+object position. The comma inside it closes an object type, the run then continues to the first
+semicolon it can find, and that semicolon belongs to the Building object below, which is swallowed
+and lost on the way.
+
+Both libraries refuse the file, so the parse outcome is agreed and this case passes assertion 1 on
+both sides today. What they disagree about is the name they put in the message. Python's object
+pattern requires a type to start with a letter, so it begins at the "a" and reports the type as
+"a block comment". The TypeScript core takes the run from the "/" and reports "/* a block comment".
+ConvertInputFormat agrees with TypeScript, calling "/* a block comment" an invalid object type at
+line 4. Assertion 1 cannot see that difference. Assertion 4 is what will pin it, which is why this
+case declares the deferred assertion now: landing it later then changes no case file.
+
+truth = "convention" because the oracle emits nothing for input it refuses. There is no
+expected.epJSON to commit and none may be invented, so what is recorded is what the two libraries
+agree to do rather than what an external authority ruled. The manifest keeps such cases in their
+own section precisely so agreed convention is never read as external truth (FR-020).
+
+expected.diag.json takes its type name from the oracle rather than from either library, so the
+expectation stays external even where the epJSON cannot be. Python will diverge on it when
+assertion 4 lands.
+"""
+tags = ["malformed"]
+energyplus_version = "26.1.0"
+truth = "convention"
+assertions = ["parse-outcome", "diagnostics"]

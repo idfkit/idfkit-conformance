@@ -1,0 +1,32 @@
+title = "A file that ends inside an object is silently dropped by one parser and refused by the other"
+why = """
+The file stops after the first field of GlobalGeometryRules, with no terminating semicolon and no
+further text. ConvertInputFormat reads the truncated value through to end of file and refuses the
+input, because "UpperLeft\\n" matches no member of the starting_vertex_position enumeration. The
+TypeScript core refuses it too, as an unterminated object at line 8.
+
+Python accepts it. Its object pattern only matches text that reaches a semicolon, so an
+unterminated tail matches nothing and the entire GlobalGeometryRules object is discarded without a
+word, leaving a document of Version and Building that no caller can distinguish from a file that
+never held the object. Losing an object in silence is worse than refusing the file, which is why
+the declared outcome here is failure and Python's behaviour is carried in known-divergence.toml
+rather than blessed as the expectation.
+
+truth = "convention" because the oracle emits nothing for input it refuses. There is no
+expected.epJSON to commit and none may be invented, so what is recorded is the outcome the two
+libraries are held to rather than a value an external authority produced. The manifest keeps such
+cases in their own section precisely so agreed convention is never read as external truth (FR-020).
+
+MAINTAINER WARNING, do not lengthen the last line. Python's object pattern nests a quantified group
+inside a quantified group, so an unterminated tail backtracks exponentially in its own length.
+Measured against this parser on this fixture: a thirteen character tail, which is what is committed
+here, costs 34 ms; twenty characters cost 4.1 s; thirty characters did not finish in one hundred
+seconds. Adding a field to this object, or spelling the truncated value out in full, converts this
+case from a fast failure into an apparent hang of the whole suite. That fragility is itself part of
+the hazard, and it is recorded here rather than in a commit message because a commit message is not
+where the next curator will look.
+"""
+tags = ["malformed"]
+energyplus_version = "26.1.0"
+truth = "convention"
+assertions = ["parse-outcome", "diagnostics"]

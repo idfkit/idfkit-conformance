@@ -1,0 +1,46 @@
+{
+    "AirTerminal:SingleDuct:VAV:Reheat": {
+        "Reheat Terminal": {
+            "air_inlet_node_name": "ATU In Node",
+            "air_outlet_node_name": "Zone In Node",
+            "availability_schedule_name": "ReheatAvailSched",
+            "constant_minimum_air_flow_fraction": 0.3,
+            "convergence_tolerance": 0.001,
+            "damper_air_outlet_node_name": "Zone Coil Air In Node",
+            "damper_heating_action": "ReverseWithLimits",
+            "fixed_minimum_air_flow_rate": 0.05,
+            "maximum_air_flow_rate": "Autosize",
+            "maximum_flow_fraction_during_reheat": "Autosize",
+            "maximum_flow_per_zone_floor_area_during_reheat": 0.002032,
+            "maximum_hot_water_or_steam_flow_rate": "Autosize",
+            "minimum_air_flow_fraction_schedule_name": "MinFlowFracSched",
+            "minimum_hot_water_or_steam_flow_rate": 0.0,
+            "reheat_coil_name": "Reheat Coil",
+            "reheat_coil_object_type": "Coil:Heating:Water",
+            "zone_minimum_air_flow_input_method": "Constant"
+        }
+    },
+    "Building": {
+        "Sentinel Remap": {
+            "loads_convergence_tolerance_value": 0.04,
+            "maximum_number_of_warmup_days": 25,
+            "minimum_number_of_warmup_days": 6,
+            "north_axis": 0.0,
+            "solar_distribution": "FullExterior",
+            "temperature_convergence_tolerance_value": 0.4,
+            "terrain": "City"
+        }
+    },
+    "GlobalGeometryRules": {
+        "GlobalGeometryRules 1": {
+            "coordinate_system": "Relative",
+            "starting_vertex_position": "UpperLeftCorner",
+            "vertex_entry_direction": "Counterclockwise"
+        }
+    },
+    "Version": {
+        "Version 1": {
+            "version_identifier": "26.1"
+        }
+    }
+}

@@ -1,0 +1,33 @@
+title = "A choice value is canonicalised to the schema's declared casing"
+why = """
+An IDF field whose schema type is a choice accepts any casing. EnergyPlus does not keep what the
+file said: ConvertInputFormat replaces the written token with the casing the schema declares for
+that choice. This input writes three choices in three wrong casings and the oracle rewrites all
+three:
+
+  /GlobalGeometryRules/GlobalGeometryRules 1/vertex_entry_direction  CounterClockWise -> Counterclockwise
+  /ScheduleTypeLimits/Any Number Limits/numeric_type                 CONTINUOUS       -> Continuous
+  /Output:Variable/Output:Variable 1/reporting_frequency             hourly           -> Hourly
+
+Note the first one. Canonicalisation is not title-casing and not any rule a library can derive from
+the token: the schema declares "Counterclockwise" with one capital, and a library that tried to be
+clever about word boundaries would emit "CounterClockwise" and still be wrong. The only correct
+source is the enum member in the schema.
+
+Read this case together with the "Strings" rule in runners/compare.md, which says that both
+libraries claim to preserve as-written casing, so any disagreement is a finding rather than noise.
+That reasoning is sound but it anticipated the wrong shape of finding. The bootstrap sweep over the
+760 EnergyPlus example files found 54,468 occurrences of this hazard in 749 files across 184
+distinct field shapes, and in every one of them the two libraries agree with each other and both
+differ from the oracle. Preserving as-written casing is the bug, not the contract. A future
+maintainer who reaches for the compare.md sentence to argue that this case is noise should stop
+here: agreement between the two implementations is not correctness, and only an external oracle
+could have shown it. This is the case FR-015 exists for.
+
+When the libraries are fixed, the fix is the same on both sides: resolve the written token against
+the schema's choice list case-insensitively and emit the schema's spelling.
+"""
+tags = ["types"]
+energyplus_version = "26.1.0"
+truth = "oracle"
+assertions = ["parse-outcome", "epjson", "round-trip"]

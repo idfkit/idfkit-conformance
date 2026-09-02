@@ -1,0 +1,65 @@
+{
+    "Building": {
+        "Minimal Building": {}
+    },
+    "GlobalGeometryRules": {
+        "GlobalGeometryRules 1": {
+            "coordinate_system": "Relative",
+            "starting_vertex_position": "UpperLeftCorner",
+            "vertex_entry_direction": "Counterclockwise"
+        }
+    },
+    "PlantEquipmentList": {
+        "Multiple Equipment List": {
+            "equipment": [
+                {
+                    "equipment_name": "Pump One",
+                    "equipment_object_type": "Pump:VariableSpeed"
+                },
+                {
+                    "equipment_name": "Boiler One",
+                    "equipment_object_type": "Boiler:HotWater"
+                },
+                {
+                    "equipment_name": "Chiller One",
+                    "equipment_object_type": "Chiller:Electric:EIR"
+                }
+            ]
+        },
+        "Single Equipment List": {
+            "equipment": [
+                {
+                    "equipment_name": "Pump One",
+                    "equipment_object_type": "Pump:VariableSpeed"
+                }
+            ]
+        }
+    },
+    "Version": {
+        "Version 1": {
+            "version_identifier": "26.1"
+        }
+    },
+    "ZoneList": {
+        "Multiple Zone List": {
+            "zones": [
+                {
+                    "zone_name": "Zone Three"
+                },
+                {
+                    "zone_name": "Zone One"
+                },
+                {
+                    "zone_name": "Zone Two"
+                }
+            ]
+        },
+        "Single Zone List": {
+            "zones": [
+                {
+                    "zone_name": "Zone Three"
+                }
+            ]
+        }
+    }
+}

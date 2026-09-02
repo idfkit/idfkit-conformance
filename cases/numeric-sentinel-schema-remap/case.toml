@@ -1,0 +1,32 @@
+title = "The sentinel a field accepts is the one its schema names, not the one the file wrote"
+why = """
+This is the case that proves agreement between the two libraries would not have been correctness,
+and the case that could not have been written without an authority outside both of them.
+
+The input writes AUTOCALCULATE in maximum_flow_fraction_during_reheat of
+AirTerminal:SingleDuct:VAV:Reheat, exactly as the shipped example file 5ZoneAirCooled.idf does. The
+field's IDD note talks about autocalculating, so the word looks right. It is not the word the schema
+declares. That field's enum is ["", "Autosize"], with a default of Autosize, and ConvertInputFormat
+emits "Autosize". The sentinel is therefore not a free-standing keyword whose spelling a parser can
+carry through: it is a member of a per-field enum, and reading it means matching the file's word
+case insensitively against the sentinel the schema names for that field and emitting the schema's
+spelling. A field that accepts autocalculate in IDF and Autosize in epJSON is not an inconsistency
+to be corrected, it is the schema, and the corpus records it rather than arguing with it.
+
+All three sides disagreed when the sweep found this, and they disagreed in three different ways:
+the oracle said "Autosize", Python said "Autocalculate" because it canonicalises the word the file
+used instead of the sentinel the field declares, and JavaScript said "AUTOCALCULATE" because it
+echoes the file. Two libraries, two distinct wrong answers, 1,903 occurrences across 220 files. If
+this corpus had been built by diffing the two libraries against each other, the shape of the bug
+would have been visible and the correct answer would not, and had the two happened to agree on
+"Autocalculate" the whole family would have read as green.
+
+Everything else in the object is deliberately uncontentious. The other two sentinels are written in
+the schema's own casing so they agree everywhere, and every choice field is written in the schema's
+own casing so the unrelated choice-casing hazard does not fire here. Exactly one pointer differs,
+and that pointer is the finding.
+"""
+tags = ["numeric", "types"]
+energyplus_version = "26.1.0"
+truth = "oracle"
+assertions = ["parse-outcome", "epjson", "round-trip"]

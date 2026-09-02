@@ -1,0 +1,28 @@
+title = "Version, 9.0 means schema 9.0.1, not the closest earlier release"
+why = """
+EnergyPlus writes the Version object with two components, so every file from the 9.0 release line
+says Version, 9.0. The release is 9.0.1 and the bundled schema is keyed 9.0.1. Nothing in the file
+carries the patch component, so a library must decide what 9.0 means, and the two implementations
+decide differently.
+
+One matches on major and minor and lands on 9.0.1, which is right. The other looks the exact triple
+9.0.0 up, misses, and falls back to the closest supported release at or below it, which is 8.9.0,
+not 9.0.1. Falling back one release earlier is not a near miss: 8.9.0 and 9.0.1 are different
+schemas, and a file read against the wrong one is silently a different model.
+
+WindowsCalculationEngine is in this file to make that choice observable rather than a matter of a
+log line. It was added in 9.0.1 and does not exist in 8.9.0, so a parser holding the 8.9.0 schema
+cannot place it and the divergence surfaces in the parse outcome, which is an assertion this case
+can carry. Nothing else in the file distinguishes the two schemas.
+
+truth is convention rather than oracle because EnergyPlus 9.0.1 is not installed on the machine that
+curated this corpus, so no 9.0.1 ConvertInputFormat could rule. The expectation here is the corpus
+convention named in the case taxonomy, that Version, 9.0 maps to schema 9.0.1, and it is recorded as
+convention precisely so it is never read as external truth. When a 9.0.1 install becomes available,
+this case should be promoted to truth = oracle with a committed expected.epJSON, and the epjson
+assertion added.
+"""
+tags = ["versions"]
+energyplus_version = "9.0.1"
+truth = "convention"
+assertions = ["parse-outcome", "round-trip"]

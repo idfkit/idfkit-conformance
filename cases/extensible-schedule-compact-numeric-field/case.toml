@@ -1,0 +1,26 @@
+title = "A number in an untyped extensible field is a number, not a string"
+why = """
+Schedule:Compact carries its whole body in one extensible field. The schema types that field as
+anyOf [number, string], because the same slot holds a keyword line such as "Through: 12/31" and a
+schedule value such as 0.75. Every other epJSON field announces its type in the schema, so a
+reader can decide what to emit from the schema alone. Here it cannot: the type follows from the
+value, and a reader that skips the extensible group when it applies its numeric coercion ships
+every schedule value as text.
+
+The oracle emits the four keyword lines as strings and the three values as JSON numbers 0, 0.75
+and 1. The difference is a type difference, never visible in the text of the file: "1" and 1 print
+identically in an IDF and differ only once parsed. This is exactly why rule 1 of compare.md
+forbids comparing JSON text, and it is why this case pins values rather than serialised output.
+
+The bootstrap sweep over the 760 EnergyPlus example files found this in 67,341 places across 729
+files, the single largest finding in the sweep and larger than every other finding combined. It is
+one bug: numeric coercion is applied per schema field type and the extensible group is not walked.
+
+Zero is in the input deliberately. compare.md gives numbers a relative tolerance with no absolute
+floor, so exact zero is equal only to exact zero, and a string "0" against a number 0 stays a
+reported difference rather than being rounded away.
+"""
+tags = ["extensible", "numeric", "types"]
+energyplus_version = "26.1.0"
+truth = "oracle"
+assertions = ["parse-outcome", "epjson", "round-trip"]

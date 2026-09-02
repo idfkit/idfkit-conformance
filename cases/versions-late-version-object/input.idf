@@ -1,0 +1,152 @@
+! versions-late-version-object
+!
+! The Version object of this file sits deliberately far down, behind a comment header
+! wider than ten kilobytes. Nothing below this header is unusual: the header itself is
+! the reproducer, and the filler lines that follow exist only to push the Version object
+! past a byte offset that one implementation treats as the end of the searchable region.
+!
+! Three files in the EnergyPlus 26.1.0 example set are shaped exactly like this:
+!   RefBldgPrimarySchoolNew2004_Chicago.idf         Version at byte 10509
+!   EMSCurveOverride_PackagedTerminalHeatPump.idf   Version at byte 12990
+!   1ZoneWith14ControlledHeat-CoolPanels.idf        Version at byte 16547
+!
+! The first of those carries a 10507 byte comment header of exactly this kind, so the
+! shape below is not contrived. It is the DOE reference building header, reduced.
+!
+! Filler. This line exists to widen the comment header. EnergyPlus reads the whole
+! file before it looks for the Version object, so a header of any width is legal.
+! Filler. This line exists to widen the comment header. EnergyPlus reads the whole
+! file before it looks for the Version object, so a header of any width is legal.
+! Filler. This line exists to widen the comment header. EnergyPlus reads the whole
+! file before it looks for the Version object, so a header of any width is legal.
+! Filler. This line exists to widen the comment header. EnergyPlus reads the whole
+! file before it looks for the Version object, so a header of any width is legal.
+! Filler. This line exists to widen the comment header. EnergyPlus reads the whole
+! file before it looks for the Version object, so a header of any width is legal.
+! Filler. This line exists to widen the comment header. EnergyPlus reads the whole
+! file before it looks for the Version object, so a header of any width is legal.
+! Filler. This line exists to widen the comment header. EnergyPlus reads the whole
+! file before it looks for the Version object, so a header of any width is legal.
+! Filler. This line exists to widen the comment header. EnergyPlus reads the whole
+! file before it looks for the Version object, so a header of any width is legal.
+! Filler. This line exists to widen the comment header. EnergyPlus reads the whole
+! file before it looks for the Version object, so a header of any width is legal.
+! Filler. This line exists to widen the comment header. EnergyPlus reads the whole
+! file before it looks for the Version object, so a header of any width is legal.
+! Filler. This line exists to widen the comment header. EnergyPlus reads the whole
+! file before it looks for the Version object, so a header of any width is legal.
+! Filler. This line exists to widen the comment header. EnergyPlus reads the whole
+! file before it looks for the Version object, so a header of any width is legal.
+! Filler. This line exists to widen the comment header. EnergyPlus reads the whole
+! file before it looks for the Version object, so a header of any width is legal.
+! Filler. This line exists to widen the comment header. EnergyPlus reads the whole
+! file before it looks for the Version object, so a header of any width is legal.
+! Filler. This line exists to widen the comment header. EnergyPlus reads the whole
+! file before it looks for the Version object, so a header of any width is legal.
+! Filler. This line exists to widen the comment header. EnergyPlus reads the whole
+! file before it looks for the Version object, so a header of any width is legal.
+! Filler. This line exists to widen the comment header. EnergyPlus reads the whole
+! file before it looks for the Version object, so a header of any width is legal.
+! Filler. This line exists to widen the comment header. EnergyPlus reads the whole
+! file before it looks for the Version object, so a header of any width is legal.
+! Filler. This line exists to widen the comment header. EnergyPlus reads the whole
+! file before it looks for the Version object, so a header of any width is legal.
+! Filler. This line exists to widen the comment header. EnergyPlus reads the whole
+! file before it looks for the Version object, so a header of any width is legal.
+! Filler. This line exists to widen the comment header. EnergyPlus reads the whole
+! file before it looks for the Version object, so a header of any width is legal.
+! Filler. This line exists to widen the comment header. EnergyPlus reads the whole
+! file before it looks for the Version object, so a header of any width is legal.
+! Filler. This line exists to widen the comment header. EnergyPlus reads the whole
+! file before it looks for the Version object, so a header of any width is legal.
+! Filler. This line exists to widen the comment header. EnergyPlus reads the whole
+! file before it looks for the Version object, so a header of any width is legal.
+! Filler. This line exists to widen the comment header. EnergyPlus reads the whole
+! file before it looks for the Version object, so a header of any width is legal.
+! Filler. This line exists to widen the comment header. EnergyPlus reads the whole
+! file before it looks for the Version object, so a header of any width is legal.
+! Filler. This line exists to widen the comment header. EnergyPlus reads the whole
+! file before it looks for the Version object, so a header of any width is legal.
+! Filler. This line exists to widen the comment header. EnergyPlus reads the whole
+! file before it looks for the Version object, so a header of any width is legal.
+! Filler. This line exists to widen the comment header. EnergyPlus reads the whole
+! file before it looks for the Version object, so a header of any width is legal.
+! Filler. This line exists to widen the comment header. EnergyPlus reads the whole
+! file before it looks for the Version object, so a header of any width is legal.
+! Filler. This line exists to widen the comment header. EnergyPlus reads the whole
+! file before it looks for the Version object, so a header of any width is legal.
+! Filler. This line exists to widen the comment header. EnergyPlus reads the whole
+! file before it looks for the Version object, so a header of any width is legal.
+! Filler. This line exists to widen the comment header. EnergyPlus reads the whole
+! file before it looks for the Version object, so a header of any width is legal.
+! Filler. This line exists to widen the comment header. EnergyPlus reads the whole
+! file before it looks for the Version object, so a header of any width is legal.
+! Filler. This line exists to widen the comment header. EnergyPlus reads the whole
+! file before it looks for the Version object, so a header of any width is legal.
+! Filler. This line exists to widen the comment header. EnergyPlus reads the whole
+! file before it looks for the Version object, so a header of any width is legal.
+! Filler. This line exists to widen the comment header. EnergyPlus reads the whole
+! file before it looks for the Version object, so a header of any width is legal.
+! Filler. This line exists to widen the comment header. EnergyPlus reads the whole
+! file before it looks for the Version object, so a header of any width is legal.
+! Filler. This line exists to widen the comment header. EnergyPlus reads the whole
+! file before it looks for the Version object, so a header of any width is legal.
+! Filler. This line exists to widen the comment header. EnergyPlus reads the whole
+! file before it looks for the Version object, so a header of any width is legal.
+! Filler. This line exists to widen the comment header. EnergyPlus reads the whole
+! file before it looks for the Version object, so a header of any width is legal.
+! Filler. This line exists to widen the comment header. EnergyPlus reads the whole
+! file before it looks for the Version object, so a header of any width is legal.
+! Filler. This line exists to widen the comment header. EnergyPlus reads the whole
+! file before it looks for the Version object, so a header of any width is legal.
+! Filler. This line exists to widen the comment header. EnergyPlus reads the whole
+! file before it looks for the Version object, so a header of any width is legal.
+! Filler. This line exists to widen the comment header. EnergyPlus reads the whole
+! file before it looks for the Version object, so a header of any width is legal.
+! Filler. This line exists to widen the comment header. EnergyPlus reads the whole
+! file before it looks for the Version object, so a header of any width is legal.
+! Filler. This line exists to widen the comment header. EnergyPlus reads the whole
+! file before it looks for the Version object, so a header of any width is legal.
+! Filler. This line exists to widen the comment header. EnergyPlus reads the whole
+! file before it looks for the Version object, so a header of any width is legal.
+! Filler. This line exists to widen the comment header. EnergyPlus reads the whole
+! file before it looks for the Version object, so a header of any width is legal.
+! Filler. This line exists to widen the comment header. EnergyPlus reads the whole
+! file before it looks for the Version object, so a header of any width is legal.
+! Filler. This line exists to widen the comment header. EnergyPlus reads the whole
+! file before it looks for the Version object, so a header of any width is legal.
+! Filler. This line exists to widen the comment header. EnergyPlus reads the whole
+! file before it looks for the Version object, so a header of any width is legal.
+! Filler. This line exists to widen the comment header. EnergyPlus reads the whole
+! file before it looks for the Version object, so a header of any width is legal.
+! Filler. This line exists to widen the comment header. EnergyPlus reads the whole
+! file before it looks for the Version object, so a header of any width is legal.
+! Filler. This line exists to widen the comment header. EnergyPlus reads the whole
+! file before it looks for the Version object, so a header of any width is legal.
+! Filler. This line exists to widen the comment header. EnergyPlus reads the whole
+! file before it looks for the Version object, so a header of any width is legal.
+! Filler. This line exists to widen the comment header. EnergyPlus reads the whole
+! file before it looks for the Version object, so a header of any width is legal.
+! Filler. This line exists to widen the comment header. EnergyPlus reads the whole
+! file before it looks for the Version object, so a header of any width is legal.
+!
+! End of the header. The Version object begins beyond byte 10400.
+
+  Version,26.1;
+
+  Building,
+    Conformance,             !- Name
+    0.0,                     !- North Axis {deg}
+    City,                    !- Terrain
+    0.04,                    !- Loads Convergence Tolerance Value {W}
+    0.4,                     !- Temperature Convergence Tolerance Value {deltaC}
+    FullExterior,            !- Solar Distribution
+    25,                      !- Maximum Number of Warmup Days
+    6;                       !- Minimum Number of Warmup Days
+
+  GlobalGeometryRules,
+    UpperLeftCorner,         !- Starting Vertex Position
+    Counterclockwise,        !- Vertex Entry Direction
+    Relative,                !- Coordinate System
+    Relative,                !- Daylighting Reference Point Coordinate System
+    Relative;                !- Rectangular Surface Coordinate System

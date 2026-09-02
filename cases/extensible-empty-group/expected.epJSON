@@ -1,0 +1,28 @@
+{
+    "AirLoopHVAC:ZoneSplitter": {
+        "Empty Splitter": {
+            "inlet_node_name": "Splitter Inlet Node"
+        }
+    },
+    "Building": {
+        "Minimal Building": {}
+    },
+    "GlobalGeometryRules": {
+        "GlobalGeometryRules 1": {
+            "coordinate_system": "Relative",
+            "starting_vertex_position": "UpperLeftCorner",
+            "vertex_entry_direction": "Counterclockwise"
+        }
+    },
+    "PlantEquipmentList": {
+        "Empty Equipment List": {}
+    },
+    "Version": {
+        "Version 1": {
+            "version_identifier": "26.1"
+        }
+    },
+    "ZoneList": {
+        "Empty Zone List": {}
+    }
+}

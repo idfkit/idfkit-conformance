@@ -1,0 +1,27 @@
+Version,
+  26.1;
+
+Building,
+  Zero Against Blank,
+  0.0,                     !- North Axis {deg}
+  City,                    !- Terrain
+  0.04,                    !- Loads Convergence Tolerance Value {W}
+  0.4,                     !- Temperature Convergence Tolerance Value {deltaC}
+  FullExterior,            !- Solar Distribution
+  25,                      !- Maximum Number of Warmup Days
+  6;                       !- Minimum Number of Warmup Days
+
+GlobalGeometryRules,
+  UpperLeftCorner,         !- Starting Vertex Position
+  Counterclockwise,        !- Vertex Entry Direction
+  Relative;                !- Coordinate System
+
+Zone,
+  Zero Zone,               !- Name
+  0,                       !- Direction of Relative North {deg}
+  0.0,                     !- X Origin {m}
+  -0.0,                    !- Y Origin {m}
+  0.0E+0,                  !- Z Origin {m}
+  ,                        !- Type
+  ,                        !- Multiplier
+  ;                        !- Ceiling Height {m}

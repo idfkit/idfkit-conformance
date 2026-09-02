@@ -1,0 +1,30 @@
+title = "An object type in no schema is rejected, not passed through"
+why = """
+This file is valid apart from one object, "NotAnEnergyPlusObject", whose type appears in no
+EnergyPlus schema at any version. Reading it must fail. The hazard is the tempting alternative:
+a schema-driven parser can carry an unrecognised type through as an untyped bag of positional
+values and let the caller decide, which turns a typo in an object type name into a silently
+dropped object at simulation time instead of an error at parse time.
+
+The oracle rules the same way and refuses to convert:
+
+  Line: 15 Index: 21 - "NotAnEnergyPlusObject" is not a valid Object Type.
+  Errors occurred when validating input file. Preceding condition(s) cause termination.
+
+This case is nonetheless filed under truth = convention rather than truth = oracle, and the reason
+is mechanical rather than a judgement about the evidence. The corpus has exactly one shape for an
+oracle expectation, expected.epJSON, and a rejected input produces no such file. Assertion 4,
+which would let a case commit the oracle's diagnostics, is deferred. So the case asserts
+parse-outcome alone, and the oracle's message is quoted above so that a maintainer who later lands
+assertion 4 knows this expectation was corroborated externally and is not merely the two libraries
+agreeing with each other.
+
+Take care when tightening this case. The two libraries fail here for reasons that are not yet the
+same shared code: Python raises IDFParseError, which the corpus contract maps to the shared code
+ParseError, where UnknownObjectType would be the more precise member of that vocabulary. Assertion
+4 is where that gets settled; parse-outcome only asks that reading fails.
+"""
+tags = ["types"]
+energyplus_version = "26.1.0"
+truth = "convention"
+assertions = ["parse-outcome"]

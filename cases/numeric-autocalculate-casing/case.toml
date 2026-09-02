@@ -1,0 +1,23 @@
+title = "An autocalculate sentinel is canonicalised, not echoed as written"
+why = """
+EnergyPlus lets a numeric field carry the word autocalculate instead of a number, and the IDF is
+case insensitive, so the same model is written autocalculate, AUTOCALCULATE and AutoCalculate in
+different files. epJSON is not case insensitive. The schema declares the sentinel for Zone's
+ceiling_height, volume and floor_area as the string enum ["", "Autocalculate"], and
+ConvertInputFormat emits exactly that spelling whatever the file said. A reader that echoes the
+as-written casing produces an epJSON whose value is outside the schema's own enum, so it fails
+schema validation and compares unequal against every other reader's output for the same model.
+
+This case pins the canonicalisation for all three casings at once, on one object, so a library that
+handles the lower case form and not the shouted one cannot pass by accident. It is the smallest
+reproducer for the sweep's third largest family: 37,164 occurrences across 722 of the 760 example
+files, driven by Zone/ceiling_height, Zone/volume and BuildingSurface:Detailed/view_factor_to_ground.
+
+The sibling case numeric-autosize-casing pins the same rule for the other sentinel word, and
+numeric-sentinel-schema-remap pins the harder rule that the sentinel a field accepts is the one its
+schema enum names, which is not always the word the file used.
+"""
+tags = ["numeric"]
+energyplus_version = "26.1.0"
+truth = "oracle"
+assertions = ["parse-outcome", "epjson", "round-trip"]

@@ -1,0 +1,39 @@
+! Trailing unset slots INSIDE an extensible group, in both of the two positions they can occupy.
+! Equipment group 1 ends with two blank slots and is followed by group 2, so those blanks sit in
+! the middle of the object's field list. Group 2 ends with the same two blank slots at the very
+! end of the object, closed by the semicolon. The oracle omits all four keys.
+
+  Version,26.1;
+
+  Building,
+    Minimal,                 !- Name
+    0.0,                     !- North Axis {deg}
+    Suburbs,                 !- Terrain
+    0.04,                    !- Loads Convergence Tolerance Value {W}
+    0.4,                     !- Temperature Convergence Tolerance Value {deltaC}
+    FullExterior,            !- Solar Distribution
+    25,                      !- Maximum Number of Warmup Days
+    6;                       !- Minimum Number of Warmup Days
+
+  GlobalGeometryRules,
+    UpperLeftCorner,         !- Starting Vertex Position
+    Counterclockwise,        !- Vertex Entry Direction
+    Relative,                !- Coordinate System
+    Relative,                !- Daylighting Reference Point Coordinate System
+    Relative;                !- Rectangular Surface Coordinate System
+
+  ZoneHVAC:EquipmentList,
+    Main Zone Equipment,     !- Name
+    SequentialLoad,          !- Load Distribution Scheme
+    ZoneHVAC:AirDistributionUnit,  !- Zone Equipment 1 Object Type
+    Main Zone ATU,           !- Zone Equipment 1 Name
+    1,                       !- Zone Equipment 1 Cooling Sequence
+    2,                       !- Zone Equipment 1 Heating or No-Load Sequence
+    ,                        !- Zone Equipment 1 Sequential Cooling Fraction Schedule Name
+    ,                        !- Zone Equipment 1 Sequential Heating Fraction Schedule Name
+    ZoneHVAC:Baseboard:Convective:Electric,  !- Zone Equipment 2 Object Type
+    Main Zone Baseboard,     !- Zone Equipment 2 Name
+    2,                       !- Zone Equipment 2 Cooling Sequence
+    1,                       !- Zone Equipment 2 Heating or No-Load Sequence
+    ,                        !- Zone Equipment 2 Sequential Cooling Fraction Schedule Name
+    ;                        !- Zone Equipment 2 Sequential Heating Fraction Schedule Name

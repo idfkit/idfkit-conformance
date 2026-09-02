@@ -1,0 +1,18 @@
+title = "An autosize sentinel is canonicalised, not echoed as written"
+why = """
+The autosize sentinel is the other half of the rule pinned by numeric-autocalculate-casing, and it
+is worth its own case because the two words come from different IDD markers and a library may
+canonicalise one while echoing the other. The schema declares nominal_capacity of
+Coil:Heating:Electric as the enum ["", "Autosize"], and ConvertInputFormat emits "Autosize" whether
+the file said autosize, AUTOSIZE or AutoSize. Three coils differing only in the casing of that one
+field make the divergence visible three times in one epJSON, which is what tells a maintainer that
+the finding is about casing rather than about one unlucky field.
+
+Autosize sentinels are dense in real models: every sizeable capacity, flow rate and area in an
+autosized HVAC system carries one, and a model that loses the canonical spelling on all of them
+fails schema validation everywhere at once rather than in one place.
+"""
+tags = ["numeric"]
+energyplus_version = "26.1.0"
+truth = "oracle"
+assertions = ["parse-outcome", "epjson", "round-trip"]

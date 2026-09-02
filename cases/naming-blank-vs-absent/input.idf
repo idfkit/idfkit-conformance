@@ -1,0 +1,30 @@
+! naming-blank-vs-absent
+!
+! Version and GlobalGeometryRules have no Name field, so the oracle synthesises "Version 1" and
+! "GlobalGeometryRules 1". WeatherProperty:SkyTemperature has an optional Name; the blank below is
+! kept verbatim, so its key is "". The second object is genuinely named
+! "WeatherProperty:SkyTemperature 1", which collides with the key a name-synthesising library
+! assigns to the first one.
+!
+! Building and GlobalGeometryRules are here only because ConvertInputFormat validates before
+! converting and requires them. The choice values are written in the schema's own casing so this
+! case pins naming alone.
+
+Version,
+  26.1;                    !- Version Identifier
+
+Building,
+  Conformance;             !- Name
+
+GlobalGeometryRules,
+  UpperLeftCorner,         !- Starting Vertex Position
+  Counterclockwise,        !- Vertex Entry Direction
+  World;                   !- Coordinate System
+
+WeatherProperty:SkyTemperature,
+  ,                        !- Name, left blank on purpose
+  ClarkAllen;              !- Calculation Type
+
+WeatherProperty:SkyTemperature,
+  WeatherProperty:SkyTemperature 1,  !- Name, genuinely this string
+  Brunt;                   !- Calculation Type

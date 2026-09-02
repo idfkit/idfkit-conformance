@@ -1,0 +1,40 @@
+! One entry against several, for a one-field group and for a two-field group.
+!
+! The single-entry objects pin that a group of one is still a JSON array of one object.
+! The multi-entry objects pin that entry boundaries fall every N fields and that array
+! order is the order written, which is deliberately not alphabetical order here.
+
+Version,
+  26.1;
+
+Building,
+  Minimal Building;
+
+GlobalGeometryRules,
+  UpperLeftCorner,
+  Counterclockwise,
+  Relative;
+
+ZoneList,
+  Single Zone List,
+  Zone Three;
+
+ZoneList,
+  Multiple Zone List,
+  Zone Three,
+  Zone One,
+  Zone Two;
+
+PlantEquipmentList,
+  Single Equipment List,
+  Pump:VariableSpeed,
+  Pump One;
+
+PlantEquipmentList,
+  Multiple Equipment List,
+  Pump:VariableSpeed,
+  Pump One,
+  Boiler:HotWater,
+  Boiler One,
+  Chiller:Electric:EIR,
+  Chiller One;

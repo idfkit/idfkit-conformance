@@ -1,0 +1,25 @@
+title = "A Version object beyond the first ten kilobytes still sets the version"
+why = """
+EnergyPlus reads the whole file before it resolves the Version object, so a Version object may sit
+anywhere. Three files in the 26.1.0 example set put it behind a comment header wider than ten
+kilobytes: RefBldgPrimarySchoolNew2004_Chicago.idf at byte 10509, then
+EMSCurveOverride_PackagedTerminalHeatPump.idf at 12990 and
+1ZoneWith14ControlledHeat-CoolPanels.idf at 16547. The first of those is a 10507 byte DOE reference
+building comment header, so this shape is ordinary rather than contrived, and this case is that
+header reduced to its smallest form: the Version object lands at byte 10502.
+
+The hazard is a detector that reads only a prefix of the file. Scanning a fixed window is a
+reasonable optimisation right up to the file that crosses it, and then it is not a slow parse, it is
+a refusal to parse at all. That is why this case asserts the parse outcome and not only the epJSON:
+the failure mode is a raised exception, and a case that only compared documents would report nothing
+useful because there would be no document to compare.
+
+The number ten kilobytes is not in any specification. Nothing in the IDF format bounds where the
+Version object may appear, so no window is large enough, and the fix is to search the whole file
+rather than to widen the window. If a future change makes the window larger, this case must be
+regenerated with a header that crosses the new one, and the header lead comment must say so.
+"""
+tags = ["versions"]
+energyplus_version = "26.1.0"
+truth = "oracle"
+assertions = ["parse-outcome", "epjson", "round-trip"]

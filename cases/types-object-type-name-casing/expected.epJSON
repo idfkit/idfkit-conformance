@@ -1,0 +1,35 @@
+{
+    "Building": {
+        "Conformance Test Building": {}
+    },
+    "GlobalGeometryRules": {
+        "GlobalGeometryRules 1": {
+            "coordinate_system": "Relative",
+            "starting_vertex_position": "UpperLeftCorner",
+            "vertex_entry_direction": "Counterclockwise"
+        }
+    },
+    "Output:Variable": {
+        "Output:Variable 1": {
+            "key_value": "*",
+            "reporting_frequency": "Hourly",
+            "variable_name": "Site Outdoor Air Drybulb Temperature"
+        }
+    },
+    "ScheduleTypeLimits": {
+        "Any Number Limits": {}
+    },
+    "Version": {
+        "Version 1": {
+            "version_identifier": "26.1"
+        }
+    },
+    "Zone": {
+        "Test Zone": {
+            "direction_of_relative_north": 0.0,
+            "x_origin": 0.0,
+            "y_origin": 0.0,
+            "z_origin": 0.0
+        }
+    }
+}

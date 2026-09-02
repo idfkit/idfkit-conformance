@@ -1,0 +1,31 @@
+{
+    "Building": {
+        "Simple One Zone": {
+            "loads_convergence_tolerance_value": 0.04,
+            "maximum_number_of_warmup_days": 25,
+            "minimum_number_of_warmup_days": 6,
+            "north_axis": 0.0,
+            "solar_distribution": "FullExterior",
+            "temperature_convergence_tolerance_value": 0.4,
+            "terrain": "Suburbs"
+        }
+    },
+    "GlobalGeometryRules": {
+        "GlobalGeometryRules 1": {
+            "coordinate_system": "World",
+            "starting_vertex_position": "UpperLeftCorner",
+            "vertex_entry_direction": "Counterclockwise"
+        }
+    },
+    "Material:NoMass": {
+        "试验": {
+            "roughness": "Rough",
+            "thermal_resistance": 5.0
+        }
+    },
+    "Version": {
+        "Version 1": {
+            "version_identifier": "26.1"
+        }
+    }
+}

@@ -1,0 +1,45 @@
+title = "A reference matches its target case-insensitively but is never rewritten to the target's casing"
+why = """
+Gap-filling case. The bootstrap sweep over the 760 EnergyPlus example files found no
+reference-resolution disagreement at all, in any of the 829 shapes it recorded. This case pins
+behaviour that currently agrees, so a future change cannot break it unobserved.
+
+Two rules are in force at once here and they pull in opposite directions. EnergyPlus matches object
+names case-insensitively, so "PARTITION MATERIAL" and "partition material" both find the material
+declared as "Partition Material". Both libraries implement that, by different means: Python's
+ReferenceGraph keys its index on target.upper(), JavaScript's on target.toLowerCase(). Neither
+folding is observable from outside. What is observable, and what this case pins, is that the folding
+stays inside the index and never reaches the document. The names in the file are preserved exactly
+as written on both sides of every reference: the target keeps its own casing as the epJSON object
+key, and each referring field keeps the casing the author typed, even though all three spellings
+denote one object.
+
+The hazard is a reader that helpfully canonicalises. Having resolved "PARTITION MATERIAL" to the
+material, it is a short step to writing the resolved object's name back into the field so the
+document is internally tidy, or to folding the epJSON key so the index and the document agree. Both
+are silent rewrites of the user's file, and the second is worse than untidy: fold the key and two
+materials whose names differ only in case collapse into one. ConvertInputFormat does neither. It
+emits the key "Partition Material" and the two outside_layer values "PARTITION MATERIAL" and
+"partition material", each verbatim.
+
+This is also where the corpus's own comparison rule needs care. Rule 5 of runners/compare.md makes
+string comparison case-sensitive and says case-insensitive reference resolution is pinned by the
+references cases rather than by loosening that rule. This is that case, and it is the reason rule 5
+can stay strict: the resolution is case-insensitive, the representation is not, and only the
+representation is compared.
+
+Note what assertion 2 can and cannot see. epJSON does not encode reference resolution, so nothing
+here can assert that the two references resolved. It can assert both directions of the hazard
+anyway. A library that rewrote either side to a canonical casing produces a value difference against
+this expectation. A library that matched case-sensitively, and so treated both references as
+dangling, would have to either fail the parse or alter the field to say so, and assertion 1 or
+assertion 2 catches it. What no case can observe is a library that resolves case-insensitively into
+an index nobody reads; that is a unit-test concern inside each library, not a conformance one.
+
+The reproducer carries two referring objects rather than one, upper and lower, so that a rewrite to
+the target's casing cannot be mistaken for the file having been written that way.
+"""
+tags = ["references"]
+energyplus_version = "26.1.0"
+truth = "oracle"
+assertions = ["parse-outcome", "epjson", "round-trip"]

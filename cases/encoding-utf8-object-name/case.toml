@@ -1,0 +1,36 @@
+title = "A UTF-8 object name keeps its characters in the epJSON key"
+why = """
+ExampleFiles/1ZoneUncontrolledUTF8.idf is the only file in the EnergyPlus example set whose object
+names are not ASCII, and it is the only place the bootstrap sweep found a presence difference
+reported against both libraries at once. The oracle emits the key "试验", two characters, U+8BD5 and
+U+9A8C. Both libraries emit "è¯éª", which is what those six UTF-8 bytes look like decoded one byte
+at a time as latin-1. The object is not lost. Its key is corrupted, which is why the difference
+surfaces as a missing key plus an extra key rather than as a value difference, and why it shows up
+on the Python side and the JavaScript side simultaneously.
+
+The tension this case states and deliberately does not resolve. Rule 6 of runners/compare.md fixes
+the encoding of input.idf at latin-1, and that rule is right for what it governs: latin-1 never
+fails on any byte sequence, so a garbled value is reported as a difference instead of crashing the
+comparator on a decode error. The finding here is narrower and is about the input format rather than
+about the comparison. EnergyPlus itself accepts UTF-8 in an object name, and its validator in fact
+requires it: writing the same name with high bytes that are not valid UTF-8 makes
+ConvertInputFormat reject the file outright with "Object name is required and cannot be blank or
+whitespace, and must be UTF-8 encoded". That rejection is also why the companion case
+encoding-latin1-high-bytes has to keep its high bytes out of a name.
+
+How the libraries read an IDF and how this suite reads a committed artifact are two separate
+questions. This case settles only the first one, and it settles it against the oracle. Amending rule
+6 on the strength of a single example file is a decision for a human reviewer, not for curation, so
+until that decision is made both libraries fail the epjson assertion here and both carry an entry in
+known-divergence.toml.
+
+Minimality: Version, Building and GlobalGeometryRules are present only because
+ConvertInputFormat validates before it converts and refuses the file without them. The Material:NoMass is
+the whole hazard, and one object carrying the name is enough to pin it. Its values are kept short so
+that a library rounding a numeric on the way back out cannot fail the round trip for an unrelated
+reason.
+"""
+tags = ["encoding"]
+energyplus_version = "26.1.0"
+truth = "oracle"
+assertions = ["parse-outcome", "epjson", "round-trip"]

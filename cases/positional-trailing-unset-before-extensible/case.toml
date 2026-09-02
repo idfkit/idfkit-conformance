@@ -1,0 +1,27 @@
+title = "An unset fixed field followed by an extensible group"
+why = """
+The companion to positional-trailing-unset-no-extensible, and the other branch of the same code
+path. When an object type has an extensible group, the fixed fields before it can be left unset
+only by writing a blank comma: an early semicolon would take the extensible data with it. So the
+parser meets an unset slot that is not at the end of the object, with real data behind it, and it
+has to decide the field is unset on the strength of the blank alone rather than on running out of
+input.
+
+Schedule:Day:Interval is the smallest type with that shape: Name, then two fixed fields (Schedule
+Type Limits Name, Interpolate to Timestep), then a repeating (Time, Value Until Time) group. Both
+Fixed Fields Blank leaves the pair blank and then supplies two data points; the oracle emits only
+the data array. Interior Field Blank leaves the first blank and sets the second to No, so an unset
+slot sits between two fields that both carry values; the oracle emits interpolate_to_timestep and
+the data array, and no key for the blank.
+
+Two things can go wrong here and only this shape catches them. A parser can emit the blank fixed
+field as an empty-string key, which is the same bug as in the no-extensible case but reached
+through a different branch. Or it can lose alignment: consume the blank as the extensible group's
+first slot, or skip it and shift every later field one position left, which is silent because the
+values that land in the wrong slots are all plausible ones. Assertion 3 is declared for exactly
+that second failure, since it is a field-order bug and field order is compared only there.
+"""
+tags = ["positional", "extensible"]
+energyplus_version = "26.1.0"
+truth = "oracle"
+assertions = ["parse-outcome", "epjson", "round-trip"]

@@ -1,0 +1,24 @@
+title = "Zero is a value and a blank field is not zero"
+why = """
+The most dangerous number in this format is the one nobody wrote. A blank IDF field means the field
+is unset, and ConvertInputFormat omits the key entirely rather than emitting the schema's default,
+so this Zone comes back with type, multiplier and ceiling_height absent even though the schema
+defaults them to 1, 1 and Autocalculate. A library that fills the default in, or that reads a blank
+numeric field as 0, produces a document that is silently different from the model on disk: a zero
+ceiling height and an autocalculated one are not the same building, and neither is a zone multiplier
+of 1 that the author never asked for.
+
+The other half of the case is that an explicit zero is data and must survive in every spelling the
+IDF allows: 0, 0.0, -0.0 and 0.0E+0 all appear here, and all four are zero. This is also why the
+numeric comparison rule has a relative tolerance and no absolute floor. An absolute epsilon would
+make zero equal to any small number and would hide exactly the confusion this case pins, where a
+field that should have been absent arrives as 0.
+
+Note that the oracle preserves the sign of negative zero on y_origin. Since -0.0 equals 0.0 under
+the comparison rules, a library that drops the sign passes, which is correct: the sign of zero is a
+detail of the text, not of the model.
+"""
+tags = ["numeric", "positional"]
+energyplus_version = "26.1.0"
+truth = "oracle"
+assertions = ["parse-outcome", "epjson", "round-trip"]

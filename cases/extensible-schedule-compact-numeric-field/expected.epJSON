@@ -1,0 +1,48 @@
+{
+    "Building": {
+        "Minimal Building": {}
+    },
+    "GlobalGeometryRules": {
+        "GlobalGeometryRules 1": {
+            "coordinate_system": "Relative",
+            "starting_vertex_position": "UpperLeftCorner",
+            "vertex_entry_direction": "Counterclockwise"
+        }
+    },
+    "Schedule:Compact": {
+        "Untyped Extensible Schedule": {
+            "data": [
+                {
+                    "field": "Through: 12/31"
+                },
+                {
+                    "field": "For: AllDays"
+                },
+                {
+                    "field": "Until: 08:00"
+                },
+                {
+                    "field": 0
+                },
+                {
+                    "field": "Until: 18:00"
+                },
+                {
+                    "field": 0.75
+                },
+                {
+                    "field": "Until: 24:00"
+                },
+                {
+                    "field": 1
+                }
+            ],
+            "schedule_type_limits_name": "Any Number"
+        }
+    },
+    "Version": {
+        "Version 1": {
+            "version_identifier": "26.1"
+        }
+    }
+}

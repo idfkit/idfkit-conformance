@@ -1,0 +1,5 @@
+{
+  "diagnostics": [
+    { "code": "InvalidField", "line": 11, "typeName": "Building" }
+  ]
+}

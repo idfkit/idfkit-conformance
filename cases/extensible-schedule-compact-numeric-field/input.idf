@@ -1,0 +1,29 @@
+! Hazard A of the bootstrap sweep, reduced to one schedule.
+!
+! Schedule:Compact has one untyped extensible field, "field", whose schema type is
+! anyOf [number, string]. Every value of the schedule, both the keyword lines and the
+! numeric values, arrives through that one field. A reader that never looks at the value
+! itself ships the numbers as strings.
+
+Version,
+  26.1;
+
+Building,
+  Minimal Building;
+
+GlobalGeometryRules,
+  UpperLeftCorner,
+  Counterclockwise,
+  Relative;
+
+Schedule:Compact,
+  Untyped Extensible Schedule,
+  Any Number,
+  Through: 12/31,
+  For: AllDays,
+  Until: 08:00,
+  0,
+  Until: 18:00,
+  0.75,
+  Until: 24:00,
+  1;

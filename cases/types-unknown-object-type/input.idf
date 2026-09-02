@@ -1,0 +1,17 @@
+! An object type that is in no EnergyPlus schema, in an otherwise valid file.
+
+Version, 26.1;
+
+Building, Conformance Test Building;
+
+GlobalGeometryRules,
+  UpperLeftCorner,
+  Counterclockwise,
+  Relative;
+
+Zone,
+  Test Zone;
+
+NotAnEnergyPlusObject,   !- in no EnergyPlus schema, at any version
+  Some Name,
+  1.0;

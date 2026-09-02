@@ -1,0 +1,35 @@
+title = "Unset trailing slots inside an extensible group are omitted, not emitted blank"
+why = """
+The largest positional finding of the bootstrap sweep: 5,558 occurrences across 579 of the 760
+EnergyPlus example files, on 16 distinct fields. A library emits a key holding the empty string for
+an unset trailing slot inside an extensible group; ConvertInputFormat omits the key. The sweep's own
+reproducer was
+/ZoneHVAC:EquipmentList/<name>/equipment/#/zone_equipment_sequential_cooling_fraction_schedule_name
+and its heating counterpart in 1ZoneDataCenterCRAC_wApproachTemp.idf, which is the object this case
+is cut down from.
+
+Inside an extensible group the unset slot has two possible positions, and they are different code
+paths, so both are here in one object. Equipment group 1 leaves its last two slots (the cooling and
+heating fraction schedule names) blank and is followed by group 2, so those blanks sit in the middle
+of the object's flat field list and the parser has to recognise the group boundary to know they end
+a group at all. Group 2 leaves the same two slots blank at the very end of the object, closed by the
+semicolon, where the parser is instead deciding how many groups the remaining fields make up. The
+oracle omits all four keys, so its equipment array is two objects of exactly four keys each.
+
+Why this matters beyond tidiness: zone_equipment_sequential_cooling_fraction_schedule_name is an
+object_list field pointing at ScheduleNames. An empty string there is a reference to a schedule
+named "", so a reference check sees a dangling reference to a schedule the model does not contain,
+and a consumer reading the epJSON sees a fraction schedule that was never assigned. The empty string
+is not a harmless spelling of absent.
+
+Read this case together with its two siblings, positional-trailing-unset-no-extensible and
+positional-trailing-unset-before-extensible, which put the same unset slot in the fixed part of an
+object. A library can handle the fixed part correctly and still keep the blanks inside an extensible
+group, because the two are usually reached through different code, and that is exactly the split the
+sweep found. Passing one of the three is no evidence about the other two, which is why all three are
+in the corpus rather than one standing in for the rest.
+"""
+tags = ["positional", "extensible"]
+energyplus_version = "26.1.0"
+truth = "oracle"
+assertions = ["parse-outcome", "epjson", "round-trip"]

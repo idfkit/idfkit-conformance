@@ -1,0 +1,23 @@
+title = "Exponent notation is a number, and its text form carries no meaning"
+why = """
+IDF numbers are free-form text and real models use every exponent spelling: 1.0E-5 with a capital E,
+-2.5e-3 with a lower case one, -1.5E+2 with an explicit positive sign, and 1.5E2 with no sign at
+all. epJSON has one number type and no memory of how the number was written, so all four must arrive
+as numbers, and their JSON text is not part of the expectation.
+
+This case is the one that keeps the comparison rules honest as much as the libraries. Python renders
+this same document as 1e-05 / -0.0025 / -150.0 / 150.0 and JavaScript renders it as 0.00001 /
+-0.0025 / -150 / 150. Every pair is the same value and three of the four pairs differ as text, so a
+comparator that ever compares JSON text, even for a fast path on a nested subtree, reports three
+findings here where there are none. Noise at that volume trains maintainers to ignore the suite, so
+this case exists to fail loudly the day a comparator regresses to text.
+
+The hazard on the library side is the mirror image: a reader that does not recognise an exponent as
+numeric leaves it as the string "1.0E-5", which the comparison rules treat as a real difference
+because a numeric string is not a number. Both readings are silent in a round trip within one
+library and only show up against an external expectation.
+"""
+tags = ["numeric"]
+energyplus_version = "26.1.0"
+truth = "oracle"
+assertions = ["parse-outcome", "epjson", "round-trip"]

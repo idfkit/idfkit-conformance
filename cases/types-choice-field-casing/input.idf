@@ -1,0 +1,22 @@
+! Choice fields written in casing that is not the schema's declared casing.
+! ConvertInputFormat canonicalises each one; both libraries preserve the file's casing.
+
+Version, 26.1;
+
+Building, Conformance Test Building;
+
+GlobalGeometryRules,
+  UpperLeftCorner,     !- starting_vertex_position, already canonical
+  CounterClockWise,    !- vertex_entry_direction, schema declares "Counterclockwise"
+  Relative;            !- coordinate_system, already canonical
+
+ScheduleTypeLimits,
+  Any Number Limits,   !- name
+  ,                    !- lower_limit_value
+  ,                    !- upper_limit_value
+  CONTINUOUS;          !- numeric_type, schema declares "Continuous"
+
+Output:Variable,
+  *,                                        !- key_value
+  Site Outdoor Air Drybulb Temperature,     !- variable_name
+  hourly;                                   !- reporting_frequency, schema declares "Hourly"

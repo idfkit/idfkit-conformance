@@ -1,0 +1,41 @@
+Version,
+  26.1;
+
+Building,
+  Autosize Casing,
+  0.0,                     !- North Axis {deg}
+  City,                    !- Terrain
+  0.04,                    !- Loads Convergence Tolerance Value {W}
+  0.4,                     !- Temperature Convergence Tolerance Value {deltaC}
+  FullExterior,            !- Solar Distribution
+  25,                      !- Maximum Number of Warmup Days
+  6;                       !- Minimum Number of Warmup Days
+
+GlobalGeometryRules,
+  UpperLeftCorner,         !- Starting Vertex Position
+  Counterclockwise,        !- Vertex Entry Direction
+  Relative;                !- Coordinate System
+
+Coil:Heating:Electric,
+  Lower Coil,              !- Name
+  ,                        !- Availability Schedule Name
+  1.0,                     !- Efficiency
+  autosize,                !- Nominal Capacity {W}
+  Lower Coil In Node,      !- Air Inlet Node Name
+  Lower Coil Out Node;     !- Air Outlet Node Name
+
+Coil:Heating:Electric,
+  Upper Coil,              !- Name
+  ,                        !- Availability Schedule Name
+  1.0,                     !- Efficiency
+  AUTOSIZE,                !- Nominal Capacity {W}
+  Upper Coil In Node,      !- Air Inlet Node Name
+  Upper Coil Out Node;     !- Air Outlet Node Name
+
+Coil:Heating:Electric,
+  Mixed Coil,              !- Name
+  ,                        !- Availability Schedule Name
+  1.0,                     !- Efficiency
+  AutoSize,                !- Nominal Capacity {W}
+  Mixed Coil In Node,      !- Air Inlet Node Name
+  Mixed Coil Out Node;     !- Air Outlet Node Name

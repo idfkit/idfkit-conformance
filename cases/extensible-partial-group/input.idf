@@ -1,0 +1,35 @@
+! A final group that stops in the middle of itself.
+!
+! IDF closes an object with a semicolon wherever the author stops, so the last group of an
+! extensible object can carry fewer fields than the group is wide. Nothing marks that in
+! the file: the reader has to notice the group ran out. "Truncated Equipment List" stops
+! after the first field of a two-field group, and "Truncated Annual Table" writes one whole
+! three-field group and then stops after the second field of the next one.
+!
+! This is not the blank-slot hazard. No comma stands for a missing value here; the fields
+! are simply not in the file.
+
+Version,
+  26.1;
+
+Building,
+  Minimal Building;
+
+GlobalGeometryRules,
+  UpperLeftCorner,
+  Counterclockwise,
+  Relative;
+
+PlantEquipmentList,
+  Truncated Equipment List,
+  Pump:ConstantSpeed;
+
+Output:Table:Annual,
+  Truncated Annual Table,
+  Zone One,
+  Table Schedule,
+  Zone Air Temperature,
+  SumOrAverage,
+  2,
+  Zone Air Humidity Ratio,
+  Maximum;

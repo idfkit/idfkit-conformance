@@ -1,0 +1,24 @@
+title = "A group of one is still an array, and the order of several is the order written"
+why = """
+Two failure modes live at the boundary between one entry and several, and each object type here is
+written twice, once with a single group and once with three, so both show up in the same case.
+
+The first failure mode is collapsing. A single-entry group is an array of one object, never the
+object on its own and never the bare value inside it. An implementation that unwraps a group of one
+produces output that reads correctly to a human and breaks every consumer that indexes the array,
+and it will pass any test whose fixtures all happen to carry several entries.
+
+The second is ordering. epJSON arrays are ordered and compare index by index under rule 7 of
+compare.md, and the order is the order the fields were written. The zones in "Multiple Zone List"
+are written Three, One, Two precisely so that an implementation that sorts them, or that rebuilds
+the array from a map keyed by name, reports a difference instead of passing by luck.
+
+Both a one-field group (ZoneList, wrapper "zones") and a two-field group (PlantEquipmentList,
+wrapper "equipment") are here. The two-field group is what pins entry boundaries: six written
+fields must become three entries of two, never six entries of one or one entry of six, and only a
+multi-field group can tell those apart.
+"""
+tags = ["extensible"]
+energyplus_version = "26.1.0"
+truth = "oracle"
+assertions = ["parse-outcome", "epjson", "round-trip"]

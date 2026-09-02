@@ -1,0 +1,24 @@
+! references-case-insensitive-match
+Version,
+  26.1;                                   !- Version Identifier
+
+Building,
+  Conformance Case;                       !- Name
+
+GlobalGeometryRules,
+  UpperLeftCorner,                        !- Starting Vertex Position
+  Counterclockwise,                       !- Vertex Entry Direction
+  Relative;                               !- Coordinate System
+
+Material:NoMass,
+  Partition Material,                     !- Name
+  Rough,                                  !- Roughness
+  1.0;                                    !- Thermal Resistance
+
+Construction,
+  Upper Case Reference,                   !- Name
+  PARTITION MATERIAL;                     !- Outside Layer
+
+Construction,
+  Lower Case Reference,                   !- Name
+  partition material;                     !- Outside Layer

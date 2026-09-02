@@ -1,0 +1,66 @@
+{
+    "Building": {
+        "Conformance Case": {}
+    },
+    "BuildingSurface:Detailed": {
+        "Interior Partition": {
+            "construction_name": "Partition Construction",
+            "number_of_vertices": 4,
+            "outside_boundary_condition": "Surface",
+            "outside_boundary_condition_object": "Interior Partition",
+            "sun_exposure": "NoSun",
+            "surface_type": "Wall",
+            "vertices": [
+                {
+                    "vertex_x_coordinate": 0.0,
+                    "vertex_y_coordinate": 0.0,
+                    "vertex_z_coordinate": 3.0
+                },
+                {
+                    "vertex_x_coordinate": 0.0,
+                    "vertex_y_coordinate": 0.0,
+                    "vertex_z_coordinate": 0.0
+                },
+                {
+                    "vertex_x_coordinate": 5.0,
+                    "vertex_y_coordinate": 0.0,
+                    "vertex_z_coordinate": 0.0
+                },
+                {
+                    "vertex_x_coordinate": 5.0,
+                    "vertex_y_coordinate": 0.0,
+                    "vertex_z_coordinate": 3.0
+                }
+            ],
+            "view_factor_to_ground": 0.5,
+            "wind_exposure": "NoWind",
+            "zone_name": "Zone One"
+        }
+    },
+    "Construction": {
+        "Partition Construction": {
+            "outside_layer": "Partition Material"
+        }
+    },
+    "GlobalGeometryRules": {
+        "GlobalGeometryRules 1": {
+            "coordinate_system": "Relative",
+            "starting_vertex_position": "UpperLeftCorner",
+            "vertex_entry_direction": "Counterclockwise"
+        }
+    },
+    "Material:NoMass": {
+        "Partition Material": {
+            "roughness": "Rough",
+            "thermal_resistance": 1.0
+        }
+    },
+    "Version": {
+        "Version 1": {
+            "version_identifier": "26.1"
+        }
+    },
+    "Zone": {
+        "Zone One": {}
+    }
+}

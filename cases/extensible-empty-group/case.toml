@@ -1,0 +1,26 @@
+title = "An extensible group with no entries has no wrapper key at all"
+why = """
+An object type can declare an extensible group in the schema and still be written with none of it.
+PlantEquipmentList, ZoneList and AirLoopHVAC:ZoneSplitter all do here: each is written with its
+fixed fields only and stops before the first group.
+
+There are three plausible things to emit and only one of them is right. The oracle omits the
+wrapper key entirely. It does not emit "equipment": [], and it does not emit "equipment": null.
+Under rule 3 of compare.md an absent key is not a null key and not an empty array, so a library
+that emits either of the other two forms fails this case rather than passing on a technicality.
+
+The three object types are not redundant. PlantEquipmentList and ZoneList have exactly one fixed
+field, the name, so the emitted object is empty: the whole body of the object is the group that is
+not there. AirLoopHVAC:ZoneSplitter has a fixed field after the name, so an implementation that
+walks fields until it runs out has something to hand back and can still get the group wrong. The
+splitter also has "required": ["outlet_node_name"] on its group items, which constrains what a
+group must contain when one exists and says nothing about whether one must exist.
+
+This is the base case for every other extensible case: an implementation that cannot tell "no
+entries" from "one empty entry" produces a group of one whose fields are all absent, and nothing
+else in the corpus catches it.
+"""
+tags = ["extensible"]
+energyplus_version = "26.1.0"
+truth = "oracle"
+assertions = ["parse-outcome", "epjson", "round-trip"]

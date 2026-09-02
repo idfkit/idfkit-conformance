@@ -1,0 +1,31 @@
+{
+    "Building": {
+        "Conformance Case": {}
+    },
+    "Construction": {
+        "Lower Case Reference": {
+            "outside_layer": "partition material"
+        },
+        "Upper Case Reference": {
+            "outside_layer": "PARTITION MATERIAL"
+        }
+    },
+    "GlobalGeometryRules": {
+        "GlobalGeometryRules 1": {
+            "coordinate_system": "Relative",
+            "starting_vertex_position": "UpperLeftCorner",
+            "vertex_entry_direction": "Counterclockwise"
+        }
+    },
+    "Material:NoMass": {
+        "Partition Material": {
+            "roughness": "Rough",
+            "thermal_resistance": 1.0
+        }
+    },
+    "Version": {
+        "Version 1": {
+            "version_identifier": "26.1"
+        }
+    }
+}

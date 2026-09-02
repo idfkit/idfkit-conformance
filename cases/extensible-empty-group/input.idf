@@ -1,0 +1,26 @@
+! An extensible group with no entries at all.
+!
+! Three object types whose schema declares an extensible group, each written with the
+! group entirely absent from the file. The oracle omits the wrapper key rather than
+! emitting an empty array.
+
+Version,
+  26.1;
+
+Building,
+  Minimal Building;
+
+GlobalGeometryRules,
+  UpperLeftCorner,
+  Counterclockwise,
+  Relative;
+
+PlantEquipmentList,
+  Empty Equipment List;
+
+ZoneList,
+  Empty Zone List;
+
+AirLoopHVAC:ZoneSplitter,
+  Empty Splitter,
+  Splitter Inlet Node;

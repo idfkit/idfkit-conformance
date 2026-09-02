@@ -1,0 +1,34 @@
+! The wrapper key is the schema's extension name, never the extensible field name.
+!
+! Three object types whose wrapper key cannot be guessed from the fields underneath it:
+! Output:Diagnostics wraps "key" in "diagnostics" and has no non-extensible field at all,
+! Meter:Custom wraps "key_name" and "output_variable_or_meter_name" in "variable_details",
+! and AirLoopHVAC:ZoneSplitter wraps "outlet_node_name" in "nodes".
+
+Version,
+  26.1;
+
+Building,
+  Minimal Building;
+
+GlobalGeometryRules,
+  UpperLeftCorner,
+  Counterclockwise,
+  Relative;
+
+Output:Diagnostics,
+  DisplayExtraWarnings;
+
+Meter:Custom,
+  Custom Electricity Meter,
+  Electricity,
+  Zone One,
+  Lights Electricity Energy,
+  Zone Two,
+  Lights Electricity Energy;
+
+AirLoopHVAC:ZoneSplitter,
+  Wrapper Key Splitter,
+  Splitter Inlet Node,
+  Splitter Outlet Node One,
+  Splitter Outlet Node Two;

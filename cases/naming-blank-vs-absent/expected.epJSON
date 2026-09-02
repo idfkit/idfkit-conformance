@@ -1,0 +1,25 @@
+{
+    "Building": {
+        "Conformance": {}
+    },
+    "GlobalGeometryRules": {
+        "GlobalGeometryRules 1": {
+            "coordinate_system": "World",
+            "starting_vertex_position": "UpperLeftCorner",
+            "vertex_entry_direction": "Counterclockwise"
+        }
+    },
+    "Version": {
+        "Version 1": {
+            "version_identifier": "26.1"
+        }
+    },
+    "WeatherProperty:SkyTemperature": {
+        "": {
+            "calculation_type": "ClarkAllen"
+        },
+        "WeatherProperty:SkyTemperature 1": {
+            "calculation_type": "Brunt"
+        }
+    }
+}

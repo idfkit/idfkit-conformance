@@ -1,0 +1,26 @@
+! Object type names written in casing that is not the schema's declared casing.
+! Every choice VALUE here is already canonical, so the only variable is the type name.
+
+Version, 26.1;
+
+Building, Conformance Test Building;
+
+GlobalGeometryRules,
+  UpperLeftCorner,
+  Counterclockwise,
+  Relative;
+
+ZONE,                  !- schema declares "Zone"
+  Test Zone,
+  0.0,
+  0.0,
+  0.0,
+  0.0;
+
+scheduletypelimits,    !- schema declares "ScheduleTypeLimits"
+  Any Number Limits;
+
+OuTpUt:VaRiAbLe,       !- schema declares "Output:Variable"
+  *,
+  Site Outdoor Air Drybulb Temperature,
+  Hourly;

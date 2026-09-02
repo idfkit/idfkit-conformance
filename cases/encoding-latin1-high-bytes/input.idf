@@ -1,0 +1,23 @@
+Version,
+  26.1;                    !- Version Identifier
+
+Building,
+  Simple One Zone,         !- Name
+  0.0,                     !- North Axis {deg}
+  Suburbs,                 !- Terrain
+  0.04,                    !- Loads Convergence Tolerance Value {W}
+  0.4,                     !- Temperature Convergence Tolerance Value {deltaC}
+  FullExterior,            !- Solar Distribution
+  25,                      !- Maximum Number of Warmup Days
+  6;                       !- Minimum Number of Warmup Days
+
+GlobalGeometryRules,
+  UpperLeftCorner,         !- Starting Vertex Position
+  Counterclockwise,        !- Vertex Entry Direction
+  World;                   !- Coordinate System
+
+! Comment carrying latin-1 high bytes: temperature releve a Zurich, 9 °C, ecart ±2 °C.
+Output:Variable,
+  Café Zürich Zone,        !- Key Value (accents: é = 0xE9, ü = 0xFC)
+  Site Outdoor Air Drybulb Temperature,  !- Variable Name
+  Hourly;                  !- Reporting Frequency

@@ -1,0 +1,40 @@
+! references-self-referential
+Version,
+  26.1;                                   !- Version Identifier
+
+Building,
+  Conformance Case;                       !- Name
+
+GlobalGeometryRules,
+  UpperLeftCorner,                        !- Starting Vertex Position
+  Counterclockwise,                       !- Vertex Entry Direction
+  Relative;                               !- Coordinate System
+
+Material:NoMass,
+  Partition Material,                     !- Name
+  Rough,                                  !- Roughness
+  1.0;                                    !- Thermal Resistance
+
+Construction,
+  Partition Construction,                 !- Name
+  Partition Material;                     !- Outside Layer
+
+Zone,
+  Zone One;                               !- Name
+
+BuildingSurface:Detailed,
+  Interior Partition,                     !- Name
+  Wall,                                   !- Surface Type
+  Partition Construction,                 !- Construction Name
+  Zone One,                               !- Zone Name
+  ,                                       !- Space Name
+  Surface,                                !- Outside Boundary Condition
+  Interior Partition,                     !- Outside Boundary Condition Object
+  NoSun,                                  !- Sun Exposure
+  NoWind,                                 !- Wind Exposure
+  0.5,                                    !- View Factor to Ground
+  4,                                      !- Number of Vertices
+  0.0, 0.0, 3.0,
+  0.0, 0.0, 0.0,
+  5.0, 0.0, 0.0,
+  5.0, 0.0, 3.0;

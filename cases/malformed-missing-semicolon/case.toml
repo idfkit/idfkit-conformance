@@ -1,0 +1,28 @@
+title = "A missing semicolon feeds the next object's type name into a numeric field"
+why = """
+Building declares eight fields. This file supplies six and then loses its terminator, so the tokens
+of the Timestep object below slide into the two remaining slots: maximum_number_of_warmup_days
+receives the string "Timestep", minimum_number_of_warmup_days receives 4, and the Timestep object
+disappears from the document. The field count still fits, so nothing overflows and no parser
+notices by counting. That is what makes this shape dangerous rather than merely broken: the reader
+gets a plausible document, one object short, with a type name sitting in a numeric field.
+
+Both libraries accept the file and produce the same corrupted Building, field for field.
+ConvertInputFormat refuses it, naming Building/Conformance/maximum_number_of_warmup_days as a
+string where the schema requires a number. Agreement between the two libraries is therefore not
+correctness here, and this case exists to say so in a place neither library's own suite can.
+
+truth = "convention" because the oracle emits nothing for input it refuses. There is no
+expected.epJSON to commit and none may be invented, so what is recorded is what the two libraries
+agree to do rather than what an external authority ruled. The manifest keeps such cases in their
+own section precisely so agreed convention is never read as external truth (FR-020).
+
+The parse outcome is all this case can assert today. expected.diag.json states the diagnostic it
+expects once assertion 4 lands, and the code is taken from the oracle's own diagnosis rather than
+from either library: an invalid field value, at line 11, in Building. Neither library reports
+anything at all today, and that silence is the divergence assertion 4 will expose.
+"""
+tags = ["malformed"]
+energyplus_version = "26.1.0"
+truth = "convention"
+assertions = ["parse-outcome", "diagnostics"]

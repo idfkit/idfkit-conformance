@@ -1,0 +1,37 @@
+Version,
+  26.1;
+
+Building,
+  Sentinel Remap,
+  0.0,                     !- North Axis {deg}
+  City,                    !- Terrain
+  0.04,                    !- Loads Convergence Tolerance Value {W}
+  0.4,                     !- Temperature Convergence Tolerance Value {deltaC}
+  FullExterior,            !- Solar Distribution
+  25,                      !- Maximum Number of Warmup Days
+  6;                       !- Minimum Number of Warmup Days
+
+GlobalGeometryRules,
+  UpperLeftCorner,         !- Starting Vertex Position
+  Counterclockwise,        !- Vertex Entry Direction
+  Relative;                !- Coordinate System
+
+AirTerminal:SingleDuct:VAV:Reheat,
+  Reheat Terminal,         !- Name
+  ReheatAvailSched,        !- Availability Schedule Name
+  Zone Coil Air In Node,   !- Damper Air Outlet Node Name
+  ATU In Node,             !- Air Inlet Node Name
+  Autosize,                !- Maximum Air Flow Rate {m3/s}
+  Constant,                !- Zone Minimum Air Flow Input Method
+  0.3,                     !- Constant Minimum Air Flow Fraction
+  0.05,                    !- Fixed Minimum Air Flow Rate {m3/s}
+  MinFlowFracSched,        !- Minimum Air Flow Fraction Schedule Name
+  Coil:Heating:Water,      !- Reheat Coil Object Type
+  Reheat Coil,             !- Reheat Coil Name
+  Autosize,                !- Maximum Hot Water or Steam Flow Rate {m3/s}
+  0.0,                     !- Minimum Hot Water or Steam Flow Rate {m3/s}
+  Zone In Node,            !- Air Outlet Node Name
+  0.001,                   !- Convergence Tolerance
+  ReverseWithLimits,       !- Damper Heating Action
+  0.002032,                !- Maximum Flow per Zone Floor Area During Reheat {m3/s-m2}
+  AUTOCALCULATE;           !- Maximum Flow Fraction During Reheat

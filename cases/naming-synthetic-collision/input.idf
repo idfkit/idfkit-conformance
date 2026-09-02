@@ -1,0 +1,33 @@
+! naming-synthetic-collision
+!
+! Two WeatherProperty:SkyTemperature objects are genuinely named "WeatherProperty:SkyTemperature 1"
+! and "WeatherProperty:SkyTemperature 2". The third leaves the optional Name blank, which the oracle
+! keeps verbatim as the key "". Any library that manufactures "<Type> N" for the blank one lands on
+! a name the file already uses.
+!
+! Building and GlobalGeometryRules are here only because ConvertInputFormat validates before
+! converting and requires them. The choice values are written in the schema's own casing so this
+! case pins naming alone.
+
+Version,
+  26.1;                    !- Version Identifier
+
+Building,
+  Conformance;             !- Name
+
+GlobalGeometryRules,
+  UpperLeftCorner,         !- Starting Vertex Position
+  Counterclockwise,        !- Vertex Entry Direction
+  World;                   !- Coordinate System
+
+WeatherProperty:SkyTemperature,
+  WeatherProperty:SkyTemperature 1,  !- Name, genuinely this string
+  Brunt;                   !- Calculation Type
+
+WeatherProperty:SkyTemperature,
+  WeatherProperty:SkyTemperature 2,  !- Name, genuinely this string
+  Idso;                    !- Calculation Type
+
+WeatherProperty:SkyTemperature,
+  ,                        !- Name, left blank on purpose
+  ClarkAllen;              !- Calculation Type

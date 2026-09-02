@@ -1,0 +1,28 @@
+title = "A final extensible group that stops mid-group keeps only the fields written"
+why = """
+IDF ends an object with a semicolon wherever the author stops writing, and nothing requires that
+to fall on a group boundary. The last group of an extensible object can therefore be narrower than
+the group is wide, with no marker in the file saying so. The reader has to notice that the fields
+ran out mid-group and stop, rather than pad the group to its declared width.
+
+Two shapes are here. "Truncated Equipment List" stops after the first field of a two-field group,
+so the group carries equipment_object_type and no equipment_name. "Truncated Annual Table" writes
+one complete three-field group and then stops after the second field of the next one, so the array
+has two entries and only the first carries digits_after_decimal. The second object matters because
+it proves the array length still counts the partial group as one entry, and it puts a complete
+group next to a partial one so an implementation cannot get the case right by widening or
+narrowing every group uniformly.
+
+Read this alongside positional-extensible-group-trailing-unset, which pins the neighbouring and
+distinct hazard: a slot written as a blank between two commas. Here nothing stands for the missing
+fields; they are not in the file. The two must not be conflated, because a reader can handle blanks
+correctly and still pad a truncated group, or the reverse.
+
+The missing field in the second object is numeric (digits_after_decimal). An implementation that
+pads a truncated group has to invent a value, and whatever it invents, an empty string or a zero,
+is a difference the oracle expectation catches.
+"""
+tags = ["extensible", "positional"]
+energyplus_version = "26.1.0"
+truth = "oracle"
+assertions = ["parse-outcome", "epjson", "round-trip"]

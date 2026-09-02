@@ -1,0 +1,29 @@
+title = "An object type name is canonicalised to the schema's declared casing"
+why = """
+An IDF object type name is matched case-insensitively, and EnergyPlus emits the schema's spelling
+rather than the file's. This input writes three type names in three wrong casings and the oracle
+keys all three by the schema name:
+
+  ZONE                -> Zone
+  scheduletypelimits  -> ScheduleTypeLimits
+  OuTpUt:VaRiAbLe     -> Output:Variable
+
+Each one is a different hazard for an implementation. "ZONE" is a pure upper-case variant.
+"scheduletypelimits" has three internal capitals that no casing rule recovers from the written
+token, so a library must look the name up in the schema rather than transform it. "OuTpUt:VaRiAbLe"
+carries a colon, which is where a type name gets split for namespaced lookups, and the colon must
+not be treated as a word boundary that resets casing.
+
+This matters beyond cosmetics because the type name is a KEY in epJSON. A library that preserves
+the written casing does not merely misspell a label: it produces a document in which "ZONE" and
+"Zone" are two separate collections, so an existing Zone written elsewhere in the same file would
+not merge with this one, and every consumer keyed on the schema name misses the object entirely.
+
+Every choice value in this input is already written in canonical casing, deliberately, so that a
+failure here is unambiguously about the type name and never about the separate hazard pinned by
+types-choice-field-casing.
+"""
+tags = ["types"]
+energyplus_version = "26.1.0"
+truth = "oracle"
+assertions = ["parse-outcome", "epjson", "round-trip"]

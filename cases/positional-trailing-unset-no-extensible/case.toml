@@ -1,0 +1,35 @@
+title = "Trailing unset fields in an object with no extensible group"
+why = """
+An IDF object may stop short of its last field, and the fields it never reaches are unset. There
+are two ways to write that, and they must mean the same thing: end the object early with a
+semicolon, or write every remaining slot as an explicit blank comma. EnergyPlus treats both as
+"this field has no value", and ConvertInputFormat emits no key at all for either.
+
+The two Zone objects here set the same first five fields and differ only in how they leave the
+remaining eight unset. Truncated Zone ends after Z Origin. Blank Zone writes all eight as blanks,
+covering the trailing alpha fields (Zone Inside Convection Algorithm, Zone Outside Convection
+Algorithm, Part of Total Floor Area) and the trailing numeric ones (Multiplier, Ceiling Height,
+Volume, Floor Area). The oracle's expectation is therefore two identical objects, each carrying
+exactly four keys. Making the two spellings converge on one expectation is the whole case: any
+difference between them is a bug by construction, and no judgement call is needed to see it.
+
+The hazard is that a parser reaches the blank slot, decides it has seen a field, and keeps it. In
+epJSON an omitted field and a field set to nothing are different documents: EnergyPlus applies the
+field's default only when the key is absent, and a numeric field holding the empty string is not
+even the right JSON type.
+
+This is also the case that separates a library's document model from its epJSON writer, which is why
+it declares assertion 3 as well as assertion 2. A writer that drops the blanks on the way out can
+hide a model that kept them, so the epJSON assertion goes green while re-parsing the library's own
+output yields a different document from the one it started with. Assertion 3 is the only place that
+disagreement is visible.
+
+This is the branch with nothing after the unset fields. Zone has no extensible group, so the blank
+slots are the last thing in the object. Its companion is
+positional-trailing-unset-before-extensible, and the group-internal case is
+positional-extensible-group-trailing-unset.
+"""
+tags = ["positional"]
+energyplus_version = "26.1.0"
+truth = "oracle"
+assertions = ["parse-outcome", "epjson", "round-trip"]

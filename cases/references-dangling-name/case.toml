@@ -1,0 +1,35 @@
+title = "A reference to a name no object defines survives verbatim"
+why = """
+Gap-filling case. The bootstrap sweep over the 760 EnergyPlus example files found no
+reference-resolution disagreement at all, in any of the 829 shapes it recorded. That agreement is
+worth pinning precisely because nothing currently defends it: this case exists so that a future
+change to either reference graph cannot silently break behaviour the sweep can no longer catch.
+
+The hazard is a library that treats reference integrity as a parse concern. Both libraries index
+references eagerly while reading: Python's ReferenceGraph.register keys on the uppercased target
+name and JavaScript's ReferenceGraph.add keys on the lowercased one, and both are populated as
+objects are added to the document. A dangling target is therefore a name that lands in the index
+with no object behind it, and there are three ways a library could get that wrong. It could refuse
+the parse, on the theory that an unresolvable reference is an error. It could drop the field, on the
+theory that a reference nothing satisfies carries no information. Or it could invent the missing
+object so the index stays consistent, which is the failure mode that hurts most because the document
+silently grows a member the file never contained.
+
+EnergyPlus itself is the authority here and it rejects all three. ConvertInputFormat converts this
+file without complaint, emits the unresolvable name "No Such Material" exactly as written, and adds
+no Material object of any kind. Reference integrity in EnergyPlus is a simulation-time concern, not
+a read-time one, and a reader that decides otherwise is deciding something the format does not say.
+
+Note what assertion 2 can and cannot see. epJSON does not encode reference resolution: it carries
+the target name as a plain string, so no expectation can state that a reference resolved to a
+particular object. What it can state is that the parse succeeded and that the field is present with
+its original text, and those two together are what falsify all three failure modes above.
+
+The reproducer keeps only the reference. Construction.outside_layer is an ordinary positional field
+whose object_list is MaterialName, so no extensible group, no blank slot, and no numeric value is
+involved, and any difference reported against this case is about the reference and nothing else.
+"""
+tags = ["references"]
+energyplus_version = "26.1.0"
+truth = "oracle"
+assertions = ["parse-outcome", "epjson", "round-trip"]

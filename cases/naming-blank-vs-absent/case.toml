@@ -1,0 +1,29 @@
+title = "A blank Name is not an absent Name"
+why = """
+A type with no Name field at all gets the synthetic key "<Type> N", 1-based in file order. A type
+with an optional Name field left blank keeps the blank verbatim, so the key is the empty string.
+Neither library encodes the second rule.
+
+Both rules are visible in one file. Version and GlobalGeometryRules declare no Name field, so the
+oracle keys them "Version 1" and "GlobalGeometryRules 1". WeatherProperty:SkyTemperature declares an
+optional Name whose blank has meaning, the schema note says a blank applies the property to every
+run period, so the oracle keys the blank-named object "". The second object is genuinely named
+"WeatherProperty:SkyTemperature 1", which is exactly the key a library that synthesises names would
+hand the first one. That collision is what turns a cosmetic key difference into a lost object, and
+it is why the fixture uses that name rather than an arbitrary one.
+
+Both libraries treat a blank Name as an absent Name and synthesise a key for it, which is wrong on
+object identity rather than on a field value. Python numbers blanks without checking for a clash, so
+its synthetic "WeatherProperty:SkyTemperature 1" lands on the genuinely named object and one of the
+two disappears from the document. JavaScript searches for the lowest unused index instead, keeps
+both objects, and invents "WeatherProperty:SkyTemperature 2" for the blank one. No round trip can
+recover either: once the blank is gone from the key it is gone from the model.
+
+This is the case that proves the corpus can declare both implementations wrong about identity, and
+it is hand-written on purpose. The bootstrap sweep over the 760 EnergyPlus example files never
+raised it, because no shipped example leaves an optional Name blank.
+"""
+tags = ["naming", "positional"]
+energyplus_version = "26.1.0"
+truth = "oracle"
+assertions = ["parse-outcome", "epjson", "round-trip"]

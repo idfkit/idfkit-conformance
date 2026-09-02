@@ -1,0 +1,37 @@
+title = "latin-1 high bytes pass through a comment and become U+FFFD in a value"
+why = """
+The taxonomy asks for latin-1 high bytes in names and in comments. Only part of that is expressible
+against the oracle, and working out which part is itself half of what this case records.
+
+High bytes in a comment are a control. ConvertInputFormat drops comments, so nothing about them can
+reach the epJSON, and the standalone comment above carries 0xB0 and 0xB1 to prove that a byte above
+0x7F outside a value neither derails the parse nor shifts a field position, and that it survives a
+round trip through a library's own IDF writer.
+
+High bytes inside a value do reach the epJSON, and the oracle does not preserve them. The key value
+below is written in latin-1 as "Café Zürich Zone", with 0xE9 for the e-acute and 0xFC for the
+u-umlaut. ConvertInputFormat emits "Caf<U+FFFD> Z<U+FFFD>rich Zone": it decodes the input as UTF-8
+and substitutes one Unicode replacement character for each byte that is not valid UTF-8. Both
+libraries read the file as latin-1, per rule 6 of runners/compare.md, and emit "Café Zürich Zone"
+with the accents intact, so both fail the epjson assertion here and both carry an entry in
+known-divergence.toml. Note that preserving the byte is arguably the better behaviour for a library
+to have. The corpus records what the oracle does, not what anyone would prefer, and the register
+entry is where that disagreement is argued.
+
+The high bytes are deliberately kept out of the object name. ConvertInputFormat validates names
+before it converts and rejects one carrying bytes that are not valid UTF-8, with "Object name is
+required and cannot be blank or whitespace, and must be UTF-8 encoded", so a case with a latin-1
+name yields no expectation at all and cannot exist under truth = oracle. Output:Variable has no Name
+field, so its key here is the synthetic "Output:Variable 1"; that is incidental to this hazard and
+is pinned properly by the naming cases.
+
+Read together with encoding-utf8-object-name this pins the oracle's whole rule in two halves: valid
+UTF-8 is kept exactly as written, and any other high byte inside a value becomes U+FFFD. A library
+that moved to decoding UTF-8 with replacement would pass both. A library that fixed one half only
+would fail the other, which is precisely why the two encodings are kept in two cases and not folded
+into one.
+"""
+tags = ["encoding"]
+energyplus_version = "26.1.0"
+truth = "oracle"
+assertions = ["parse-outcome", "epjson", "round-trip"]

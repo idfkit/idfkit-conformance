@@ -1,0 +1,13 @@
+Version,
+  26.1;
+
+/* a block comment, which IDF does not have */
+
+Building,
+  Conformance,
+  0;
+
+GlobalGeometryRules,
+  UpperLeftCorner,
+  Counterclockwise,
+  Relative;

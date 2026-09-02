@@ -1,0 +1,42 @@
+title = "A surface naming itself as its own outside boundary is a cycle in the reference graph"
+why = """
+Gap-filling case. The bootstrap sweep over the 760 EnergyPlus example files found no
+reference-resolution disagreement at all, in any of the 829 shapes it recorded. This case pins
+behaviour that currently agrees, so a future change cannot break it unobserved.
+
+The hazard is a cycle. Both libraries maintain a bidirectional reference index, and both maintain it
+incrementally rather than rebuilding: Python's ReferenceGraph keeps _referenced_by keyed by target
+name and _references keyed by source object, and JavaScript's keeps #incoming and #outgoing the same
+way. Every mutation walks both halves. An object whose reference field carries its own name is the
+one input where a single edge appears in both halves under the same object, and every walk that
+assumes source and target are distinct is wrong on it. Python's unregister is explicit about the
+two halves and deletes _referenced_by[obj.name.upper()] after having already dropped the object's
+outgoing edges; JavaScript's retarget rewrites incoming edges by removing them and re-adding them
+through add, which for a self-edge means removing and re-adding an edge that is also its own
+predecessor. Neither is wrong today. Both are the kind of code that a later optimisation breaks into
+a dropped edge, a duplicated edge, or a non-terminating walk, and none of those three failures shows
+up in a test that only exercises acyclic models. Every EnergyPlus example file is acyclic here,
+which is exactly why the sweep found nothing.
+
+This is not a contrived cycle. The EnergyPlus schema note on
+BuildingSurface:Detailed.outside_boundary_condition_object says to "specify current surface name for
+internal partition separating like zones", so a surface that is its own outside boundary is the
+documented idiom for an interior partition, and real models contain it. ConvertInputFormat converts
+it without complaint and emits outside_boundary_condition_object as the surface's own name.
+
+Note what assertion 2 can and cannot see. epJSON does not encode reference resolution, so no
+expectation can state that the self-edge was indexed. It can state that the parse terminated and
+produced exactly one BuildingSurface:Detailed carrying its own name in that field, which falsifies
+a reader that loops, that drops the edge, or that renames one side of it. Assertion 3 carries the
+rest of the weight: writing the document back out as IDF and re-reading it walks the graph a second
+time, so a cycle that corrupts the index on the way out is caught there rather than here.
+
+The reproducer is the smallest surface that converts. BuildingSurface:Detailed declares min_fields
+20, so the four vertices are not padding; the Zone, Construction and Material exist only because
+the schema marks construction_name and zone_name required and ConvertInputFormat validates before
+it converts.
+"""
+tags = ["references"]
+energyplus_version = "26.1.0"
+truth = "oracle"
+assertions = ["parse-outcome", "epjson", "round-trip"]

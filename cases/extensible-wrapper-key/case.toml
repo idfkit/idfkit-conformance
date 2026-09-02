@@ -1,0 +1,29 @@
+title = "The wrapper key is the schema's extension name, not the field name under it"
+why = """
+An extensible group becomes a JSON array under a single wrapper key, and that key comes from one
+place only: legacy_idd.extension in the schema for that object type. It is not derived from the
+extensible field names, not a pluralisation of them, and not a fixed word such as "extensions".
+Every object type names it separately and the names do not follow a rule.
+
+The three objects here are chosen because no amount of cleverness recovers their wrapper key from
+the fields underneath it:
+
+  Output:Diagnostics        wrapper "diagnostics"        over the field "key"
+  Meter:Custom              wrapper "variable_details"   over "key_name" and
+                                                         "output_variable_or_meter_name"
+  AirLoopHVAC:ZoneSplitter  wrapper "nodes"              over "outlet_node_name"
+
+Output:Diagnostics earns its place twice over: legacy_idd.fields is empty for it, so the object has
+no non-extensible field whatsoever. Its entire body is the wrapper key, and because it has no Name
+field it also takes a synthetic key, "Output:Diagnostics 1". A reader that builds the wrapper from
+anything but the schema will produce a plausible looking object that no other tool can read.
+
+Schedule:Compact, whose wrapper "data" sits over a field literally named "field", is the most
+extreme example of the same rule and is pinned by extensible-schedule-compact-numeric-field. It is
+deliberately not repeated here so that a failure of this case points at the wrapper name and not at
+numeric coercion.
+"""
+tags = ["extensible"]
+energyplus_version = "26.1.0"
+truth = "oracle"
+assertions = ["parse-outcome", "epjson", "round-trip"]

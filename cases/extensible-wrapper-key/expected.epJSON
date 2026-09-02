@@ -1,0 +1,54 @@
+{
+    "AirLoopHVAC:ZoneSplitter": {
+        "Wrapper Key Splitter": {
+            "inlet_node_name": "Splitter Inlet Node",
+            "nodes": [
+                {
+                    "outlet_node_name": "Splitter Outlet Node One"
+                },
+                {
+                    "outlet_node_name": "Splitter Outlet Node Two"
+                }
+            ]
+        }
+    },
+    "Building": {
+        "Minimal Building": {}
+    },
+    "GlobalGeometryRules": {
+        "GlobalGeometryRules 1": {
+            "coordinate_system": "Relative",
+            "starting_vertex_position": "UpperLeftCorner",
+            "vertex_entry_direction": "Counterclockwise"
+        }
+    },
+    "Meter:Custom": {
+        "Custom Electricity Meter": {
+            "resource_type": "Electricity",
+            "variable_details": [
+                {
+                    "key_name": "Zone One",
+                    "output_variable_or_meter_name": "Lights Electricity Energy"
+                },
+                {
+                    "key_name": "Zone Two",
+                    "output_variable_or_meter_name": "Lights Electricity Energy"
+                }
+            ]
+        }
+    },
+    "Output:Diagnostics": {
+        "Output:Diagnostics 1": {
+            "diagnostics": [
+                {
+                    "key": "DisplayExtraWarnings"
+                }
+            ]
+        }
+    },
+    "Version": {
+        "Version 1": {
+            "version_identifier": "26.1"
+        }
+    }
+}

@@ -1,0 +1,43 @@
+{
+    "Building": {
+        "Minimal Building": {}
+    },
+    "GlobalGeometryRules": {
+        "GlobalGeometryRules 1": {
+            "coordinate_system": "Relative",
+            "starting_vertex_position": "UpperLeftCorner",
+            "vertex_entry_direction": "Counterclockwise"
+        }
+    },
+    "Output:Table:Annual": {
+        "Truncated Annual Table": {
+            "filter": "Zone One",
+            "schedule_name": "Table Schedule",
+            "variable_details": [
+                {
+                    "aggregation_type_for_variable_or_meter": "SumOrAverage",
+                    "digits_after_decimal": 2,
+                    "variable_or_meter_or_ems_variable_or_field_name": "Zone Air Temperature"
+                },
+                {
+                    "aggregation_type_for_variable_or_meter": "Maximum",
+                    "variable_or_meter_or_ems_variable_or_field_name": "Zone Air Humidity Ratio"
+                }
+            ]
+        }
+    },
+    "PlantEquipmentList": {
+        "Truncated Equipment List": {
+            "equipment": [
+                {
+                    "equipment_object_type": "Pump:ConstantSpeed"
+                }
+            ]
+        }
+    },
+    "Version": {
+        "Version 1": {
+            "version_identifier": "26.1"
+        }
+    }
+}

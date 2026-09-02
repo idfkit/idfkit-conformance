@@ -2,6 +2,665 @@
   "$schema": "./manifest.schema.json",
   "schema_version": 1,
   "corpus_level": null,
-  "oracle": [],
-  "convention": []
+  "oracle": [
+    {
+      "id": "encoding-latin1-high-bytes",
+      "title": "latin-1 high bytes pass through a comment and become U+FFFD in a value",
+      "tags": [
+        "encoding"
+      ],
+      "energyplus_version": "26.1.0",
+      "assertions": [
+        "parse-outcome",
+        "epjson",
+        "round-trip"
+      ],
+      "input": "input.idf",
+      "parse_outcome": "success",
+      "expected": "expected.epJSON"
+    },
+    {
+      "id": "encoding-utf8-object-name",
+      "title": "A UTF-8 object name keeps its characters in the epJSON key",
+      "tags": [
+        "encoding"
+      ],
+      "energyplus_version": "26.1.0",
+      "assertions": [
+        "parse-outcome",
+        "epjson",
+        "round-trip"
+      ],
+      "input": "input.idf",
+      "parse_outcome": "success",
+      "expected": "expected.epJSON"
+    },
+    {
+      "id": "extensible-empty-group",
+      "title": "An extensible group with no entries has no wrapper key at all",
+      "tags": [
+        "extensible"
+      ],
+      "energyplus_version": "26.1.0",
+      "assertions": [
+        "parse-outcome",
+        "epjson",
+        "round-trip"
+      ],
+      "input": "input.idf",
+      "parse_outcome": "success",
+      "expected": "expected.epJSON"
+    },
+    {
+      "id": "extensible-partial-group",
+      "title": "A final extensible group that stops mid-group keeps only the fields written",
+      "tags": [
+        "extensible",
+        "positional"
+      ],
+      "energyplus_version": "26.1.0",
+      "assertions": [
+        "parse-outcome",
+        "epjson",
+        "round-trip"
+      ],
+      "input": "input.idf",
+      "parse_outcome": "success",
+      "expected": "expected.epJSON"
+    },
+    {
+      "id": "extensible-schedule-compact-numeric-field",
+      "title": "A number in an untyped extensible field is a number, not a string",
+      "tags": [
+        "extensible",
+        "numeric",
+        "types"
+      ],
+      "energyplus_version": "26.1.0",
+      "assertions": [
+        "parse-outcome",
+        "epjson",
+        "round-trip"
+      ],
+      "input": "input.idf",
+      "parse_outcome": "success",
+      "expected": "expected.epJSON"
+    },
+    {
+      "id": "extensible-single-vs-multiple",
+      "title": "A group of one is still an array, and the order of several is the order written",
+      "tags": [
+        "extensible"
+      ],
+      "energyplus_version": "26.1.0",
+      "assertions": [
+        "parse-outcome",
+        "epjson",
+        "round-trip"
+      ],
+      "input": "input.idf",
+      "parse_outcome": "success",
+      "expected": "expected.epJSON"
+    },
+    {
+      "id": "extensible-wrapper-key",
+      "title": "The wrapper key is the schema's extension name, not the field name under it",
+      "tags": [
+        "extensible"
+      ],
+      "energyplus_version": "26.1.0",
+      "assertions": [
+        "parse-outcome",
+        "epjson",
+        "round-trip"
+      ],
+      "input": "input.idf",
+      "parse_outcome": "success",
+      "expected": "expected.epJSON"
+    },
+    {
+      "id": "naming-blank-vs-absent",
+      "title": "A blank Name is not an absent Name",
+      "tags": [
+        "naming",
+        "positional"
+      ],
+      "energyplus_version": "26.1.0",
+      "assertions": [
+        "parse-outcome",
+        "epjson",
+        "round-trip"
+      ],
+      "input": "input.idf",
+      "parse_outcome": "success",
+      "expected": "expected.epJSON"
+    },
+    {
+      "id": "naming-synthetic-collision",
+      "title": "A synthesised key collides with a real name and destroys the named object",
+      "tags": [
+        "naming"
+      ],
+      "energyplus_version": "26.1.0",
+      "assertions": [
+        "parse-outcome",
+        "epjson",
+        "round-trip"
+      ],
+      "input": "input.idf",
+      "parse_outcome": "success",
+      "expected": "expected.epJSON"
+    },
+    {
+      "id": "naming-synthetic-key",
+      "title": "A type with no Name field is keyed <Type> N in file order",
+      "tags": [
+        "naming"
+      ],
+      "energyplus_version": "26.1.0",
+      "assertions": [
+        "parse-outcome",
+        "epjson",
+        "round-trip"
+      ],
+      "input": "input.idf",
+      "parse_outcome": "success",
+      "expected": "expected.epJSON"
+    },
+    {
+      "id": "numeric-autocalculate-casing",
+      "title": "An autocalculate sentinel is canonicalised, not echoed as written",
+      "tags": [
+        "numeric"
+      ],
+      "energyplus_version": "26.1.0",
+      "assertions": [
+        "parse-outcome",
+        "epjson",
+        "round-trip"
+      ],
+      "input": "input.idf",
+      "parse_outcome": "success",
+      "expected": "expected.epJSON"
+    },
+    {
+      "id": "numeric-autosize-casing",
+      "title": "An autosize sentinel is canonicalised, not echoed as written",
+      "tags": [
+        "numeric"
+      ],
+      "energyplus_version": "26.1.0",
+      "assertions": [
+        "parse-outcome",
+        "epjson",
+        "round-trip"
+      ],
+      "input": "input.idf",
+      "parse_outcome": "success",
+      "expected": "expected.epJSON"
+    },
+    {
+      "id": "numeric-integer-field",
+      "title": "An integer-typed field written with a decimal point stays an integer",
+      "tags": [
+        "numeric",
+        "types"
+      ],
+      "energyplus_version": "26.1.0",
+      "assertions": [
+        "parse-outcome",
+        "epjson",
+        "round-trip"
+      ],
+      "input": "input.idf",
+      "parse_outcome": "success",
+      "expected": "expected.epJSON"
+    },
+    {
+      "id": "numeric-scientific-notation",
+      "title": "Exponent notation is a number, and its text form carries no meaning",
+      "tags": [
+        "numeric"
+      ],
+      "energyplus_version": "26.1.0",
+      "assertions": [
+        "parse-outcome",
+        "epjson",
+        "round-trip"
+      ],
+      "input": "input.idf",
+      "parse_outcome": "success",
+      "expected": "expected.epJSON"
+    },
+    {
+      "id": "numeric-sentinel-schema-remap",
+      "title": "The sentinel a field accepts is the one its schema names, not the one the file wrote",
+      "tags": [
+        "numeric",
+        "types"
+      ],
+      "energyplus_version": "26.1.0",
+      "assertions": [
+        "parse-outcome",
+        "epjson",
+        "round-trip"
+      ],
+      "input": "input.idf",
+      "parse_outcome": "success",
+      "expected": "expected.epJSON"
+    },
+    {
+      "id": "numeric-zero-against-blank",
+      "title": "Zero is a value and a blank field is not zero",
+      "tags": [
+        "numeric",
+        "positional"
+      ],
+      "energyplus_version": "26.1.0",
+      "assertions": [
+        "parse-outcome",
+        "epjson",
+        "round-trip"
+      ],
+      "input": "input.idf",
+      "parse_outcome": "success",
+      "expected": "expected.epJSON"
+    },
+    {
+      "id": "positional-extensible-group-trailing-unset",
+      "title": "Unset trailing slots inside an extensible group are omitted, not emitted blank",
+      "tags": [
+        "positional",
+        "extensible"
+      ],
+      "energyplus_version": "26.1.0",
+      "assertions": [
+        "parse-outcome",
+        "epjson",
+        "round-trip"
+      ],
+      "input": "input.idf",
+      "parse_outcome": "success",
+      "expected": "expected.epJSON"
+    },
+    {
+      "id": "positional-trailing-unset-before-extensible",
+      "title": "An unset fixed field followed by an extensible group",
+      "tags": [
+        "positional",
+        "extensible"
+      ],
+      "energyplus_version": "26.1.0",
+      "assertions": [
+        "parse-outcome",
+        "epjson",
+        "round-trip"
+      ],
+      "input": "input.idf",
+      "parse_outcome": "success",
+      "expected": "expected.epJSON"
+    },
+    {
+      "id": "positional-trailing-unset-no-extensible",
+      "title": "Trailing unset fields in an object with no extensible group",
+      "tags": [
+        "positional"
+      ],
+      "energyplus_version": "26.1.0",
+      "assertions": [
+        "parse-outcome",
+        "epjson",
+        "round-trip"
+      ],
+      "input": "input.idf",
+      "parse_outcome": "success",
+      "expected": "expected.epJSON"
+    },
+    {
+      "id": "references-case-insensitive-match",
+      "title": "A reference matches its target case-insensitively but is never rewritten to the target's casing",
+      "tags": [
+        "references"
+      ],
+      "energyplus_version": "26.1.0",
+      "assertions": [
+        "parse-outcome",
+        "epjson",
+        "round-trip"
+      ],
+      "input": "input.idf",
+      "parse_outcome": "success",
+      "expected": "expected.epJSON"
+    },
+    {
+      "id": "references-dangling-name",
+      "title": "A reference to a name no object defines survives verbatim",
+      "tags": [
+        "references"
+      ],
+      "energyplus_version": "26.1.0",
+      "assertions": [
+        "parse-outcome",
+        "epjson",
+        "round-trip"
+      ],
+      "input": "input.idf",
+      "parse_outcome": "success",
+      "expected": "expected.epJSON"
+    },
+    {
+      "id": "references-self-referential",
+      "title": "A surface naming itself as its own outside boundary is a cycle in the reference graph",
+      "tags": [
+        "references"
+      ],
+      "energyplus_version": "26.1.0",
+      "assertions": [
+        "parse-outcome",
+        "epjson",
+        "round-trip"
+      ],
+      "input": "input.idf",
+      "parse_outcome": "success",
+      "expected": "expected.epJSON"
+    },
+    {
+      "id": "types-choice-field-casing",
+      "title": "A choice value is canonicalised to the schema's declared casing",
+      "tags": [
+        "types"
+      ],
+      "energyplus_version": "26.1.0",
+      "assertions": [
+        "parse-outcome",
+        "epjson",
+        "round-trip"
+      ],
+      "input": "input.idf",
+      "parse_outcome": "success",
+      "expected": "expected.epJSON"
+    },
+    {
+      "id": "types-object-type-name-casing",
+      "title": "An object type name is canonicalised to the schema's declared casing",
+      "tags": [
+        "types"
+      ],
+      "energyplus_version": "26.1.0",
+      "assertions": [
+        "parse-outcome",
+        "epjson",
+        "round-trip"
+      ],
+      "input": "input.idf",
+      "parse_outcome": "success",
+      "expected": "expected.epJSON"
+    },
+    {
+      "id": "versions-22-1-0",
+      "title": "EnergyPlus 22.1.0 resolves from the two component identifier 22.1",
+      "tags": [
+        "versions"
+      ],
+      "energyplus_version": "22.1.0",
+      "assertions": [
+        "parse-outcome",
+        "epjson",
+        "round-trip"
+      ],
+      "input": "input.idf",
+      "parse_outcome": "success",
+      "expected": "expected.epJSON"
+    },
+    {
+      "id": "versions-22-2-0",
+      "title": "EnergyPlus 22.2.0 resolves from the two component identifier 22.2",
+      "tags": [
+        "versions"
+      ],
+      "energyplus_version": "22.2.0",
+      "assertions": [
+        "parse-outcome",
+        "epjson",
+        "round-trip"
+      ],
+      "input": "input.idf",
+      "parse_outcome": "success",
+      "expected": "expected.epJSON"
+    },
+    {
+      "id": "versions-23-1-0",
+      "title": "EnergyPlus 23.1.0 resolves from the two component identifier 23.1",
+      "tags": [
+        "versions"
+      ],
+      "energyplus_version": "23.1.0",
+      "assertions": [
+        "parse-outcome",
+        "epjson",
+        "round-trip"
+      ],
+      "input": "input.idf",
+      "parse_outcome": "success",
+      "expected": "expected.epJSON"
+    },
+    {
+      "id": "versions-23-2-0",
+      "title": "EnergyPlus 23.2.0 resolves from the two component identifier 23.2",
+      "tags": [
+        "versions"
+      ],
+      "energyplus_version": "23.2.0",
+      "assertions": [
+        "parse-outcome",
+        "epjson",
+        "round-trip"
+      ],
+      "input": "input.idf",
+      "parse_outcome": "success",
+      "expected": "expected.epJSON"
+    },
+    {
+      "id": "versions-24-1-0",
+      "title": "EnergyPlus 24.1.0 resolves from the two component identifier 24.1",
+      "tags": [
+        "versions"
+      ],
+      "energyplus_version": "24.1.0",
+      "assertions": [
+        "parse-outcome",
+        "epjson",
+        "round-trip"
+      ],
+      "input": "input.idf",
+      "parse_outcome": "success",
+      "expected": "expected.epJSON"
+    },
+    {
+      "id": "versions-24-2-0",
+      "title": "EnergyPlus 24.2.0 resolves from the two component identifier 24.2",
+      "tags": [
+        "versions"
+      ],
+      "energyplus_version": "24.2.0",
+      "assertions": [
+        "parse-outcome",
+        "epjson",
+        "round-trip"
+      ],
+      "input": "input.idf",
+      "parse_outcome": "success",
+      "expected": "expected.epJSON"
+    },
+    {
+      "id": "versions-25-1-0",
+      "title": "EnergyPlus 25.1.0 resolves from the two component identifier 25.1",
+      "tags": [
+        "versions"
+      ],
+      "energyplus_version": "25.1.0",
+      "assertions": [
+        "parse-outcome",
+        "epjson",
+        "round-trip"
+      ],
+      "input": "input.idf",
+      "parse_outcome": "success",
+      "expected": "expected.epJSON"
+    },
+    {
+      "id": "versions-25-2-0",
+      "title": "EnergyPlus 25.2.0 resolves from the two component identifier 25.2",
+      "tags": [
+        "versions"
+      ],
+      "energyplus_version": "25.2.0",
+      "assertions": [
+        "parse-outcome",
+        "epjson",
+        "round-trip"
+      ],
+      "input": "input.idf",
+      "parse_outcome": "success",
+      "expected": "expected.epJSON"
+    },
+    {
+      "id": "versions-26-1-0",
+      "title": "EnergyPlus 26.1.0 resolves from the two component identifier 26.1",
+      "tags": [
+        "versions"
+      ],
+      "energyplus_version": "26.1.0",
+      "assertions": [
+        "parse-outcome",
+        "epjson",
+        "round-trip"
+      ],
+      "input": "input.idf",
+      "parse_outcome": "success",
+      "expected": "expected.epJSON"
+    },
+    {
+      "id": "versions-9-5-0",
+      "title": "EnergyPlus 9.5.0 resolves from the two component identifier 9.5",
+      "tags": [
+        "versions"
+      ],
+      "energyplus_version": "9.5.0",
+      "assertions": [
+        "parse-outcome",
+        "epjson",
+        "round-trip"
+      ],
+      "input": "input.idf",
+      "parse_outcome": "success",
+      "expected": "expected.epJSON"
+    },
+    {
+      "id": "versions-9-6-0",
+      "title": "EnergyPlus 9.6.0 resolves from the two component identifier 9.6",
+      "tags": [
+        "versions"
+      ],
+      "energyplus_version": "9.6.0",
+      "assertions": [
+        "parse-outcome",
+        "epjson",
+        "round-trip"
+      ],
+      "input": "input.idf",
+      "parse_outcome": "success",
+      "expected": "expected.epJSON"
+    },
+    {
+      "id": "versions-late-version-object",
+      "title": "A Version object beyond the first ten kilobytes still sets the version",
+      "tags": [
+        "versions"
+      ],
+      "energyplus_version": "26.1.0",
+      "assertions": [
+        "parse-outcome",
+        "epjson",
+        "round-trip"
+      ],
+      "input": "input.idf",
+      "parse_outcome": "success",
+      "expected": "expected.epJSON"
+    }
+  ],
+  "convention": [
+    {
+      "id": "malformed-missing-semicolon",
+      "title": "A missing semicolon feeds the next object's type name into a numeric field",
+      "tags": [
+        "malformed"
+      ],
+      "energyplus_version": "26.1.0",
+      "assertions": [
+        "parse-outcome",
+        "diagnostics"
+      ],
+      "input": "input.idf",
+      "parse_outcome": "success",
+      "expected_diagnostics": "expected.diag.json"
+    },
+    {
+      "id": "malformed-stray-comment",
+      "title": "A block comment is not a comment, and the two parsers name the intruder differently",
+      "tags": [
+        "malformed"
+      ],
+      "energyplus_version": "26.1.0",
+      "assertions": [
+        "parse-outcome",
+        "diagnostics"
+      ],
+      "input": "input.idf",
+      "parse_outcome": "failure",
+      "expected_diagnostics": "expected.diag.json"
+    },
+    {
+      "id": "malformed-truncated-object",
+      "title": "A file that ends inside an object is silently dropped by one parser and refused by the other",
+      "tags": [
+        "malformed"
+      ],
+      "energyplus_version": "26.1.0",
+      "assertions": [
+        "parse-outcome",
+        "diagnostics"
+      ],
+      "input": "input.idf",
+      "parse_outcome": "failure",
+      "expected_diagnostics": "expected.diag.json"
+    },
+    {
+      "id": "types-unknown-object-type",
+      "title": "An object type in no schema is rejected, not passed through",
+      "tags": [
+        "types"
+      ],
+      "energyplus_version": "26.1.0",
+      "assertions": [
+        "parse-outcome"
+      ],
+      "input": "input.idf",
+      "parse_outcome": "failure"
+    },
+    {
+      "id": "versions-nine-zero-schema-nine-zero-one",
+      "title": "Version, 9.0 means schema 9.0.1, not the closest earlier release",
+      "tags": [
+        "versions"
+      ],
+      "energyplus_version": "9.0.1",
+      "assertions": [
+        "parse-outcome",
+        "round-trip"
+      ],
+      "input": "input.idf",
+      "parse_outcome": "success"
+    }
+  ]
 }

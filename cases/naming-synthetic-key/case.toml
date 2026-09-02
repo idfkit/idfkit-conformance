@@ -1,0 +1,25 @@
+title = "A type with no Name field is keyed <Type> N in file order"
+why = """
+epJSON keys every object of a type by name, so a type that declares no Name field needs a key from
+somewhere. EnergyPlus manufactures one: "<Type> N", 1-based, counted in the order the objects appear
+in the file. Nothing in the schema states the rule, and nothing in either library's own test suite
+would notice if the counter went 0-based, followed parse order rather than file order, or restarted
+per group.
+
+Output:Variable is the reproducer because it declares no Name field and a file may hold any number
+of them. The three here carry different variable names and different reporting frequencies, so the
+key-to-object mapping is observable: a library that numbered them backwards, or from zero, would
+still emit three keys and three payloads, and only the pairing would be wrong.
+
+Both libraries agree with the oracle today. The case exists to keep it that way, and to sit next to
+naming-blank-vs-absent, where the same synthesis is applied to a type that does have a Name field
+and is wrong there. The two rules only make sense read together: synthesise when the field is
+absent, never when it is present and blank.
+
+The choice values are written in the schema's own casing, and Building and GlobalGeometryRules are
+present only to satisfy the oracle's pre-conversion validation, so this case pins naming alone.
+"""
+tags = ["naming"]
+energyplus_version = "26.1.0"
+truth = "oracle"
+assertions = ["parse-outcome", "epjson", "round-trip"]

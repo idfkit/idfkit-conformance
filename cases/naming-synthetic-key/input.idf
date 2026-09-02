@@ -1,0 +1,35 @@
+! naming-synthetic-key
+!
+! Output:Variable declares no Name field, so the oracle keys the three objects below
+! "Output:Variable 1", "Output:Variable 2" and "Output:Variable 3", in file order. Each carries a
+! different variable name and reporting frequency so the pairing of key to object is observable.
+!
+! Building and GlobalGeometryRules are here only because ConvertInputFormat validates before
+! converting and requires them. Version and GlobalGeometryRules are themselves nameless, so they
+! carry the same rule at count 1.
+
+Version,
+  26.1;                    !- Version Identifier
+
+Building,
+  Conformance;             !- Name
+
+GlobalGeometryRules,
+  UpperLeftCorner,         !- Starting Vertex Position
+  Counterclockwise,        !- Vertex Entry Direction
+  World;                   !- Coordinate System
+
+Output:Variable,
+  *,                       !- Key Value
+  Site Outdoor Air Drybulb Temperature,  !- Variable Name
+  Hourly;                  !- Reporting Frequency
+
+Output:Variable,
+  *,                       !- Key Value
+  Site Outdoor Air Wetbulb Temperature,  !- Variable Name
+  Daily;                   !- Reporting Frequency
+
+Output:Variable,
+  *,                       !- Key Value
+  Site Outdoor Air Relative Humidity,  !- Variable Name
+  Monthly;                 !- Reporting Frequency

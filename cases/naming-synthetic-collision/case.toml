@@ -1,0 +1,32 @@
+title = "A synthesised key collides with a real name and destroys the named object"
+why = """
+A library that keys a blank-named object as "<Type> N" is manufacturing a name into a namespace it
+does not own. Object names in an IDF are user data, and nothing stops a user from naming an object
+"WeatherProperty:SkyTemperature 1". When that happens the manufactured key lands on an existing
+object and one of the two is destroyed.
+
+The fixture puts two genuinely named objects first, "WeatherProperty:SkyTemperature 1" and
+"WeatherProperty:SkyTemperature 2", and a blank-named object last. Two of them, not one, so the
+collision cannot be dismissed as an unlucky choice of counter: whichever low index a library reaches
+for, the slot is already taken by real user data. The oracle keys the blank verbatim as "" and
+returns three objects.
+
+This is the same rule as naming-blank-vs-absent, read from the opposite side. There the blank comes
+first and the genuinely named object overwrites it, so the object lost is the one whose name was
+blank. Here the blank comes last, so the object lost is the one the user actually named, which is
+the more damaging direction and the reason the two orderings are separate cases.
+
+Python numbers blanks without checking for a clash, so it emits "WeatherProperty:SkyTemperature 1"
+for the blank object, overwrites the genuinely named one, and returns two objects where the file has
+three. JavaScript searches for the lowest unused index, reaches 3, and returns three objects under
+keys that no longer match the file. Neither result can be repaired downstream: a consumer resolving
+a reference to "WeatherProperty:SkyTemperature 1" gets the wrong object from one library and the
+right one from the other.
+
+The choice values are written in the schema's own casing, and Building and GlobalGeometryRules are
+present only to satisfy the oracle's pre-conversion validation, so this case pins naming alone.
+"""
+tags = ["naming"]
+energyplus_version = "26.1.0"
+truth = "oracle"
+assertions = ["parse-outcome", "epjson", "round-trip"]

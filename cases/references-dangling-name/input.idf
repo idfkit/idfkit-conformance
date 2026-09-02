@@ -1,0 +1,15 @@
+! references-dangling-name
+Version,
+  26.1;                                   !- Version Identifier
+
+Building,
+  Conformance Case;                       !- Name
+
+GlobalGeometryRules,
+  UpperLeftCorner,                        !- Starting Vertex Position
+  Counterclockwise,                       !- Vertex Entry Direction
+  Relative;                               !- Coordinate System
+
+Construction,
+  Dangling Construction,                  !- Name
+  No Such Material;                       !- Outside Layer

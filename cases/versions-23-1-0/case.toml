@@ -1,0 +1,23 @@
+title = "EnergyPlus 23.1.0 resolves from the two component identifier 23.1"
+why = """
+The taxonomy asks for at least one case per supported EnergyPlus release, and this is the 23.1.0
+member of that set. Every case in the set holds the same three objects and differs only in the
+version identifier written in the file, so the release is the single variable and a failure here
+names the release rather than the content.
+
+What it pins: a two component identifier in the file, 23.1, resolves to the bundled 23.1.0
+schema, and the document that schema produces equals what 23.1.0's own ConvertInputFormat produces
+from the same bytes. That last clause is the part no single library can check for itself. The two
+implementations resolve a version to a schema by different routes, one by an exact lookup with a
+fallback to the closest earlier release and the other by matching major and minor, so a release
+whose bundled directory name does not line up with what the file writes is exactly where they part
+company. versions-nine-zero-schema-nine-zero-one is the release where they actually do.
+
+Building and GlobalGeometryRules are here because ConvertInputFormat validates before it converts
+and refuses a file without them. Their choice values are written in the schema's own casing on
+purpose, so this case never fires on the separate choice canonicalisation hazard.
+"""
+tags = ["versions"]
+energyplus_version = "23.1.0"
+truth = "oracle"
+assertions = ["parse-outcome", "epjson", "round-trip"]
