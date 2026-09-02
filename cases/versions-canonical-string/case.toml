@@ -1,0 +1,50 @@
+title = "The canonical string form of a version survives verbatim, and is not re-derived"
+why = """
+The naming register records a divergence on `version`: the name is `doc.version` on both sides, the
+prose describing it is identical, and the value is not. Python returns `tuple[int, int, int]`, so
+`(26, 1, 0)`, and TypeScript returns `string`, so `"26.1.0"`. The register settles the question by
+declaring `canonical_form = "string"`: the string is what crosses the language boundary, because IDF
+text, epJSON, and the schema keys are strings already, and Python renders it with `version_string`.
+This case is the corpus half of that settlement (FR-004).
+
+What it pins is the string form itself. The file writes the three component spelling, 26.1.0, and
+the expectation says that spelling reaches the epJSON unchanged. Its sibling versions-26-1-0 writes
+the same release as the two component 26.1 and expects that spelling unchanged. The pair is the
+point: one internal version value cannot reproduce both spellings, so a library that rewrote
+version_identifier from whatever its accessor holds fails one of the two cases whichever way it
+renders. Today Python's epJSON writer prefers the identifier on the Version object and falls back to
+a two component render only when there is none, and this case is what holds that preference in
+place. A change that made the fallback unconditional would turn 26.1.0 into 26.1 and land here.
+
+What it does not pin, stated plainly so the coverage is not overread. None of the three shipping
+assertions reads a document's version accessor. Assertions 1 and 2 observe the parse outcome and the
+canonical epJSON, and the epJSON carries the identifier the file wrote, not the accessor's value.
+Assertion 3 re-parses the library's own IDF output and compares object types, names and field
+sequences, and the version property is not among them. So the two libraries could still disagree on
+what `doc.version` returns, or on what `version_string` renders, and every assertion here would stay
+green. Closing that gap needs an observation the case format cannot express: a check that calls the
+accessor on both sides and compares the rendered strings, which belongs in the `checks/` directory
+the corpus contract reserves for exactly this, and which has no members at landing.
+
+What both libraries actually do today, recorded so a future reader can tell a regression from a
+redesign. Read against this file, Python's `doc.version` is `(26, 1, 0)` and `version_string` renders
+`26.1.0`, and TypeScript's `doc.version` is `"26.1.0"`. Read against versions-26-1-0, whose file
+writes 26.1, both accessors still answer 26.1.0 while the epJSON keeps the file's own 26.1. So the
+accessor normalises to the three component canonical string on both sides and the serialised
+identifier does not, and the two libraries agree on both halves. Only the second half is asserted
+here.
+
+The blank identifier route was tried and is closed. A Version object whose identifier is left blank
+is the one input that would force both writers onto their accessor derived fallback and so make the
+accessor observable through assertion 2. EnergyPlus 26.1.0's ConvertInputFormat aborts on that file
+with a JSON type error rather than converting it, so no oracle expectation can exist for it and the
+route cannot be taken without giving up external truth.
+
+Building and GlobalGeometryRules are here because ConvertInputFormat validates before it converts
+and refuses a file without them. Their choice values are written in the schema's own casing on
+purpose, so this case never fires on the separate choice canonicalisation hazard.
+"""
+tags = ["versions"]
+energyplus_version = "26.1.0"
+truth = "oracle"
+assertions = ["parse-outcome", "epjson", "round-trip"]

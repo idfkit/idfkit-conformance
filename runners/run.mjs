@@ -466,7 +466,7 @@ export async function importLibrary(root) {
     );
   }
 
-  for (const name of ['parseIdf', 'parseEpJson', 'writeIdf', 'writeEpJson', 'detectVersion']) {
+  for (const name of ['parseIdf', 'parseEpJson', 'writeIdf', 'writeEpJson', 'getIdfVersion']) {
     if (typeof core[name] !== 'function') {
       throw new RunnerError(
         `'@idfkit/core' at ${moduleFile} exports no ${name}(), so this runner cannot drive it. ` +
@@ -640,11 +640,11 @@ async function parseInput(library, job) {
   try {
     if (job.inputFile === InputFile.IDF) {
       const text = readFileSync(job.inputPath).toString(IDF_ENCODING);
-      const schema = await library.node.schemaFor(library.core.detectVersion(text));
+      const schema = await library.node.schemaFor(library.core.getIdfVersion(text));
       return new Parse(ParseOutcome.SUCCESS, library.core.parseIdf(text, schema).document);
     }
     const text = readFileSync(job.inputPath, 'utf8');
-    const schema = await library.node.schemaFor(library.core.detectEpJsonVersion(text));
+    const schema = await library.node.schemaFor(library.core.getEpJsonVersion(text));
     return new Parse(ParseOutcome.SUCCESS, library.core.parseEpJson(text, schema).document);
   } catch (error) {
     // Any failure to read is the observed outcome, not a crash.
@@ -665,7 +665,7 @@ async function parseInput(library, job) {
  * `{name, value}` records here, because handing the comparator an object would put the sequence
  * under rule 3, which does not compare key order.
  *
- * An empty collection contributes nothing to the model and is skipped: `IDFDocument.collection()`
+ * An empty collection contributes nothing to the model and is skipped: `IdfDocument.all()`
  * creates one lazily on any access, so an incidental lookup on one side would otherwise read as a
  * document difference.
  *
@@ -676,7 +676,7 @@ export function documentSnapshot(document) {
   /** @type {Record<string, unknown>} */
   const snapshot = {};
   for (const objType of document.types()) {
-    const collection = document.collection(objType);
+    const collection = document.all(objType);
     if (collection.size === 0) {
       continue;
     }
@@ -744,7 +744,7 @@ async function roundTripSnapshot(library, document) {
     const path = join(scratch, 'round-trip.idf');
     writeFileSync(path, Buffer.from(text, IDF_ENCODING));
     const roundTripped = readFileSync(path).toString(IDF_ENCODING);
-    const schema = await library.node.schemaFor(library.core.detectVersion(roundTripped));
+    const schema = await library.node.schemaFor(library.core.getIdfVersion(roundTripped));
     return documentSnapshot(library.core.parseIdf(roundTripped, schema).document);
   } finally {
     rmSync(scratch, { recursive: true, force: true });

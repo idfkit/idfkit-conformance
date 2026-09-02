@@ -541,6 +541,22 @@
       "expected": "expected.epJSON"
     },
     {
+      "id": "versions-canonical-string",
+      "title": "The canonical string form of a version survives verbatim, and is not re-derived",
+      "tags": [
+        "versions"
+      ],
+      "energyplus_version": "26.1.0",
+      "assertions": [
+        "parse-outcome",
+        "epjson",
+        "round-trip"
+      ],
+      "input": "input.idf",
+      "parse_outcome": "success",
+      "expected": "expected.epJSON"
+    },
+    {
       "id": "versions-9-5-0",
       "title": "EnergyPlus 9.5.0 resolves from the two component identifier 9.5",
       "tags": [
