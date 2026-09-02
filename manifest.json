@@ -1,0 +1,7 @@
+{
+  "$schema": "./manifest.schema.json",
+  "schema_version": 1,
+  "corpus_level": null,
+  "oracle": [],
+  "convention": []
+}

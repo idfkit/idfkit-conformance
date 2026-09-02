@@ -1,0 +1,142 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/idfkit/idfkit-conformance/main/manifest.schema.json",
+  "title": "idfkit conformance manifest",
+  "description": "Index over every conformance case: its id, its tags, and which of the four assertions apply. Cases carrying an externally produced expectation live in the 'oracle' section; cases resting on agreed convention live in the 'convention' section, so agreed convention is never mistaken for external truth (FR-020).",
+  "type": "object",
+  "required": ["schema_version", "oracle", "convention"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "description": "Optional pointer to this schema, for editor completion and offline validation.",
+      "type": "string"
+    },
+    "schema_version": {
+      "description": "Version of the manifest format itself. Bumped only by a change that breaks readers.",
+      "type": "integer",
+      "const": 1
+    },
+    "corpus_level": {
+      "description": "The immutable level tag this manifest state was published as, of the form conformance-YYYY.N. Null while the level is unpublished.",
+      "type": ["string", "null"],
+      "pattern": "^conformance-[0-9]{4}\\.[0-9]+$"
+    },
+    "oracle": {
+      "description": "Cases whose expectation was produced by the external authority, EnergyPlus ConvertInputFormat. Every entry carries an 'expected' file.",
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/oracleCase" }
+    },
+    "convention": {
+      "description": "Cases resting on agreed convention between the two libraries. No external authority produced an expectation, so no entry may carry an 'expected' file.",
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/conventionCase" }
+    }
+  },
+  "$defs": {
+    "caseId": {
+      "description": "Slug identifying the case. Also the directory name under cases/, and the key the exception register refers to.",
+      "type": "string",
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+      "minLength": 1,
+      "maxLength": 64
+    },
+    "tag": {
+      "description": "Hazard the case pins, from the corpus taxonomy. 'tier1' marks the one case per Tier 1 capability ported in this feature.",
+      "type": "string",
+      "enum": [
+        "positional",
+        "naming",
+        "extensible",
+        "numeric",
+        "types",
+        "references",
+        "versions",
+        "encoding",
+        "malformed",
+        "tier1"
+      ]
+    },
+    "assertion": {
+      "description": "One of the four assertions. 'diagnostics' is accepted and skipped by the runners until phase two.",
+      "type": "string",
+      "enum": ["parse-outcome", "epjson", "round-trip", "diagnostics"]
+    },
+    "case": {
+      "description": "One case entry. Shared by both sections; the section decides whether 'expected' is required or forbidden.",
+      "type": "object",
+      "required": ["id", "title", "tags", "energyplus_version", "assertions", "input", "parse_outcome"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "#/$defs/caseId" },
+        "title": {
+          "description": "One line, matching the 'title' in the case's own case.toml.",
+          "type": "string",
+          "minLength": 1
+        },
+        "tags": {
+          "description": "The hazards this case pins. At least one.",
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/tag" }
+        },
+        "energyplus_version": {
+          "description": "The EnergyPlus release whose ConvertInputFormat produced the expectation, or whose schema the case is written against (FR-014).",
+          "type": "string",
+          "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+        },
+        "assertions": {
+          "description": "Which of the four assertions the runners apply to this case. At least one.",
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/assertion" }
+        },
+        "input": {
+          "description": "The case input, relative to the case directory. The extension tells the runner which reader to dispatch to.",
+          "type": "string",
+          "enum": ["input.idf", "input.epJSON"]
+        },
+        "parse_outcome": {
+          "description": "What reading the input is declared to do. The 'parse-outcome' assertion checks this.",
+          "type": "string",
+          "enum": ["success", "failure"]
+        },
+        "expected": {
+          "description": "The committed epJSON expectation, relative to the case directory. Required in the 'oracle' section, forbidden in the 'convention' section.",
+          "type": "string",
+          "const": "expected.epJSON"
+        },
+        "expected_diagnostics": {
+          "description": "Expected diagnostics file, relative to the case directory. Required when 'assertions' includes 'diagnostics', forbidden otherwise.",
+          "type": "string",
+          "const": "expected.diag.json"
+        }
+      },
+      "if": {
+        "required": ["assertions"],
+        "properties": {
+          "assertions": { "contains": { "const": "diagnostics" } }
+        }
+      },
+      "then": { "required": ["expected_diagnostics"] },
+      "else": { "not": { "required": ["expected_diagnostics"] } }
+    },
+    "oracleCase": {
+      "description": "A case with truth = oracle. Its expectation was generated offline by ConvertInputFormat and committed.",
+      "allOf": [
+        { "$ref": "#/$defs/case" },
+        { "required": ["expected"] }
+      ]
+    },
+    "conventionCase": {
+      "description": "A case with truth = convention. No external authority produced an expectation.",
+      "allOf": [
+        { "$ref": "#/$defs/case" },
+        { "not": { "required": ["expected"] } }
+      ]
+    }
+  }
+}

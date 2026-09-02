@@ -1,0 +1,978 @@
+{
+  "$comment": [
+    "The contract between runners/compare.py and runners/compare.mjs.",
+    "",
+    "Every fixture below is one comparison and the exact verdict both comparators must return, in",
+    "the exact order they must return it. runners/tests/test_compare.py drives compare.py over this",
+    "file and its JavaScript counterpart drives compare.mjs over the same file. A rule that is",
+    "not pinned here is a rule the two comparators are free to drift apart on while both stay green,",
+    "so a change to runners/compare.md is a change to this file in the same commit.",
+    "",
+    "Fields, per fixture:",
+    "  id      unique, kebab-case, names the hazard the fixture pins",
+    "  rules   the sections of compare.md this fixture exercises",
+    "  mode    'values' calls the value comparator, 'unordered' calls the unordered comparator",
+    "  path    the RFC 6901 pointer the two values already sit at, default the document root ''",
+    "  why     what a maintainer loses if this fixture is deleted",
+    "  left    the value the library under test produced",
+    "  right   the expectation",
+    "  expect  every difference, in order. An empty array means the two sides agree",
+    "",
+    "JSON cannot write NaN, an infinity, or 'there is no value here', and all three are load-bearing",
+    "in compare.md. Each is written as a one-key object, {\"$special\": \"<name>\"}, which both test",
+    "harnesses decode before comparing. The names are nan, infinity, -infinity and absent. No",
+    "fixture uses $special as a literal object key, and none may.",
+    "",
+    "Number literals are deliberate. 0.0, 3.0 and 1e-05 against 0, 3 and 0.00001 is the case that",
+    "made rule 1 normative: one JSON number and two JSON texts. Python parses the left as float and",
+    "the right as int, JavaScript parses both as number, and both comparators must return no",
+    "difference. Integer-like object keys are avoided throughout, because JavaScript visits those",
+    "ahead of the rest and the two comparators would then disagree on difference order for a reason",
+    "that has nothing to do with the libraries under test."
+  ],
+  "version": 1,
+  "special_key": "$special",
+  "specials": ["nan", "infinity", "-infinity", "absent"],
+  "fixtures": [
+    {
+      "id": "float-repr-noise-is-not-a-difference",
+      "rules": [1, 2],
+      "mode": "values",
+      "why": "The case compare.md cites. A textual diff reports three differences here and there are none",
+      "left": { "north_axis": 0.0, "ceiling_height": 3.0, "tolerance": 1e-05 },
+      "right": { "north_axis": 0, "ceiling_height": 3, "tolerance": 0.00001 },
+      "expect": []
+    },
+    {
+      "id": "key-order-is-not-a-difference",
+      "rules": [1, 3],
+      "mode": "values",
+      "why": "Neither library promises a key order and ConvertInputFormat emits its own",
+      "left": { "alpha": 1, "beta": 2 },
+      "right": { "beta": 2, "alpha": 1 },
+      "expect": []
+    },
+    {
+      "id": "float-repr-noise-nested",
+      "rules": [1, 2, 3],
+      "mode": "values",
+      "why": "Rule 1's corollary: a comparator that is textual anywhere is textual everywhere, subtrees included",
+      "left": { "Zone": { "Zone 1": { "ceiling_height": 3.0, "volume": 0.0, "tolerance": 1e-05 } } },
+      "right": { "Zone": { "Zone 1": { "volume": 0, "tolerance": 0.00001, "ceiling_height": 3 } } },
+      "expect": []
+    },
+    {
+      "id": "number-integer-equals-float",
+      "rules": [2],
+      "mode": "values",
+      "why": "epJSON has one number type. Python's int against float is not a claim about the model",
+      "left": 3,
+      "right": 3.0,
+      "expect": []
+    },
+    {
+      "id": "number-zero-equals-zero",
+      "rules": [2],
+      "mode": "values",
+      "why": "Exact zero is equal to exact zero, whichever way it was written",
+      "left": 0,
+      "right": 0.0,
+      "expect": []
+    },
+    {
+      "id": "number-negative-zero-equals-zero",
+      "rules": [2],
+      "mode": "values",
+      "why": "-0.0 == 0.0 exactly, and neither language treats the sign of zero as a model claim",
+      "left": -0.0,
+      "right": 0.0,
+      "expect": []
+    },
+    {
+      "id": "number-inside-relative-tolerance",
+      "rules": [2],
+      "mode": "values",
+      "why": "One unit in the last place at 1.0 is 2.2e-16, well inside 1e-12 relative",
+      "left": 1.0,
+      "right": 1.0000000000000002,
+      "expect": []
+    },
+    {
+      "id": "number-outside-relative-tolerance",
+      "rules": [2],
+      "mode": "values",
+      "why": "1e-6 relative is six orders of magnitude outside the tolerance and is a finding",
+      "left": 1.0,
+      "right": 1.000001,
+      "expect": [{ "kind": "value", "path": "", "left": 1.0, "right": 1.000001 }]
+    },
+    {
+      "id": "number-zero-has-no-absolute-floor",
+      "rules": [2],
+      "mode": "values",
+      "why": "The tolerance is relative only. An unset field read as 0 instead of omitted must stay visible",
+      "left": 0.0,
+      "right": 1e-300,
+      "expect": [{ "kind": "value", "path": "", "left": 0.0, "right": 1e-300 }]
+    },
+    {
+      "id": "number-large-inside-relative-tolerance",
+      "rules": [2],
+      "mode": "values",
+      "why": "At 1e12 the tolerance is 1.0 absolute, so half a unit agrees",
+      "left": 1000000000000.0,
+      "right": 1000000000000.5,
+      "expect": []
+    },
+    {
+      "id": "number-large-outside-relative-tolerance",
+      "rules": [2],
+      "mode": "values",
+      "why": "At 1e12 the tolerance is 1.0 absolute, so two units differ",
+      "left": 1000000000000.0,
+      "right": 1000000000002.0,
+      "expect": [{ "kind": "value", "path": "", "left": 1000000000000.0, "right": 1000000000002.0 }]
+    },
+    {
+      "id": "number-boolean-is-not-a-number",
+      "rules": [2],
+      "mode": "values",
+      "why": "true against 1. JSON keeps them distinct and so does the schema",
+      "left": true,
+      "right": 1,
+      "expect": [{ "kind": "type", "path": "", "left": true, "right": 1 }]
+    },
+    {
+      "id": "number-false-is-not-zero",
+      "rules": [2],
+      "mode": "values",
+      "why": "The same rule at the other end, where a truthiness shortcut would pass",
+      "left": false,
+      "right": 0,
+      "expect": [{ "kind": "type", "path": "", "left": false, "right": 0 }]
+    },
+    {
+      "id": "boolean-equal",
+      "rules": [2],
+      "mode": "values",
+      "why": "Two booleans of the same value agree",
+      "left": true,
+      "right": true,
+      "expect": []
+    },
+    {
+      "id": "boolean-differs",
+      "rules": [2],
+      "mode": "values",
+      "why": "Two booleans of different value are a value difference, not a type difference",
+      "left": true,
+      "right": false,
+      "expect": [{ "kind": "value", "path": "", "left": true, "right": false }]
+    },
+    {
+      "id": "number-numeric-string-is-not-a-number",
+      "rules": [2],
+      "mode": "values",
+      "why": "A numeric field one library leaves as text is a parse bug, and autosize lives next door",
+      "left": "3",
+      "right": 3,
+      "expect": [{ "kind": "type", "path": "", "left": "3", "right": 3 }]
+    },
+    {
+      "id": "number-against-numeric-string",
+      "rules": [2],
+      "mode": "values",
+      "why": "The same disagreement with the orientation swapped. left is always the library under test",
+      "left": 3,
+      "right": "3",
+      "expect": [{ "kind": "type", "path": "", "left": 3, "right": "3" }]
+    },
+    {
+      "id": "number-autosize-keyword-against-number",
+      "rules": [2],
+      "mode": "values",
+      "why": "An autosize field resolved to a number by one side is a type difference, never a near match",
+      "left": "autosize",
+      "right": 0,
+      "expect": [{ "kind": "type", "path": "", "left": "autosize", "right": 0 }]
+    },
+    {
+      "id": "number-nan-against-nan",
+      "rules": [2],
+      "mode": "values",
+      "why": "JSON cannot carry NaN, so one reaching the comparator is itself the finding",
+      "left": { "$special": "nan" },
+      "right": { "$special": "nan" },
+      "expect": [
+        {
+          "kind": "value",
+          "path": "",
+          "left": { "$special": "nan" },
+          "right": { "$special": "nan" }
+        }
+      ]
+    },
+    {
+      "id": "number-nan-against-finite",
+      "rules": [2],
+      "mode": "values",
+      "why": "NaN never equals anything, including under the tolerance branch",
+      "left": { "$special": "nan" },
+      "right": 1.0,
+      "expect": [{ "kind": "value", "path": "", "left": { "$special": "nan" }, "right": 1.0 }]
+    },
+    {
+      "id": "number-infinity-against-infinity",
+      "rules": [2],
+      "mode": "values",
+      "why": "Infinity against infinity is exactly equal in both languages and is still a difference",
+      "left": { "$special": "infinity" },
+      "right": { "$special": "infinity" },
+      "expect": [
+        {
+          "kind": "value",
+          "path": "",
+          "left": { "$special": "infinity" },
+          "right": { "$special": "infinity" }
+        }
+      ]
+    },
+    {
+      "id": "number-infinity-against-large-finite",
+      "rules": [2],
+      "mode": "values",
+      "why": "A relative tolerance against infinity is NaN, which must not compare as agreement",
+      "left": { "$special": "infinity" },
+      "right": 1e308,
+      "expect": [{ "kind": "value", "path": "", "left": { "$special": "infinity" }, "right": 1e308 }]
+    },
+    {
+      "id": "number-negative-infinity-against-infinity",
+      "rules": [2],
+      "mode": "values",
+      "why": "Both infinities are differences, and their signs do not rescue one another",
+      "left": { "$special": "-infinity" },
+      "right": { "$special": "infinity" },
+      "expect": [
+        {
+          "kind": "value",
+          "path": "",
+          "left": { "$special": "-infinity" },
+          "right": { "$special": "infinity" }
+        }
+      ]
+    },
+    {
+      "id": "number-negative-equal",
+      "rules": [2],
+      "mode": "values",
+      "why": "The tolerance uses absolute magnitudes, so negatives must not fall through it",
+      "left": -1.5,
+      "right": -1.5,
+      "expect": []
+    },
+    {
+      "id": "number-negative-outside-tolerance",
+      "rules": [2],
+      "mode": "values",
+      "why": "max(abs(a), abs(b)) rather than max(a, b), which would make the tolerance negative here",
+      "left": -1.0,
+      "right": -1.000001,
+      "expect": [{ "kind": "value", "path": "", "left": -1.0, "right": -1.000001 }]
+    },
+    {
+      "id": "number-integer-and-float-inside-arrays",
+      "rules": [2, 7],
+      "mode": "values",
+      "why": "The number rule holds at every depth, not only at the root",
+      "left": [1, 2.0, 3],
+      "right": [1.0, 2, 3.0],
+      "expect": []
+    },
+    {
+      "id": "object-missing-key",
+      "rules": [3],
+      "mode": "values",
+      "why": "A key on the right and not the left. The library omitted it",
+      "left": { "name": "Zone 1" },
+      "right": { "name": "Zone 1", "volume": 240.0 },
+      "expect": [
+        { "kind": "missing", "path": "/volume", "left": { "$special": "absent" }, "right": 240.0 }
+      ]
+    },
+    {
+      "id": "object-extra-key",
+      "rules": [3],
+      "mode": "values",
+      "why": "A key on the left and not the right. The library invented it",
+      "left": { "name": "Zone 1", "volume": 240.0 },
+      "right": { "name": "Zone 1" },
+      "expect": [
+        { "kind": "extra", "path": "/volume", "left": 240.0, "right": { "$special": "absent" } }
+      ]
+    },
+    {
+      "id": "object-null-is-not-absent-on-the-left",
+      "rules": [3],
+      "mode": "values",
+      "why": "In epJSON an omitted field and a field set to nothing are different documents",
+      "left": { "volume": null },
+      "right": {},
+      "expect": [
+        { "kind": "extra", "path": "/volume", "left": null, "right": { "$special": "absent" } }
+      ]
+    },
+    {
+      "id": "object-null-is-not-absent-on-the-right",
+      "rules": [3],
+      "mode": "values",
+      "why": "The same rule with the orientation swapped, which the positional and naming cases pin",
+      "left": {},
+      "right": { "volume": null },
+      "expect": [
+        { "kind": "missing", "path": "/volume", "left": { "$special": "absent" }, "right": null }
+      ]
+    },
+    {
+      "id": "object-null-equals-null",
+      "rules": [3],
+      "mode": "values",
+      "why": "null is a value like any other and equals itself",
+      "left": { "volume": null },
+      "right": { "volume": null },
+      "expect": []
+    },
+    {
+      "id": "object-null-against-zero",
+      "rules": [2, 3],
+      "mode": "values",
+      "why": "An unset field read as 0 is the bug the numeric and positional cases exist for",
+      "left": { "volume": null },
+      "right": { "volume": 0 },
+      "expect": [{ "kind": "type", "path": "/volume", "left": null, "right": 0 }]
+    },
+    {
+      "id": "object-keys-are-case-sensitive",
+      "rules": [3, 5],
+      "mode": "values",
+      "why": "Key comparison is exact under rule 5, and the two reports are one extra and one missing",
+      "left": { "Zone": 1 },
+      "right": { "zone": 1 },
+      "expect": [
+        { "kind": "extra", "path": "/Zone", "left": 1, "right": { "$special": "absent" } },
+        { "kind": "missing", "path": "/zone", "left": { "$special": "absent" }, "right": 1 }
+      ]
+    },
+    {
+      "id": "object-empty-equals-empty",
+      "rules": [3],
+      "mode": "values",
+      "why": "Two empty objects agree, and neither side's emptiness is a difference",
+      "left": {},
+      "right": {},
+      "expect": []
+    },
+    {
+      "id": "object-against-array",
+      "rules": [3, 7],
+      "mode": "values",
+      "why": "An empty object and an empty array are different JSON types, not two empty things",
+      "left": {},
+      "right": [],
+      "expect": [{ "kind": "type", "path": "", "left": {}, "right": [] }]
+    },
+    {
+      "id": "difference-order-left-document-then-sorted-missing",
+      "rules": [3],
+      "mode": "values",
+      "why": "The whole ordering contract in one fixture. Two comparators whose output cannot be diffed cannot be reconciled",
+      "left": { "beta": { "yankee": 2, "xray": 1 }, "alpha": 9 },
+      "right": {
+        "beta": { "xray": 1, "yankee": 3 },
+        "alpha": 8,
+        "delta": 4,
+        "charlie": 3
+      },
+      "expect": [
+        { "kind": "value", "path": "/beta/yankee", "left": 2, "right": 3 },
+        { "kind": "value", "path": "/alpha", "left": 9, "right": 8 },
+        { "kind": "missing", "path": "/charlie", "left": { "$special": "absent" }, "right": 3 },
+        { "kind": "missing", "path": "/delta", "left": { "$special": "absent" }, "right": 4 }
+      ]
+    },
+    {
+      "id": "pointer-escaping",
+      "rules": [3],
+      "mode": "values",
+      "why": "RFC 6901 escaping, tilde before slash. An object named 'a/b' is one segment, not two",
+      "left": { "a/b": 1, "m~n": 2 },
+      "right": { "a/b": 9, "m~n": 9 },
+      "expect": [
+        { "kind": "value", "path": "/a~1b", "left": 1, "right": 9 },
+        { "kind": "value", "path": "/m~0n", "left": 2, "right": 9 }
+      ]
+    },
+    {
+      "id": "pointer-empty-key",
+      "rules": [3],
+      "mode": "values",
+      "why": "RFC 6901 writes the empty key as a pointer of one empty segment, which reads as a bare slash",
+      "left": { "": 1 },
+      "right": { "": 2 },
+      "expect": [{ "kind": "value", "path": "/", "left": 1, "right": 2 }]
+    },
+    {
+      "id": "pointer-epjson-shape",
+      "rules": [3],
+      "mode": "values",
+      "why": "The path compare.md spells out: an object type and an object name are ordinary segments",
+      "left": { "Zone": { "Zone 1": { "ceiling_height": 3.0 } } },
+      "right": { "Zone": { "Zone 1": { "ceiling_height": 2.4 } } },
+      "expect": [{ "kind": "value", "path": "/Zone/Zone 1/ceiling_height", "left": 3.0, "right": 2.4 }]
+    },
+    {
+      "id": "pointer-epjson-missing-field",
+      "rules": [3],
+      "mode": "values",
+      "why": "A missing field reports the path into the object that lacks it, not the object",
+      "left": { "Zone": { "Zone 1": { "ceiling_height": 3.0 } } },
+      "right": { "Zone": { "Zone 1": { "ceiling_height": 3.0, "volume": 240.0 } } },
+      "expect": [
+        {
+          "kind": "missing",
+          "path": "/Zone/Zone 1/volume",
+          "left": { "$special": "absent" },
+          "right": 240.0
+        }
+      ]
+    },
+    {
+      "id": "values-at-a-non-root-path",
+      "rules": [3],
+      "mode": "values",
+      "path": "/Zone/Zone 1",
+      "why": "A caller comparing a subtree gets pointers into the whole document, not into the subtree",
+      "left": { "ceiling_height": 3.0 },
+      "right": { "ceiling_height": 2.4 },
+      "expect": [{ "kind": "value", "path": "/Zone/Zone 1/ceiling_height", "left": 3.0, "right": 2.4 }]
+    },
+    {
+      "id": "array-equal",
+      "rules": [7],
+      "mode": "values",
+      "why": "Two identical arrays agree element by element",
+      "left": [1, "a", null],
+      "right": [1, "a", null],
+      "expect": []
+    },
+    {
+      "id": "array-order-is-compared",
+      "rules": [4, 7],
+      "mode": "values",
+      "why": "An extensible group is an array whose order is the field order, and losing it is a bug",
+      "left": [1, 2],
+      "right": [2, 1],
+      "expect": [
+        { "kind": "value", "path": "/0", "left": 1, "right": 2 },
+        { "kind": "value", "path": "/1", "left": 2, "right": 1 }
+      ]
+    },
+    {
+      "id": "array-length-left-longer",
+      "rules": [7],
+      "mode": "values",
+      "why": "One length difference at the array's own path, carrying both arrays verbatim",
+      "left": [1, 2, 3],
+      "right": [1, 2],
+      "expect": [{ "kind": "length", "path": "", "left": [1, 2, 3], "right": [1, 2] }]
+    },
+    {
+      "id": "array-length-right-longer",
+      "rules": [7],
+      "mode": "values",
+      "why": "The same difference with the orientation swapped, still one length and not two missing",
+      "left": [1, 2],
+      "right": [1, 2, 3],
+      "expect": [{ "kind": "length", "path": "", "left": [1, 2], "right": [1, 2, 3] }]
+    },
+    {
+      "id": "array-length-and-prefix-difference",
+      "rules": [7],
+      "mode": "values",
+      "why": "The shared prefix is still compared, so a value difference is not hidden behind the length",
+      "left": [1, 9, 3],
+      "right": [1, 2],
+      "expect": [
+        { "kind": "length", "path": "", "left": [1, 9, 3], "right": [1, 2] },
+        { "kind": "value", "path": "/1", "left": 9, "right": 2 }
+      ]
+    },
+    {
+      "id": "array-trailing-unset-field",
+      "rules": [4, 7],
+      "mode": "values",
+      "why": "Rule 4's trailing unset field: a written blank and an absent slot are different documents",
+      "left": ["a", null],
+      "right": ["a"],
+      "expect": [{ "kind": "length", "path": "", "left": ["a", null], "right": ["a"] }]
+    },
+    {
+      "id": "array-nested",
+      "rules": [7],
+      "mode": "values",
+      "why": "Array indices are ordinary pointer segments and nest like any other",
+      "left": [[1, 2], [3]],
+      "right": [[1, 2], [4]],
+      "expect": [{ "kind": "value", "path": "/1/0", "left": 3, "right": 4 }]
+    },
+    {
+      "id": "array-length-nested-path",
+      "rules": [7],
+      "mode": "values",
+      "why": "A length difference points at the array, not at the object above it",
+      "left": { "Zone": { "vertices": [1, 2] } },
+      "right": { "Zone": { "vertices": [1] } },
+      "expect": [{ "kind": "length", "path": "/Zone/vertices", "left": [1, 2], "right": [1] }]
+    },
+    {
+      "id": "array-extensible-group-order",
+      "rules": [4, 7],
+      "mode": "values",
+      "why": "Vertices in the wrong order are the same multiset and a different building",
+      "left": { "vertices": [{ "x": 0.0 }, { "x": 1.0 }] },
+      "right": { "vertices": [{ "x": 1.0 }, { "x": 0.0 }] },
+      "expect": [
+        { "kind": "value", "path": "/vertices/0/x", "left": 0.0, "right": 1.0 },
+        { "kind": "value", "path": "/vertices/1/x", "left": 1.0, "right": 0.0 }
+      ]
+    },
+    {
+      "id": "array-empty-equals-empty",
+      "rules": [7],
+      "mode": "values",
+      "why": "An empty extensible group is a valid value and equals itself",
+      "left": [],
+      "right": [],
+      "expect": []
+    },
+    {
+      "id": "array-against-string",
+      "rules": [7],
+      "mode": "values",
+      "why": "A string is a sequence in Python and is not a JSON array. The types differ",
+      "left": [],
+      "right": "",
+      "expect": [{ "kind": "type", "path": "", "left": [], "right": "" }]
+    },
+    {
+      "id": "string-case-sensitive",
+      "rules": [5],
+      "mode": "values",
+      "why": "Both libraries claim to preserve as-written casing, so a disagreement is a finding",
+      "left": "Zone 1",
+      "right": "ZONE 1",
+      "expect": [{ "kind": "value", "path": "", "left": "Zone 1", "right": "ZONE 1" }]
+    },
+    {
+      "id": "string-leading-whitespace-not-trimmed",
+      "rules": [5],
+      "mode": "values",
+      "why": "No trimming. A library that keeps the leading space has said something about the model",
+      "left": " Zone 1",
+      "right": "Zone 1",
+      "expect": [{ "kind": "value", "path": "", "left": " Zone 1", "right": "Zone 1" }]
+    },
+    {
+      "id": "string-internal-whitespace-not-collapsed",
+      "rules": [5],
+      "mode": "values",
+      "why": "No collapsing of internal whitespace",
+      "left": "Zone  1",
+      "right": "Zone 1",
+      "expect": [{ "kind": "value", "path": "", "left": "Zone  1", "right": "Zone 1" }]
+    },
+    {
+      "id": "string-line-endings-not-normalised",
+      "rules": [5],
+      "mode": "values",
+      "why": "No normalisation of line endings inside a value, which a round trip on Windows would hide",
+      "left": "a\r\nb",
+      "right": "a\nb",
+      "expect": [{ "kind": "value", "path": "", "left": "a\r\nb", "right": "a\nb" }]
+    },
+    {
+      "id": "string-latin1-high-byte-equal",
+      "rules": [5, 6],
+      "mode": "values",
+      "why": "The encoding case: a high byte read as latin-1 on both sides is not a difference",
+      "left": "Montr\u00e9al-Trudeau",
+      "right": "Montr\u00e9al-Trudeau",
+      "expect": []
+    },
+    {
+      "id": "string-latin1-high-byte-differs",
+      "rules": [5, 6],
+      "mode": "values",
+      "why": "A library that dropped the accent has garbled the value, and the value difference is the finding",
+      "left": "Montr\u00e9al-Trudeau",
+      "right": "Montreal-Trudeau",
+      "expect": [
+        { "kind": "value", "path": "", "left": "Montr\u00e9al-Trudeau", "right": "Montreal-Trudeau" }
+      ]
+    },
+    {
+      "id": "string-degree-sign-equal",
+      "rules": [5, 6],
+      "mode": "values",
+      "why": "A second high byte, in the position comments and station names actually use it",
+      "left": "45\u00b0 30' N",
+      "right": "45\u00b0 30' N",
+      "expect": []
+    },
+    {
+      "id": "string-no-unicode-normalisation",
+      "rules": [5],
+      "mode": "values",
+      "why": "Composed against decomposed is a difference. Normalising would hide a re-encoding by one library",
+      "left": "Montr\u00e9al",
+      "right": "Montre\u0301al",
+      "expect": [{ "kind": "value", "path": "", "left": "Montr\u00e9al", "right": "Montre\u0301al" }]
+    },
+    {
+      "id": "string-empty-equals-empty",
+      "rules": [5],
+      "mode": "values",
+      "why": "A blank field written as an empty string equals another empty string",
+      "left": "",
+      "right": "",
+      "expect": []
+    },
+    {
+      "id": "string-empty-against-null",
+      "rules": [3, 5],
+      "mode": "values",
+      "why": "A blank name and an absent name are the naming cases' whole subject. Neither is null",
+      "left": "",
+      "right": null,
+      "expect": [{ "kind": "type", "path": "", "left": "", "right": null }]
+    },
+    {
+      "id": "null-equals-null",
+      "rules": [3],
+      "mode": "values",
+      "why": "null is a value and equals itself at the root as well as inside an object",
+      "left": null,
+      "right": null,
+      "expect": []
+    },
+    {
+      "id": "type-number-against-object",
+      "rules": [3],
+      "mode": "values",
+      "why": "A scalar where a container belongs is a type difference and the walk stops there",
+      "left": 1,
+      "right": { "a": 1 },
+      "expect": [{ "kind": "type", "path": "", "left": 1, "right": { "a": 1 } }]
+    },
+    {
+      "id": "type-null-against-object",
+      "rules": [3],
+      "mode": "values",
+      "why": "An object read as nothing is a type difference, and nothing below it is reported twice",
+      "left": null,
+      "right": { "a": 1 },
+      "expect": [{ "kind": "type", "path": "", "left": null, "right": { "a": 1 } }]
+    },
+    {
+      "id": "composite-every-kind-in-document-order",
+      "rules": [1, 2, 3, 5],
+      "mode": "values",
+      "why": "A realistic epJSON disagreement, pinning kind, path and order together",
+      "left": {
+        "Building": { "Bldg": { "north_axis": 0.0, "terrain": "Suburbs" } },
+        "Zone": { "Zone 1": { "ceiling_height": 3.0, "volume": null, "multiplier": 1 } }
+      },
+      "right": {
+        "Building": { "Bldg": { "north_axis": 0, "terrain": "suburbs" } },
+        "Zone": { "Zone 1": { "ceiling_height": 3.0, "multiplier": 1.0, "x_origin": 0.0 } },
+        "GlobalGeometryRules": {
+          "GlobalGeometryRules 1": { "starting_vertex_position": "UpperLeftCorner" }
+        }
+      },
+      "expect": [
+        {
+          "kind": "value",
+          "path": "/Building/Bldg/terrain",
+          "left": "Suburbs",
+          "right": "suburbs"
+        },
+        {
+          "kind": "extra",
+          "path": "/Zone/Zone 1/volume",
+          "left": null,
+          "right": { "$special": "absent" }
+        },
+        {
+          "kind": "missing",
+          "path": "/Zone/Zone 1/x_origin",
+          "left": { "$special": "absent" },
+          "right": 0.0
+        },
+        {
+          "kind": "missing",
+          "path": "/GlobalGeometryRules",
+          "left": { "$special": "absent" },
+          "right": {
+            "GlobalGeometryRules 1": { "starting_vertex_position": "UpperLeftCorner" }
+          }
+        }
+      ]
+    },
+    {
+      "id": "unordered-same-multiset",
+      "rules": [7],
+      "mode": "unordered",
+      "why": "The assertion 4 collection has no defined order, so a reordering is not a finding",
+      "left": [
+        { "code": "UnknownObjectType", "line": 12, "typeName": "Zonee" },
+        { "code": "InvalidField", "line": 40, "typeName": "Zone" }
+      ],
+      "right": [
+        { "code": "InvalidField", "line": 40, "typeName": "Zone" },
+        { "code": "UnknownObjectType", "line": 12, "typeName": "Zonee" }
+      ],
+      "expect": []
+    },
+    {
+      "id": "unordered-key-order-inside-elements",
+      "rules": [3, 7],
+      "mode": "unordered",
+      "why": "Pairing canonicalises object keys, because rule 3 never compares key order at any depth",
+      "left": [{ "code": "InvalidField", "line": 40 }],
+      "right": [{ "line": 40, "code": "InvalidField" }],
+      "expect": []
+    },
+    {
+      "id": "unordered-duplicate-on-the-left",
+      "rules": [7],
+      "mode": "unordered",
+      "why": "A multiset, not a set. The library reported the same diagnostic twice",
+      "left": ["InvalidField", "InvalidField"],
+      "right": ["InvalidField"],
+      "expect": [
+        {
+          "kind": "unmatched",
+          "path": "",
+          "left": "InvalidField",
+          "right": { "$special": "absent" }
+        }
+      ]
+    },
+    {
+      "id": "unordered-duplicate-on-the-right",
+      "rules": [7],
+      "mode": "unordered",
+      "why": "The same difference with the orientation swapped. The library reported it once too few",
+      "left": ["InvalidField"],
+      "right": ["InvalidField", "InvalidField"],
+      "expect": [
+        {
+          "kind": "unmatched",
+          "path": "",
+          "left": { "$special": "absent" },
+          "right": "InvalidField"
+        }
+      ]
+    },
+    {
+      "id": "unordered-unmatched-on-both-sides",
+      "rules": [7],
+      "mode": "unordered",
+      "why": "Left unmatched in left document order, then right unmatched in right document order",
+      "left": ["Range", "DuplicateObject"],
+      "right": ["Range", "InvalidField"],
+      "expect": [
+        {
+          "kind": "unmatched",
+          "path": "",
+          "left": "DuplicateObject",
+          "right": { "$special": "absent" }
+        },
+        {
+          "kind": "unmatched",
+          "path": "",
+          "left": { "$special": "absent" },
+          "right": "InvalidField"
+        }
+      ]
+    },
+    {
+      "id": "unordered-pairs-by-exact-equality",
+      "rules": [7],
+      "mode": "unordered",
+      "why": "No tolerance is involved in pairing, so the pairing stays unambiguous",
+      "left": [1.0],
+      "right": [1.0000000000000002],
+      "expect": [
+        { "kind": "unmatched", "path": "", "left": 1.0, "right": { "$special": "absent" } },
+        {
+          "kind": "unmatched",
+          "path": "",
+          "left": { "$special": "absent" },
+          "right": 1.0000000000000002
+        }
+      ]
+    },
+    {
+      "id": "unordered-integer-pairs-with-float",
+      "rules": [2, 7],
+      "mode": "unordered",
+      "why": "Exact equality still spans the int and float split, which only Python has",
+      "left": [3],
+      "right": [3.0],
+      "expect": []
+    },
+    {
+      "id": "unordered-boolean-does-not-pair-with-number",
+      "rules": [2, 7],
+      "mode": "unordered",
+      "why": "A boolean is not a number in the pairing either, where a truthy key would merge them",
+      "left": [true],
+      "right": [1],
+      "expect": [
+        { "kind": "unmatched", "path": "", "left": true, "right": { "$special": "absent" } },
+        { "kind": "unmatched", "path": "", "left": { "$special": "absent" }, "right": 1 }
+      ]
+    },
+    {
+      "id": "unordered-nan-pairs-with-nothing",
+      "rules": [2, 7],
+      "mode": "unordered",
+      "why": "Rule 2 outranks the pairing: a NaN reaching the comparator is reported, never absorbed",
+      "left": [{ "$special": "nan" }],
+      "right": [{ "$special": "nan" }],
+      "expect": [
+        {
+          "kind": "unmatched",
+          "path": "",
+          "left": { "$special": "nan" },
+          "right": { "$special": "absent" }
+        },
+        {
+          "kind": "unmatched",
+          "path": "",
+          "left": { "$special": "absent" },
+          "right": { "$special": "nan" }
+        }
+      ]
+    },
+    {
+      "id": "unordered-infinity-pairs-with-nothing",
+      "rules": [2, 7],
+      "mode": "unordered",
+      "why": "The same for an infinity, which exact equality would otherwise pair with itself",
+      "left": [{ "$special": "infinity" }],
+      "right": [{ "$special": "infinity" }],
+      "expect": [
+        {
+          "kind": "unmatched",
+          "path": "",
+          "left": { "$special": "infinity" },
+          "right": { "$special": "absent" }
+        },
+        {
+          "kind": "unmatched",
+          "path": "",
+          "left": { "$special": "absent" },
+          "right": { "$special": "infinity" }
+        }
+      ]
+    },
+    {
+      "id": "unordered-nan-nested-in-an-element",
+      "rules": [2, 7],
+      "mode": "unordered",
+      "why": "An element is unpairable wherever the NaN sits inside it, not only at the top",
+      "left": [{ "code": "Range", "value": { "$special": "nan" } }],
+      "right": [{ "code": "Range", "value": { "$special": "nan" } }],
+      "expect": [
+        {
+          "kind": "unmatched",
+          "path": "",
+          "left": { "code": "Range", "value": { "$special": "nan" } },
+          "right": { "$special": "absent" }
+        },
+        {
+          "kind": "unmatched",
+          "path": "",
+          "left": { "$special": "absent" },
+          "right": { "code": "Range", "value": { "$special": "nan" } }
+        }
+      ]
+    },
+    {
+      "id": "unordered-arrays-inside-elements-stay-ordered",
+      "rules": [7],
+      "mode": "unordered",
+      "why": "Unordered at the top does not make the arrays underneath unordered",
+      "left": [[1, 2]],
+      "right": [[2, 1]],
+      "expect": [
+        { "kind": "unmatched", "path": "", "left": [1, 2], "right": { "$special": "absent" } },
+        { "kind": "unmatched", "path": "", "left": { "$special": "absent" }, "right": [2, 1] }
+      ]
+    },
+    {
+      "id": "unordered-null-elements",
+      "rules": [7],
+      "mode": "unordered",
+      "why": "null pairs with null, and its position among the other elements is not compared",
+      "left": [null, "Range"],
+      "right": ["Range", null],
+      "expect": []
+    },
+    {
+      "id": "unordered-both-empty",
+      "rules": [7],
+      "mode": "unordered",
+      "why": "A case with no diagnostics on either side agrees, and the empty corpus depends on it",
+      "left": [],
+      "right": [],
+      "expect": []
+    },
+    {
+      "id": "unordered-empty-against-one",
+      "rules": [7],
+      "mode": "unordered",
+      "why": "The library reported no diagnostics where one was expected",
+      "left": [],
+      "right": ["ParseError"],
+      "expect": [
+        { "kind": "unmatched", "path": "", "left": { "$special": "absent" }, "right": "ParseError" }
+      ]
+    },
+    {
+      "id": "unordered-at-a-non-root-path",
+      "rules": [7],
+      "mode": "unordered",
+      "path": "/diagnostics",
+      "why": "An unmatched element has no index on the other side, so the path is the collection's own",
+      "left": ["Range"],
+      "right": ["InvalidField"],
+      "expect": [
+        {
+          "kind": "unmatched",
+          "path": "/diagnostics",
+          "left": "Range",
+          "right": { "$special": "absent" }
+        },
+        {
+          "kind": "unmatched",
+          "path": "/diagnostics",
+          "left": { "$special": "absent" },
+          "right": "InvalidField"
+        }
+      ]
+    }
+  ]
+}

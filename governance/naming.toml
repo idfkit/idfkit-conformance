@@ -1,0 +1,1599 @@
+# The naming register.
+#
+# The single public record of every concept shared by the two idfkit libraries, and of every
+# accepted difference between them. A name that is not in this file is not finished.
+#
+# HOW THIS FILE IS READ
+#
+# Both naming gates, `idfkit/scripts/check_naming_register.py` and
+# `idfkit-js/scripts/check-naming-register.mjs`, read this file at a pinned, immutable
+# `governance-YYYY.N` tag of this repository. Reading it from the default branch is prohibited
+# (FR-081): an unpinned read lets one repository turn the other's checks red without review on the
+# consuming side. The governance tag series is separate from the `conformance-YYYY.N` corpus level
+# series, so a rename does not force a corpus release.
+#
+# HOW THIS FILE IS RENDERED
+#
+# `idfkit/docs/explanation/naming-map.md` renders from this file at the same pinned tag. This file
+# is the source; that page is a view. Hand-editing the page so that it disagrees with this file is
+# the exact failure mode the split exists to prevent.
+#
+# HOW THIS FILE IS CHANGED
+#
+# Changes require review from a maintainer of the other language, enforced by CODEOWNERS in both
+# repositories (FR-067). Names are decided here first and implemented afterwards (FR-007): an entry
+# whose implementation does not exist yet is valid and required, and its `notes` say so.
+#
+# WHERE THIS FILE STOPS
+#
+# The register governs names. The corpus governs behaviour. Where the two disagree, neither wins
+# silently: the disagreement blocks the merge and is resolved by amending whichever is wrong.
+
+[register]
+schema_version = "1"
+governs = ["idfkit", "@idfkit/core"]
+renders_to = "idfkit/docs/explanation/naming-map.md"
+read_at = "a pinned governance-YYYY.N tag of idfkit-conformance, never the default branch"
+review = "a maintainer of the other language, enforced by CODEOWNERS in both repositories"
+
+# ---------------------------------------------------------------------------
+# Entry schema
+# ---------------------------------------------------------------------------
+#
+# Every `[[entry]]` carries these fields. The gates validate against this table.
+#
+#   concept            string           required   Unique across the register.
+#   python             string           required   "" means absent in Python.
+#   typescript         string           required   "" means absent in TypeScript.
+#   kind               enum             required   aligned | divergent | excluded
+#   divergence_reason  string           when kind is divergent or excluded. Must state why each
+#                                                  side is correct in its own ecosystem.
+#   canonical_form     string           when the value shape differs across the boundary. The text
+#                                                  form both sides render (FR-004).
+#   notes              string           optional   Free text. The primary path when two signatures
+#                                                  coexist, or the fact that a name is registered
+#                                                  ahead of its implementation.
+#   rename_count       inline table     required   Per name, not per entry:
+#                                                  { python = <int>, typescript = <int> }.
+#
+# THE ABSENT NAME IS "", NOT null
+#
+# The field contract in contracts/naming-register.md writes an absent name as `null`. TOML has no
+# null literal, so this file spells it as the empty string. `python = ""` and `typescript = ""` mean
+# absent in that language, and both gates read them that way. The rule is unchanged: a required
+# field is always present, and its value says whether the name exists.
+#
+# THE RENAME COUNT, AND WHY IT IS PER NAME (FR-079, SC-003)
+#
+# `rename_count` records how many times each name has been changed during the unification feature.
+# One rename is the budget. A name at 1 is spent: the naming gate BLOCKS any change that would take
+# it to 2, and the block is not waivable by the gate. Taking a spent name to a second rename
+# requires an amendment to this file, reviewed by both languages, that states why the first rename
+# was wrong.
+#
+# This is what holds SC-003, zero names renamed more than once, at merge time, by construction,
+# rather than confirming it by audit after the feature completes. An audit finds the second rename
+# after users have already absorbed both.
+#
+# A withdrawal from the public surface counts as a rename. It is at least as breaking as one, and
+# for the same reason it must not happen twice to the same name.
+#
+# A name at 0 whose entry is registered ahead of its implementation stays at 0 when it is written:
+# writing a registered name is not a rename, which is the whole point of registering it first.
+
+[gate]
+# The exit contract lives in contracts/naming-register.md. Recorded here so that a reader of the
+# file knows what it is enforced against.
+exit_zero = "every public name in both libraries resolves to an entry"
+failures = [
+  "a public name has no entry: reports the name, its library, and the file it is exported from",
+  "a concept has two public names in one language (FR-005): reports the concept and both names",
+  "an excluded entry gains a counterpart in the other language (FR-006): reports the concept and the offending name",
+  "a divergent entry has no divergence_reason: reports the concept",
+  "a change takes a name to rename_count 2 (FR-079): reports the name and its first rename",
+]
+# Both gates report WHICH SIDE is behind the pinned register, not merely that the two disagree, and
+# a reverted side stays blocked without the register entry being withdrawn (FR-003, FR-082).
+reports_which_side_is_behind = true
+# Assembly artefacts are not entries. A public surface exposing names never intended as public,
+# module-import leakage included, fails the gate outright (FR-008). Those names are deleted, not
+# registered.
+assembly_artefacts_are_deleted_not_registered = true
+
+# ---------------------------------------------------------------------------
+# The aligned verb vocabulary
+# ---------------------------------------------------------------------------
+#
+# Non-negotiable per Constitution Principle I. One operation, one verb, in both languages. A new
+# capability that needs one of these operations spells it with the verb below, in the casing of its
+# own ecosystem: snake_case in Python, camelCase in TypeScript.
+
+[vocabulary]
+verbs = ["parse", "load", "write", "save", "add", "remove", "rename", "validate"]
+
+[vocabulary.meaning]
+parse    = "read a model out of text already in memory. Never touches a disk"
+load     = "read a model from a path. The disk-reading counterpart of parse"
+write    = "serialize a model to text. Returns the text, never writes it"
+save     = "serialize a model and put it on disk. The disk-writing counterpart of write"
+add      = "create an object and attach it to the document"
+remove   = "detach an object from the document"
+rename   = "change an object's name and repoint every reference to it"
+validate = "check a model or an object against its schema and report findings"
+
+# ---------------------------------------------------------------------------
+# Entries: parsing, reading, writing, saving
+# ---------------------------------------------------------------------------
+
+[[entry]]
+concept    = "parse IDF from a string"
+python     = "parse_idf"
+typescript = "parseIdf"
+kind       = "aligned"
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "parse epJSON from a string"
+python     = "parse_epjson"
+typescript = "parseEpJson"
+kind       = "aligned"
+notes      = """
+The casing of the format name follows each ecosystem's rule for the rest of the identifier, so
+Python's single-case snake_case gives `epjson` and TypeScript's camelCase gives `EpJson`. Both
+recover the same word.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "read IDF from disk"
+python     = "load_idf"
+typescript = "loadIdf"
+kind       = "aligned"
+notes      = "TypeScript exports this from `@idfkit/core/node`, the async edge; see the I/O entry."
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "read epJSON from disk"
+python     = "load_epjson"
+typescript = "loadEpJson"
+kind       = "aligned"
+notes      = "TypeScript exports this from `@idfkit/core/node`, the async edge; see the I/O entry."
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "serialize IDF to a string"
+python     = "write_idf"
+typescript = "writeIdf"
+kind       = "aligned"
+notes      = """
+Python's `write_idf` keeps its spelling through the rename batch and loses only its `filepath`
+parameter and the three `@overload` stanzas that parameter forced. The disk-writing half moves to
+`save_idf`, so the string-serializing name is unchanged and its rename count stays at 0.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "write IDF to disk"
+python     = "save_idf"
+typescript = "saveIdf"
+kind       = "aligned"
+notes      = """
+Python's rename count is 1: this operation was spelled `write_idf(doc, filepath)` before the rename
+batch. TypeScript already exports `saveIdf` from `@idfkit/core/node` and does not change. Python's
+`save_idf` does not exist yet at the time this entry is registered; it is written by the rename
+batch under this name.
+"""
+rename_count = { python = 1, typescript = 0 }
+
+[[entry]]
+concept    = "serialize epJSON to a string"
+python     = "write_epjson"
+typescript = "writeEpJson"
+kind       = "aligned"
+notes      = "Same construction and same reasoning as the IDF pair above."
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "write epJSON to disk"
+python     = "save_epjson"
+typescript = "saveEpJson"
+kind       = "aligned"
+notes      = """
+Python's rename count is 1, for the same reason as `save_idf`: this operation was spelled
+`write_epjson(doc, filepath)`. `save_epjson` is written by the rename batch under this name.
+"""
+rename_count = { python = 1, typescript = 0 }
+
+# ---------------------------------------------------------------------------
+# Entries: editing a document
+# ---------------------------------------------------------------------------
+
+[[entry]]
+concept    = "add an object"
+python     = "add"
+typescript = "add"
+kind       = "aligned"
+notes      = """
+`IDFDocument.add(obj_type, name, **fields)` against `IdfDocument.add(type, name, values)`. The
+keyword-argument form is idiomatic Python and has no TypeScript equivalent, so the field values
+arrive as an object literal there. Same verb, same argument order, same result.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "remove an object"
+python     = "remove"
+typescript = "remove"
+kind       = "aligned"
+notes      = """
+Python spells it `IDFCollection.remove(obj)`; TypeScript spells it `IdfDocument.remove(obj)`. The
+receiver differs because Python reaches a collection through `doc["Zone"]` and TypeScript through
+`doc.all('Zone')`, which is the operator divergence recorded below, not a second verb.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "rename an object"
+python     = "rename"
+typescript = "rename"
+kind       = "aligned"
+notes      = """
+The two signatures differ: Python's `IDFDocument.rename(obj_type, old_name, new_name)` against
+TypeScript's `IdfDocument.rename(obj, next)`.
+
+Both languages support `obj.name = new`, which is unambiguous in either, needs no object-type
+argument, and repoints every reference in both implementations. That assignment is the PRIMARY PATH
+and is what the documentation teaches on both sides. The method signatures are left alone rather
+than forced into agreement: aligning them would rename a working method for a gain the assignment
+form already delivers, and would spend a rename budget on syntax no reader has to use. Recorded per
+research R14.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+# ---------------------------------------------------------------------------
+# Entries: validation (registered ahead of the TypeScript implementation, FR-007)
+# ---------------------------------------------------------------------------
+
+[[entry]]
+concept    = "validate a document"
+python     = "validate_document"
+typescript = "validateDocument"
+kind       = "aligned"
+notes      = """
+Registered before it is written. The TypeScript side does not exist at registration time; the Tier 1
+port writes it under this name, into `idfkit-js/packages/core/src/validate/`. Naming an unwritten
+capability costs nothing now and is breaking later, which is the entire reason for FR-007.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "validate an object"
+python     = "validate_object"
+typescript = "validateObject"
+kind       = "aligned"
+notes      = "Registered before it is written, with `validate_document`."
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "validation result"
+python     = "ValidationResult"
+typescript = "ValidationResult"
+kind       = "aligned"
+notes      = "Registered before the TypeScript type is written. No acronym, so no casing divergence."
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "validation finding"
+python     = "ValidationError"
+typescript = "ValidationError"
+kind       = "aligned"
+notes      = """
+Registered before the TypeScript type is written. The name says Error and the type is a record, not
+a thrown exception: a finding carries a severity and a location and is collected into a
+`ValidationResult`. Both languages keep the existing Python spelling rather than improving it here,
+because renaming it would spend a rename budget on a type the port has not yet shipped.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "validation severity"
+python     = "idfkit.validation.Severity"
+typescript = "Severity"
+kind       = "aligned"
+notes      = """
+Registered before the TypeScript type is written. Python reaches it at `idfkit.validation.Severity`
+rather than through the top-level `__all__`; the values are `error`, `warning`, `info` and the
+TypeScript port renders the same three strings.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+# ---------------------------------------------------------------------------
+# Entries: introspection (registered ahead of the TypeScript implementation, FR-007)
+# ---------------------------------------------------------------------------
+
+[[entry]]
+concept    = "describe an object type"
+python     = "idfkit.introspection.describe_object_type"
+typescript = "describeObjectType"
+kind       = "aligned"
+notes      = """
+Registered before it is written, into `idfkit-js/packages/core/src/introspect/`. Python reaches it
+at `idfkit.introspection.describe_object_type` and through `IDFDocument.describe(obj_type)`; the
+module-level function is the registered name.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "object description"
+python     = "ObjectDescription"
+typescript = "ObjectDescription"
+kind       = "aligned"
+notes      = "Registered before the TypeScript type is written. Same field set on both sides."
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "field description"
+python     = "FieldDescription"
+typescript = "FieldDescription"
+kind       = "aligned"
+notes      = "Registered before the TypeScript type is written. Same field set and constraints on both sides."
+rename_count = { python = 0, typescript = 0 }
+
+# ---------------------------------------------------------------------------
+# Entries: documentation URL builders (registered ahead of the TypeScript port, FR-007)
+# ---------------------------------------------------------------------------
+#
+# The Python originals are in idfkit/src/idfkit/docs.py. The port must produce byte-identical
+# addresses, which the corpus asserts, so the names are fixed before a line of it is written.
+
+[[entry]]
+concept    = "resolved documentation URL"
+python     = "DocsUrl"
+typescript = "DocsUrl"
+kind       = "aligned"
+notes      = """
+Registered before the TypeScript type is written. Carries `url`, `doc_set`, `version`, and `label`
+in Python; the TypeScript port spells the field `docSet` and keeps the rest, which is the field-name
+casing rule rather than a divergence in the type.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "documentation URL for an object type"
+python     = "docs_url_for_object"
+typescript = "docsUrlForObject"
+kind       = "aligned"
+notes      = "Registered before it is written, into `idfkit-js/packages/core/src/docs-url/`."
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "I/O reference URL"
+python     = "io_reference_url"
+typescript = "ioReferenceUrl"
+kind       = "aligned"
+notes      = "Registered before it is written. `io` stays lowercase in TypeScript by the same rule that gives `IdfObject`."
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "engineering reference URL"
+python     = "engineering_reference_url"
+typescript = "engineeringReferenceUrl"
+kind       = "aligned"
+notes      = "Registered before it is written."
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "documentation search URL"
+python     = "search_url"
+typescript = "searchUrl"
+kind       = "aligned"
+notes      = "Registered before it is written."
+rename_count = { python = 0, typescript = 0 }
+
+# ---------------------------------------------------------------------------
+# Entries: the declared conformance level
+# ---------------------------------------------------------------------------
+
+[[entry]]
+concept    = "declared conformance level"
+python     = "idfkit.CONFORMANCE_LEVEL"
+typescript = "CONFORMANCE_LEVEL"
+kind       = "aligned"
+canonical_form = "string"
+notes      = """
+The `conformance-YYYY.N` tag of this repository that the release passes. A constant, not a function,
+in both languages, and a string in both, so the two claims compare directly.
+
+Each side reads it from one place rather than restating it, so the declaration and the pin cannot
+diverge: Python from `[tool.idfkit.conformance] level` in `pyproject.toml`, TypeScript from
+`idfkit.conformance` in `packages/core/package.json`. Registered here so that the export passes the
+naming gate on the change that adds it.
+
+Screaming snake case is the constant convention in both ecosystems, so this name is identical on
+both sides rather than merely aligned.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+# ---------------------------------------------------------------------------
+# Entries: accepted divergences
+# ---------------------------------------------------------------------------
+#
+# Each of these is a difference that stays. None is a defect, and none is a candidate for a future
+# rename: forcing either spelling onto the other language makes it wrong there.
+
+[[entry]]
+concept    = "acronym casing"
+python     = "IDFObject"
+typescript = "IdfObject"
+kind       = "divergent"
+divergence_reason = """
+PEP 8 capitalises every letter of an acronym inside a CapWords name, which gives `IDFObject`. The
+Google TypeScript style guide treats an abbreviation as an ordinary word, which gives `IdfObject`.
+Each spelling is the correct one in its own ecosystem, and forcing either onto the other makes it
+wrong there and inconsistent with every neighbouring library its users already read.
+
+The rule, not the single name: this governs `IDF*` against `Idf*` across both surfaces.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "the document class"
+python     = "IDFDocument"
+typescript = "IdfDocument"
+kind       = "divergent"
+divergence_reason = """
+The acronym casing rule above. TypeScript's rename count is 1: the package shipped `IDFDocument`
+alongside `IdfObject`, `IdfCollection`, and `IdfParseError`, so the old spelling contradicted both
+its own neighbours and the Google rule. The rename batch fixes it, once.
+"""
+notes = "Breaking for anyone importing `IDFDocument` from `@idfkit/core@0.1.0`. Recorded in the changelog as such."
+rename_count = { python = 0, typescript = 1 }
+
+[[entry]]
+concept    = "the collection class"
+python     = "IDFCollection"
+typescript = "IdfCollection"
+kind       = "divergent"
+divergence_reason = "The acronym casing rule above. Both sides already spell it correctly for their ecosystem."
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "the parse error type"
+python     = "IDFParseError"
+typescript = "IdfParseError"
+kind       = "divergent"
+divergence_reason = "The acronym casing rule above. Both sides already spell it correctly for their ecosystem."
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "every object of a type"
+python     = "doc[\"Zone\"]"
+typescript = "doc.all('Zone')"
+kind       = "divergent"
+divergence_reason = """
+Python has operator overloading and `__getitem__` is the idiomatic spelling of keyed access;
+TypeScript has no such operator, and an index signature on a class cannot carry the generic return
+type that makes the call statically checked against the generated type map. `all()` is a method
+because it has to be, and it is typed because that is the point of the type maps.
+
+This is a syntactic divergence forced by the languages, not a naming disagreement, so neither side
+is a candidate for renaming to match the other.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "untyped collection access"
+python     = "IDFDocument.get_collection"
+typescript = ""
+kind       = "excluded"
+divergence_reason = """
+`IdfDocument.collection()` was public in `@idfkit/core@0.1.0` and is withdrawn to in-package use.
+Two public methods for one operation is what FR-005 prohibits, and `all()` is the designed public
+surface: `collection()`'s own doc comment describes itself as the escape hatch that exists so the
+single unavoidable cast lives in one place. The version-generic case that would argue for keeping it
+is already covered, because `all()` accepts unknown type names and returns them untyped.
+
+Python's `get_collection` stays public: it is the named alternative to the `doc["Zone"]` operator
+rather than a second untyped path, and Python has no generated type map narrowing to lose. Recorded
+per research R1.
+"""
+notes = """
+TypeScript's rename count is 1 and is spent on the withdrawal, which is as breaking as a rename and
+must not happen twice. No third name is introduced: `untyped()` was considered and rejected, because
+it would still be two public names and would invite users onto the untyped path for a case `all()`
+already handles.
+"""
+rename_count = { python = 0, typescript = 1 }
+
+[[entry]]
+concept    = "one object, or nothing"
+python     = "col.get(name)"
+typescript = "col.get(name)"
+kind       = "aligned"
+notes      = "Returns `None` in Python and `undefined` in TypeScript, each language's own absent value."
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "one object, or an error"
+python     = "col[name]"
+typescript = "col.require(name)"
+kind       = "divergent"
+divergence_reason = """
+Same reason as `doc["Zone"]`: Python spells throwing lookup with the subscript operator, which raises
+`KeyError` on a miss and is what every Python reader expects of `[]`. TypeScript has no operator that
+can throw here, so the throwing variant needs a name, and `require` says what it does at the call
+site.
+
+The contract is identical on both sides, and identical to `get` except for the miss: `get` returns
+the absent value, this raises.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "collection to a sequence"
+python     = "to_list()"
+typescript = "toArray()"
+kind       = "divergent"
+divergence_reason = """
+The sequence type is named differently by the two languages. Python's is `list` and `to_list` is the
+conventional spelling; JavaScript's is `Array` and `toArray` matches `Array.from`, `toSorted`, and
+every neighbouring API. Renaming either to the other's word would name a type that does not exist in
+that language.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "an object's type name"
+python     = "obj.obj_type"
+typescript = "obj.typeName"
+kind       = "divergent"
+divergence_reason = """
+Python's `obj_type` avoids shadowing the builtin `type`, which is the standard Python workaround and
+reads naturally in snake_case. TypeScript has no such collision, and `typeName` is clearer than
+`objType` in a language where `type` is a keyword only in type position. Both name the same string,
+the EnergyPlus object type as the schema spells it.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "version"
+python     = "doc.version"
+typescript = "doc.version"
+kind       = "divergent"
+canonical_form = "string"
+divergence_reason = """
+Python returns `tuple[int, int, int]`, for example `(26, 1, 0)`. TypeScript returns `string`, for
+example `"26.1.0"`.
+
+This is worse than a rename and is recorded rather than reconciled. The name is identical, the prose
+describing it is identical, and the value behaves differently, so code written from one side's
+documentation compiles against the other and is wrong at runtime. Each language keeps its idiomatic
+type: Python's tuple compares and sorts correctly with no helper, which is why `LATEST_VERSION`,
+`MINIMUM_VERSION`, and `find_closest_version` are all tuples; TypeScript has no comparable tuple
+literal and its schema keys, `resolveVersion`, `compareVersions`, and `versionKey` are all strings
+already.
+
+The STRING is canonical for anything crossing the boundary, because IDF text, epJSON, and the schema
+keys are strings already. Python renders it with `version_string`. The corpus asserts that both
+libraries render the same string for the same model (FR-004), so the divergence is documented AND
+tested rather than documented only.
+"""
+notes = "No signature changes anywhere. This entry is documentation and a corpus case, not a rename."
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "all input and output"
+python     = "synchronous"
+typescript = "asynchronous"
+kind       = "divergent"
+divergence_reason = """
+Python's file API is synchronous, its ecosystem is synchronous by default, and `load_idf(path)`
+returning a document is what every Python reader expects. TypeScript's core is deliberately
+synchronous and pure so that it runs unchanged in a browser, a worker, or an edge runtime; every
+operation that touches a disk or a network is therefore pushed to `@idfkit/core/node` and is `async`,
+which is the only shape a portable core can have without forcing `node:fs` into browser bundles.
+
+Making Python async would be wrong for its ecosystem; making the TypeScript core sync would either
+break the browser target or force the whole portable surface to be async just in case. The split is
+the design, not an accident.
+"""
+notes = """
+The verb pairs still align across the boundary: `parse` and `write` are sync and pure in BOTH
+languages, and only `load` and `save` differ by being awaited in TypeScript.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+# ---------------------------------------------------------------------------
+# Entries: excluded from alignment (FR-006)
+# ---------------------------------------------------------------------------
+
+[[entry]]
+concept    = "eppy compatibility surface"
+python     = "addidfobject, newidfobject, popidfobject, removeallidfobjects, getiddgroupdict, getobject, getsurfaces, idfobjects, saveas, savecopy, theidf, fieldnames, getreferingobjs, IDFObject.Name"
+typescript = ""
+kind       = "excluded"
+divergence_reason = """
+Fourteen aliases that exist to let code written against eppy, a Python library, run unchanged against
+idfkit. They are correct in Python precisely because they are NOT idiomatic: they reproduce another
+Python library's spelling, lowercase-run-together and all, so that a migration is a one-line import
+change. `getreferingobjs` even reproduces eppy's misspelling of "referring", which is the clearest
+possible evidence that these names are quotations rather than choices.
+
+JavaScript has no eppy and no code to migrate, so a JavaScript counterpart would import a foreign
+Python library's spelling into a language that never had it, and would add fourteen public names
+that nothing calls. They are listed here individually, rather than described as a category, because
+a category is something a future contributor can misread as "port these too". A name written out is
+not portable by accident.
+
+Excluded is terminal. A counterpart appearing on the TypeScript side fails the gate. Adding one
+requires amending this entry, reviewed by both languages.
+"""
+notes = """
+Live at `idfkit/src/idfkit/_compat.py` (`EppyDocumentMixin`, mixed into `IDFDocument`) and
+`idfkit/src/idfkit/_compat_object.py` (`EppyObjectMixin`, mixed into `IDFObject`). The fourteen
+above are the register's named exclusions; the same exclusion covers the whole of both mixins,
+including the further eppy members reachable from the same surface (`addidfobjects`,
+`removeidfobjects`, `copyidfobject`, `key`, `fieldvalues`, `getfieldidd`, `getfieldidd_item`,
+`getrange`, `checkrange`, `save`, `run`, `update`). None of them crosses to TypeScript either.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+# ---------------------------------------------------------------------------
+# Entries: geometry extraction, registered before the second-tier port begins (FR-007)
+# ---------------------------------------------------------------------------
+#
+# Geometry is a second-tier capability and nothing is ported here. These names are registered now so
+# that the first slice the port lands cannot be renamed afterwards: a name decided during a port is
+# decided under schedule pressure, by one language, and is exactly the name that gets fixed later at
+# a user's expense.
+#
+# Scope: READ-ONLY extraction. Vectors and polygons, reading surface coordinates, zone origin and
+# rotation, the world transform, and the surface area, tilt, and azimuth calculations. Geometry
+# AUTHORING (`set_surface_coords`, the builders, `set_wwr`, `translate_building`,
+# `rotate_building`, surface matching, zoning) is a separate second-tier capability and is not
+# registered here; it is registered by the change that ports it.
+#
+# The Python originals are in idfkit/src/idfkit/geometry.py.
+
+[[entry]]
+concept    = "three-dimensional vector"
+python     = "Vector3D"
+typescript = "Vector3D"
+kind       = "aligned"
+notes      = """
+Registered before the TypeScript type is written. `3D` is a numeral and a letter rather than an
+acronym, so the casing rule that splits `IDFObject` from `IdfObject` does not apply and the two names
+are identical.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "three-dimensional polygon"
+python     = "Polygon3D"
+typescript = "Polygon3D"
+kind       = "aligned"
+notes      = """
+Registered before the TypeScript type is written. Carries `normal`, `area`, `centroid`, `tilt`,
+`azimuth`, `is_horizontal`, and `is_vertical` in Python; the TypeScript port spells the two
+predicates `isHorizontal` and `isVertical` by the field-casing rule and keeps the rest.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "read a surface's coordinates"
+python     = "get_surface_coords"
+typescript = "getSurfaceCoords"
+kind       = "aligned"
+notes      = "Registered before it is written. Returns the surface's `Polygon3D`, or the absent value when it has no vertices."
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "a zone's origin"
+python     = "get_zone_origin"
+typescript = "getZoneOrigin"
+kind       = "aligned"
+notes      = "Registered before it is written. Returns a `Vector3D`."
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "a zone's rotation"
+python     = "get_zone_rotation"
+typescript = "getZoneRotation"
+kind       = "aligned"
+notes      = "Registered before it is written. Returns degrees about the vertical axis."
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "transform relative coordinates to world coordinates"
+python     = "translate_to_world"
+typescript = "translateToWorld"
+kind       = "aligned"
+notes      = """
+Registered before it is written. The one member of this group that mutates the document: it rewrites
+relative surface coordinates in place and updates `GlobalGeometryRules`. It is registered with the
+extraction group because every calculation below depends on knowing which coordinate system it is
+reading.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "a surface's area"
+python     = "calculate_surface_area"
+typescript = "calculateSurfaceArea"
+kind       = "aligned"
+notes      = "Registered before it is written."
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "a surface's tilt"
+python     = "calculate_surface_tilt"
+typescript = "calculateSurfaceTilt"
+kind       = "aligned"
+notes      = "Registered before it is written. Degrees, using the EnergyPlus convention."
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "a surface's azimuth"
+python     = "calculate_surface_azimuth"
+typescript = "calculateSurfaceAzimuth"
+kind       = "aligned"
+notes      = "Registered before it is written. Degrees clockwise from north, using the EnergyPlus convention."
+rename_count = { python = 0, typescript = 0 }
+
+# ---------------------------------------------------------------------------
+# Entries: the object model
+# ---------------------------------------------------------------------------
+
+[[entry]]
+concept    = "the object class"
+python     = "IDFObject"
+typescript = "IdfObject"
+kind       = "divergent"
+divergence_reason = """
+The acronym casing rule recorded above, which names this very pair as its exemplar. Both sides
+already spell it correctly for their ecosystem, and neither is a candidate for renaming to match the
+other.
+"""
+notes      = """
+The `acronym casing` entry states the rule; this entry is the class it governs, so that the object
+class has a concept of its own in the same way the document class, the collection class, and the
+parse error type each do.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "an extensible group"
+python     = "idfkit.objects.ExtensibleGroup"
+typescript = "ExtensibleGroup"
+kind       = "aligned"
+notes      = """
+One row of a repeated field group, for example a single vertex inside a surface's vertex list.
+Python reaches it at `idfkit.objects.ExtensibleGroup` rather than through the top-level `__all__`;
+TypeScript exports the type from `@idfkit/core`. No acronym, so no casing divergence.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "create a new document"
+python     = "new_document"
+typescript = "new IdfDocument(schema)"
+kind       = "divergent"
+divergence_reason = """
+Python offers a module-level factory because the constructor needs a loaded schema the caller would
+otherwise fetch itself, and because loading a schema in Python is synchronous, so the factory can do
+it. `new_document()` also seeds the baseline singletons a usable model needs: Version, Building,
+SimulationControl, and GlobalGeometryRules.
+
+TypeScript loads a schema asynchronously from a `BundleSource`, and a constructor cannot await, so
+the caller loads the schema first and hands it over. A synchronous factory is not available to write
+there, which makes `new` both the idiomatic and the only possible spelling. This is the input and
+output divergence recorded above, seen from the construction side.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+# ---------------------------------------------------------------------------
+# Entries: the reference graph
+# ---------------------------------------------------------------------------
+
+[[entry]]
+concept    = "the reference graph"
+python     = "ReferenceGraph"
+typescript = "ReferenceGraph"
+kind       = "aligned"
+notes      = "Exported by both libraries under the same name. No acronym, so no casing divergence."
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "objects referencing a name"
+python     = "get_referencing"
+typescript = "referencingObjects"
+kind       = "divergent"
+divergence_reason = """
+The receiver carries the difference, not the operation. Python hangs the query on the document,
+`IDFDocument.get_referencing(name)`, because the graph is reached through the document there.
+TypeScript exposes the graph itself as `doc.references` and hangs the query on it,
+`doc.references.referencingObjects(name)`, where repeating the word would read as
+`references.getReferencing`. Each spelling says exactly what its receiver does not already say, and
+aligning them would make one of the two stutter.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+# ---------------------------------------------------------------------------
+# Entries: schema access and the version registry
+# ---------------------------------------------------------------------------
+
+[[entry]]
+concept    = "load a schema for a version"
+python     = "get_schema"
+typescript = "SchemaBundle.load"
+kind       = "divergent"
+divergence_reason = """
+Python ships every schema inside the package and reads it from disk synchronously, so a module-level
+`get_schema(version)` is enough and is what a Python reader expects. TypeScript cannot assume a
+filesystem: a browser fetches the bundle over HTTP and a bundler-driven app resolves it through
+`import()`, so the caller constructs a `SchemaBundle` over a `BundleSource` and loads from that. The
+operation is a method on the object that owns the source because there is no process-wide source
+that would let it be a free function. This is the input and output divergence recorded above.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "the supported version list"
+python     = "ENERGYPLUS_VERSIONS"
+typescript = "SchemaBundle.versions"
+kind       = "divergent"
+canonical_form = "string"
+divergence_reason = """
+Python's supported set is a constant because the schemas ship with the package, so the answer is
+known at import time. TypeScript's depends on which bundle the caller supplied, so it can only be a
+query on that bundle, and it is asynchronous for the same reason `SchemaBundle.load` is. A constant
+there would name a set the library does not control.
+
+Python's members are version tuples and TypeScript's are strings, which is the `version` divergence
+recorded above. The string is canonical for anything crossing the boundary.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "resolve a version string"
+python     = "find_closest_version"
+typescript = "resolveVersion"
+kind       = "divergent"
+divergence_reason = """
+Both answer the same question: given a version the caller has in hand, which supported release
+should the model be read as. Python's takes the version tuple and consults the constant list, and
+`closest` names what it does when the exact release is not supported. TypeScript's takes the
+detected string and the list the bundle reports, so both are arguments, and `resolve` names the same
+operation over the string form that is canonical across the boundary.
+
+Neither signature exists in the other language, so neither name is a candidate for renaming to
+match: the Python name would describe a search over a list TypeScript does not have, and the
+TypeScript name would describe a resolution Python does not perform.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+# ---------------------------------------------------------------------------
+# Entries: static types generated from the schema
+# ---------------------------------------------------------------------------
+
+[[entry]]
+concept    = "generated object types"
+python     = "idfkit._generated_types"
+typescript = "@idfkit/core/types"
+kind       = "divergent"
+divergence_reason = """
+Python generates one stub set at a time, ships it for the newest EnergyPlus release, and applies it
+implicitly to every document through `idfkit/document.pyi`. TypeScript emits one type map per
+version and the caller parameterises the document with the map for the version being read, so an
+older model is typed as that older model or is left untyped.
+
+Each mechanism is the one its type checker allows. Python cannot select a stub set per value, so an
+implicit set is the only thing available; TypeScript has generics, so an opt-in map is both possible
+and necessary for version-generic code. The consequence for a reader is recorded in the parity
+ledger under `generated-object-types` rather than left here.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "a version type map"
+python     = ""
+typescript = "AnyTypeMap"
+kind       = "divergent"
+divergence_reason = """
+Absent from Python, and correctly so. TypeScript names the map because the caller selects one and
+passes it as a type argument. Python's stubs apply to every document with nothing for a caller to
+select, so there is no value and no type to name, and a Python counterpart would name a choice the
+Python type checker cannot express.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+# ---------------------------------------------------------------------------
+# Entries: diagnostics from a parse
+# ---------------------------------------------------------------------------
+
+[[entry]]
+concept    = "a parse diagnostic"
+python     = "idfkit.exceptions.ParseDiagnostic"
+typescript = "ParseDiagnostic"
+kind       = "aligned"
+notes      = """
+One finding from a parse: a message, a location, and a severity. Python reaches it at
+`idfkit.exceptions.ParseDiagnostic` rather than through the top-level `__all__`.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "diagnostics from a parse"
+python     = "IDFParseError.diagnostics"
+typescript = "ParseResult.diagnostics"
+kind       = "divergent"
+divergence_reason = """
+Python raises and TypeScript returns. `IDFParseError` carries the diagnostics that stopped the
+parse, which is how a Python caller expects to meet a failure it must handle, and the recoverable
+findings go to the logging module. TypeScript's `parseIdf` returns a `ParseResult` whose
+`diagnostics` array holds the non-fatal findings alongside the document, because a throwing parser
+in a browser costs the caller the partial document it could still show.
+
+Each is idiomatic where it lives. The difference is visible to a reader, so the parity ledger records
+it under `parse-diagnostics` and the corpus asserts what each side reports for a malformed case.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+# ---------------------------------------------------------------------------
+# Entries: weather stations, files, and geocoding
+# ---------------------------------------------------------------------------
+
+[[entry]]
+concept    = "the station index"
+python     = "StationIndex"
+typescript = "StationIndex"
+kind       = "aligned"
+notes      = "Both libraries ship their own index and neither retrieves one to get started (FR-043, FR-075)."
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "search stations"
+python     = "StationIndex.search"
+typescript = "StationIndex.search"
+kind       = "aligned"
+notes      = "Same receiver, same name, same argument, and `SearchResult` on both sides."
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "a weather station"
+python     = "WeatherStation"
+typescript = "WeatherStation"
+kind       = "aligned"
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "download a weather file"
+python     = "WeatherDownloader.download"
+typescript = "fetchWeatherFiles"
+kind       = "divergent"
+divergence_reason = """
+Python's downloader is an object because it owns state a Python caller expects it to own: a cache
+directory, its own session, and the settings that govern both. TypeScript's is a free function
+because it owns none of that. It reaches the network through the global `fetch`, which the caller
+overrides per call, and it caches nothing, so there is no instance for a method to hang on and
+`fetch` names the platform primitive a JavaScript reader already knows.
+
+The packaging and freshness consequences are recorded in the parity ledger under `weather-index`.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "refresh the station index"
+python     = ""
+typescript = "refreshStationIndex"
+kind       = "divergent"
+divergence_reason = """
+Absent from Python because Python does it without being asked. `StationIndex.load()` probes upstream
+at most once every 24 hours, warns when the bundled or cached index is behind, records the check
+under the cache directory, and is turned off with IDFKIT_NO_WEATHER_UPDATE_CHECK, so a Python caller
+needs no name for the operation.
+
+JavaScript has no writable cache directory to throttle against in a browser, so the same nudge cannot
+exist there. It exposes the refresh explicitly instead and does nothing on its own. A Python
+counterpart would be a second public path to something already automatic, which FR-005 prohibits.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "geocode a place name"
+python     = "geocode"
+typescript = "geocode"
+kind       = "aligned"
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "detect the current location"
+python     = "detect_location"
+typescript = "detectLocation"
+kind       = "aligned"
+rename_count = { python = 0, typescript = 0 }
+
+# ---------------------------------------------------------------------------
+# Entries: the formatting-preserving round-trip (registered ahead of the port, FR-007)
+# ---------------------------------------------------------------------------
+
+[[entry]]
+concept    = "preserve formatting on a round-trip"
+python     = "preserve_formatting"
+typescript = "preserveFormatting"
+kind       = "aligned"
+notes      = """
+An option, not a function: `load_idf(path, preserve_formatting=True)` builds a concrete syntax tree
+that `write_idf` reproduces, and `load_epjson` retains the raw JSON text the same way. Registered
+before the TypeScript side is written; the parity ledger records the absence as Tier 2 under
+`lossless-round-trip`. Registering the option name now costs nothing and is breaking later.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+# ---------------------------------------------------------------------------
+# Entries: zone measures, with the geometry extraction group above (FR-007)
+# ---------------------------------------------------------------------------
+
+[[entry]]
+concept    = "a zone's floor area"
+python     = "calculate_zone_floor_area"
+typescript = "calculateZoneFloorArea"
+kind       = "aligned"
+notes      = "Registered before it is written, with the geometry extraction group above. Read-only, like the rest of that group."
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "a zone's volume"
+python     = "calculate_zone_volume"
+typescript = "calculateZoneVolume"
+kind       = "aligned"
+notes      = "Registered before it is written, with the geometry extraction group above."
+rename_count = { python = 0, typescript = 0 }
+
+# ---------------------------------------------------------------------------
+# Entries: geometry authoring (registered ahead of the port, FR-007)
+# ---------------------------------------------------------------------------
+#
+# The geometry section above scoped authoring out and said it would be registered by the change that
+# ports it. This is the change that brings it forward, and the reason is the parity ledger:
+# `governance/parity.toml` records `geometry-authoring` as a capability, and
+# contracts/parity-ledger.md requires every `names` value to resolve in this register. Registering
+# the names now is the same trade FR-007 makes everywhere else in this file, and it is the cheaper
+# half of it: a name decided during a port is decided by one language under schedule pressure.
+#
+# Nothing is ported. Each TypeScript name below is registered, not written. The Python originals are
+# in idfkit/src/idfkit/geometry.py and idfkit/src/idfkit/geometry_builders.py.
+
+[[entry]]
+concept    = "set the window to wall ratio"
+python     = "set_wwr"
+typescript = "setWwr"
+kind       = "aligned"
+notes      = "Registered before it is written. `wwr` stays lowercase in TypeScript by the same rule that gives `IdfObject`."
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "rotate a building"
+python     = "rotate_building"
+typescript = "rotateBuilding"
+kind       = "aligned"
+notes      = "Registered before it is written."
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "translate a building"
+python     = "translate_building"
+typescript = "translateBuilding"
+kind       = "aligned"
+notes      = "Registered before it is written."
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "scale a building"
+python     = "scale_building"
+typescript = "scaleBuilding"
+kind       = "aligned"
+notes      = "Registered before it is written."
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "add a shading block"
+python     = "add_shading_block"
+typescript = "addShadingBlock"
+kind       = "aligned"
+notes      = "Registered before it is written."
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "set default constructions"
+python     = "set_default_constructions"
+typescript = "setDefaultConstructions"
+kind       = "aligned"
+notes      = "Registered before it is written."
+rename_count = { python = 0, typescript = 0 }
+
+# ---------------------------------------------------------------------------
+# Entries: surface matching (registered ahead of the port, FR-007)
+# ---------------------------------------------------------------------------
+
+[[entry]]
+concept    = "intersect and match surfaces"
+python     = "intersect_and_match"
+typescript = "intersectAndMatch"
+kind       = "aligned"
+notes      = """
+Registered before it is written. Python currently exports a second public name for the same
+operation, `intersect_match`, which FR-005 prohibits; that duplicate is resolved by the change that
+withdraws it, not here, and this entry records the surviving name.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "a surface match report"
+python     = "MatchReport"
+typescript = "MatchReport"
+kind       = "aligned"
+notes      = "Registered before the TypeScript type is written."
+rename_count = { python = 0, typescript = 0 }
+
+# ---------------------------------------------------------------------------
+# Entries: zoning (registered ahead of the port, FR-007)
+# ---------------------------------------------------------------------------
+
+[[entry]]
+concept    = "create a zoned block"
+python     = "create_block"
+typescript = "createBlock"
+kind       = "aligned"
+notes      = "Registered before it is written, into the reserved `@idfkit/geometry` package."
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "a zone footprint"
+python     = "ZoneFootprint"
+typescript = "ZoneFootprint"
+kind       = "aligned"
+notes      = "Registered before the TypeScript type is written."
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "a zoning scheme"
+python     = "ZoningScheme"
+typescript = "ZoningScheme"
+kind       = "aligned"
+notes      = "Registered before the TypeScript type is written."
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "link blocks"
+python     = "link_blocks"
+typescript = "linkBlocks"
+kind       = "aligned"
+notes      = "Registered before it is written."
+rename_count = { python = 0, typescript = 0 }
+
+# ---------------------------------------------------------------------------
+# Entries: construction thermal properties (registered ahead of the port, FR-007)
+# ---------------------------------------------------------------------------
+#
+# The Python originals are in idfkit/src/idfkit/thermal/.
+
+[[entry]]
+concept    = "construction thermal properties"
+python     = "ConstructionThermalProperties"
+typescript = "ConstructionThermalProperties"
+kind       = "aligned"
+notes      = "Registered before the TypeScript type is written. Produced by `get_thermal_properties` in Python."
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "a construction's U-value"
+python     = "calculate_u_value"
+typescript = "calculateUValue"
+kind       = "aligned"
+notes      = "Registered before it is written."
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "a construction's R-value"
+python     = "calculate_r_value"
+typescript = "calculateRValue"
+kind       = "aligned"
+notes      = "Registered before it is written."
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "a construction's solar heat gain coefficient"
+python     = "calculate_shgc"
+typescript = "calculateShgc"
+kind       = "aligned"
+notes      = """
+Registered before it is written. `shgc` is an abbreviation, so TypeScript writes it as one word by
+the same rule that gives `IdfObject`, and Python keeps the lowercase run its snake_case gives.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "a construction's layers"
+python     = "get_construction_layers"
+typescript = "getConstructionLayers"
+kind       = "aligned"
+notes      = "Registered before it is written."
+rename_count = { python = 0, typescript = 0 }
+
+# ---------------------------------------------------------------------------
+# Entries: schedules (registered ahead of the port, FR-007)
+# ---------------------------------------------------------------------------
+#
+# The Python originals are in idfkit/src/idfkit/schedules/. Reserved for the eventual port:
+# `@idfkit/schedules` at subpath `idfkit/schedules`, recorded below.
+
+[[entry]]
+concept    = "evaluate a schedule"
+python     = "idfkit.schedules.evaluate"
+typescript = "evaluate"
+kind       = "aligned"
+notes      = "Registered before it is written. One value at one instant."
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "a schedule's values for a year"
+python     = "idfkit.schedules.values"
+typescript = "values"
+kind       = "aligned"
+notes      = "Registered before it is written. The whole year at a chosen timestep."
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "a schedule as a series"
+python     = "to_series"
+typescript = ""
+kind       = "divergent"
+divergence_reason = """
+Absent from JavaScript, and not a gap. `to_series` returns a pandas Series, which is the shape a
+Python analyst wants and is why the function exists. JavaScript has no pandas and no equivalent
+labelled series type in its standard library, so a counterpart would either invent a container this
+library has no business defining or wrap an array in a name that promises more than it delivers.
+The year's values themselves are covered by `a schedule's values for a year`, which does port.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "create a constant schedule"
+python     = "create_constant_schedule"
+typescript = "createConstantSchedule"
+kind       = "aligned"
+notes      = "Registered before it is written."
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "create a compact schedule"
+python     = "create_compact_schedule_from_values"
+typescript = "createCompactScheduleFromValues"
+kind       = "aligned"
+notes      = "Registered before it is written."
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "extract special days"
+python     = "extract_special_days"
+typescript = "extractSpecialDays"
+kind       = "aligned"
+notes      = "Registered before it is written."
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "the holidays in a model"
+python     = "get_holidays"
+typescript = "getHolidays"
+kind       = "aligned"
+notes      = "Registered before it is written."
+rename_count = { python = 0, typescript = 0 }
+
+# ---------------------------------------------------------------------------
+# Entries: output variable selection (registered ahead of the port, FR-007)
+# ---------------------------------------------------------------------------
+#
+# Reading the dictionary EnergyPlus writes and choosing variables from it. Pure text parsing: it
+# never invokes EnergyPlus and never looks for an installation, which is why it is registered rather
+# than excluded. The Python originals are in idfkit/src/idfkit/simulation/parsers/rdd.py and
+# idfkit/src/idfkit/simulation/outputs.py.
+
+[[entry]]
+concept    = "read the output variable dictionary"
+python     = "parse_rdd_file"
+typescript = "parseRddFile"
+kind       = "aligned"
+notes      = """
+Registered before it is written. Python reaches it at `idfkit.simulation.parsers.rdd.parse_rdd_file`
+and pairs it with `parse_mdd_file` for the meter dictionary.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "an output variable"
+python     = "OutputVariable"
+typescript = "OutputVariable"
+kind       = "aligned"
+notes      = "Registered before the TypeScript type is written."
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "an output meter"
+python     = "OutputMeter"
+typescript = "OutputMeter"
+kind       = "aligned"
+notes      = "Registered before the TypeScript type is written."
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "select output variables for a run"
+python     = "prep_outputs"
+typescript = "prepOutputs"
+kind       = "aligned"
+notes      = "Registered before it is written."
+rename_count = { python = 0, typescript = 0 }
+
+# ---------------------------------------------------------------------------
+# Entries: design days and sizing (registered ahead of the port, FR-007)
+# ---------------------------------------------------------------------------
+
+[[entry]]
+concept    = "apply ASHRAE sizing conditions"
+python     = "apply_ashrae_sizing"
+typescript = "applyAshraeSizing"
+kind       = "aligned"
+notes      = """
+Registered before it is written. `ashrae` is an abbreviation, so TypeScript writes it as one word by
+the same rule that gives `IdfObject`.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "the design day manager"
+python     = "DesignDayManager"
+typescript = "DesignDayManager"
+kind       = "aligned"
+notes      = "Registered before the TypeScript type is written. Reads a DDY file and injects design days into a model."
+rename_count = { python = 0, typescript = 0 }
+
+# ---------------------------------------------------------------------------
+# Entries: version migration (registered ahead of the port, FR-007)
+# ---------------------------------------------------------------------------
+
+[[entry]]
+concept    = "migrate a model to a newer version"
+python     = "migrate"
+typescript = "migrate"
+kind       = "aligned"
+notes      = "Registered before it is written. Python pairs it with `async_migrate`; the TypeScript port is async by construction."
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "a migration report"
+python     = "MigrationReport"
+typescript = "MigrationReport"
+kind       = "aligned"
+notes      = "Registered before the TypeScript type is written."
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "a migration step"
+python     = "MigrationStep"
+typescript = "MigrationStep"
+kind       = "aligned"
+notes      = "Registered before the TypeScript type is written."
+rename_count = { python = 0, typescript = 0 }
+
+# ---------------------------------------------------------------------------
+# Entries: the command line (registered ahead of the port, FR-007)
+# ---------------------------------------------------------------------------
+
+[[entry]]
+concept    = "the command line entry point"
+python     = "idfkit"
+typescript = "idfkit"
+kind       = "aligned"
+notes      = """
+The console script name, not a module member. Python installs it from `idfkit.compat._cli:main` with
+the `check` and `migrate` subcommands. Registered before the JavaScript side is written so that a
+port cannot land under a different command name; the parity ledger records the absence as Tier 3
+under `command-line`.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+# ---------------------------------------------------------------------------
+# Entries: schema compatibility checking (registered ahead of the port, FR-007)
+# ---------------------------------------------------------------------------
+
+[[entry]]
+concept    = "check source compatibility with a version"
+python     = "check_compatibility"
+typescript = "checkCompatibility"
+kind       = "aligned"
+notes      = "Registered before it is written. Python reaches it at `idfkit.compat.check_compatibility`."
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "diff two schemas"
+python     = "diff_schemas"
+typescript = "diffSchemas"
+kind       = "aligned"
+notes      = "Registered before it is written."
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "a compatibility diagnostic"
+python     = "idfkit.compat.Diagnostic"
+typescript = "Diagnostic"
+kind       = "aligned"
+notes      = """
+Registered before the TypeScript type is written. Distinct from `a parse diagnostic`: this one
+reports a source construct that will not hold against another EnergyPlus version, and it carries one
+of `DIAGNOSTIC_CODES`.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+# ---------------------------------------------------------------------------
+# Entries: plotting simulation results (registered ahead of the port, FR-007)
+# ---------------------------------------------------------------------------
+#
+# The chart-drawing layer over result data. It needs neither an EnergyPlus installation nor a
+# subprocess, which is why it is registered rather than excluded with `local-simulation`.
+
+[[entry]]
+concept    = "plot an energy balance"
+python     = "plot_energy_balance"
+typescript = "plotEnergyBalance"
+kind       = "aligned"
+notes      = "Registered before it is written."
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "plot a temperature profile"
+python     = "plot_temperature_profile"
+typescript = "plotTemperatureProfile"
+kind       = "aligned"
+notes      = "Registered before it is written."
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "plot comfort hours"
+python     = "plot_comfort_hours"
+typescript = "plotComfortHours"
+kind       = "aligned"
+notes      = "Registered before it is written."
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "a plotting backend"
+python     = "PlotBackend"
+typescript = "PlotBackend"
+kind       = "aligned"
+notes      = "Registered before the TypeScript type is written. Python selects one with `get_default_backend`."
+rename_count = { python = 0, typescript = 0 }
+
+# ---------------------------------------------------------------------------
+# Entries: permanently single-language surfaces (FR-006, FR-078)
+# ---------------------------------------------------------------------------
+#
+# Each of these is one entry covering a whole surface, the way the eppy entry above does, because
+# the names are quotations from one ecosystem rather than choices either language could share. The
+# parity ledger records the same two capabilities as `local-simulation` and `svg-visualisation`,
+# both with absence_kind = "never". Excluded is terminal: a counterpart appearing on the other side
+# fails the gate, and adding one requires amending this entry.
+#
+# The two JavaScript-only mechanisms, @idfkit/engine and @idfkit/viewer, get NO entry here at all.
+# Neither is reachable through the shared install name, and the reserved-package section below states
+# why registering @idfkit/viewer would imply a claim this feature does not make. The parity ledger
+# carries them as `browser-simulation` and `scene-rendering` with an empty `names` list for the same
+# reason.
+
+[[entry]]
+concept    = "the local simulation surface"
+python     = "simulate, simulate_batch, async_simulate, async_simulate_batch, async_simulate_batch_stream, find_energyplus, expand_objects, run_preprocessing, EnergyPlusConfig, SimulationResult, BatchResult, SimulationCache, SimulationJob, SimulationProgress, ESOResult, CSVResult, SQLResult, TimeSeriesResult, ErrorReport"
+typescript = ""
+kind       = "excluded"
+divergence_reason = """
+Running a locally installed EnergyPlus needs the installation and a subprocess to drive it, then
+reads the eplusout files that run leaves on disk. Neither the installation nor the subprocess exists
+in a browser, which is the runtime the JavaScript library targets, so these names are correct in
+Python precisely because they name a mechanism JavaScript cannot have.
+
+JavaScript reaches EnergyPlus by the other mechanism, a WebAssembly build in `@idfkit/engine`, which
+is a different capability rather than a workaround for this one. Recording a JavaScript counterpart
+here would make one language read as deficient at something it does not lack, which is what FR-068
+and FR-078 forbid.
+
+Narrowed on purpose. Choosing which variables to ask for and drawing the results are both pure and
+both portable, so `select output variables for a run` and the plotting group above are registered
+rather than excluded.
+"""
+notes = """
+Live under idfkit/src/idfkit/simulation/. The names above are the register's named exclusions; the
+same exclusion covers the rest of that subpackage, including the FileSystem family, the progress
+reporters, and the remaining result readers. None of them crosses to TypeScript.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "the vector image surface"
+python     = "construction_to_svg, generate_construction_svg, view_model, view_floor_plan, view_exploded, view_normals, ColorBy, ModelViewConfig, SVGConfig"
+typescript = ""
+kind       = "excluded"
+divergence_reason = """
+All nine produce a vector image handed back for a notebook, a report, or a file on disk, which is a
+Python workflow. A JavaScript caller wanting to look at a model is already in a runtime that draws
+and is served by the other mechanism, `@idfkit/viewer`, which renders an interactive scene. The two
+are different capabilities, and merging them would make each language read as missing something the
+other has.
+
+Excluded is terminal here for the same reason it is terminal for the eppy surface: a JavaScript
+counterpart would add public names that nothing calls, in a runtime that already draws.
+"""
+notes = """
+Live at idfkit/src/idfkit/visualization/, nine exports, verified against `__all__`.
+`construction_to_svg` and `generate_construction_svg` are two public names for one operation, which
+FR-005 prohibits; that duplicate is resolved by the change that withdraws one, not here.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+# ---------------------------------------------------------------------------
+# Reserved package names and entry points (FR-077)
+# ---------------------------------------------------------------------------
+#
+# REGISTRATION ONLY. No package is built by this feature, and the `idfkit` facade's export map gains
+# NO entry for any of these: an export map entry that resolves to nothing breaks a clean install,
+# which is worse than the name being unreserved.
+#
+# The reservation exists for the same reason FR-007 does. A package name chosen at the moment its
+# port begins is a package name chosen by one language under schedule pressure, and an npm package
+# name cannot be corrected after publication without leaving the wrong one on the registry forever.
+#
+# The gates do not check these against any surface, because there is no surface to check. They are
+# checked by review: a port that lands under a different package name than the one reserved here
+# fails review, and changing a reservation is an amendment like any other.
+
+[[reserved_package]]
+capability   = "schedules"
+npm_package  = "@idfkit/schedules"
+subpath      = "idfkit/schedules"
+mirrors      = ["idfkit.schedules"]
+tier         = 2
+built        = false
+export_map_entry = false
+notes = """
+Mirrors the Python subpackage one-to-one. Reserved before the port begins so the eventual package
+cannot be named `@idfkit/schedule` or `@idfkit/scheduling` by whoever writes it first.
+"""
+
+[[reserved_package]]
+capability   = "geometry, geometry builders, surface matching, zoning"
+npm_package  = "@idfkit/geometry"
+subpath      = "idfkit/geometry"
+mirrors      = ["idfkit.geometry", "idfkit.geometry_builders", "idfkit.surface_matching", "idfkit.zoning"]
+tier         = 2
+built        = false
+export_map_entry = false
+notes = """
+One reserved package against four Python modules, deliberately. The four are one capability from a
+user's point of view, and splitting them into four npm packages would make the JavaScript side
+harder to install than the Python side for no gain. The geometry-extraction names registered above
+are the first slice this package will carry.
+"""
+
+# NOT RESERVED, and the absence is a decision rather than an oversight.
+#
+#   @idfkit/viewer
+#
+# Scene rendering is a capability that exists only in JavaScript and is PERMANENTLY absent from
+# Python (FR-078), just as vector-image visualisation exists only in Python and is permanently absent
+# from JavaScript. Neither is a gap in the other, and the parity ledger records both as "never"
+# rather than "not yet".
+#
+# It is built outside this feature, and it is installed by its own name the way `@idfkit/engine` is,
+# rather than being reachable through the shared install name. Reserving `@idfkit/viewer` here would
+# imply a claim this feature does not make: that scene rendering is part of the shared surface and
+# is on some road map toward parity. It is not, in either direction.
+#
+# If that changes, the change adds the reservation here, with the reasoning, before the port begins.

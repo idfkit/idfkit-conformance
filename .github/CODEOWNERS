@@ -1,0 +1,50 @@
+# CODEOWNERS for idfkit-conformance
+#
+# This repository holds the shared surface of two libraries: the conformance cases both
+# run, the accepted divergences between them, and the governance files that fix the shared
+# vocabulary. Nothing here belongs to one language, so nothing here merges on one
+# language's say-so.
+#
+# FR-067: any change touching the shared surface, meaning public names, corpus cases, the
+# parity record, or the register, requires review from a maintainer of the other language.
+#
+# FR-091: that requirement has NO OVERRIDE. There is no break-glass path, no "urgent fix"
+# exemption, and no admin merge. If a reviewer from the other language is unavailable, the
+# merge is blocked until one is available. This is deliberate: the two maintainer sets
+# currently overlap, which makes the rule self-satisfying today, and that is precisely why
+# it is written down now rather than the day they diverge.
+#
+# Enforcement note for repository administrators: CODEOWNERS only requests the review.
+# The block comes from branch protection on the default branch, which must have "Require
+# review from Code Owners" enabled and must NOT allow administrators to bypass it. Without
+# both settings FR-091 is a comment rather than a gate.
+#
+# Team slugs: these must exist in the "idfkit" GitHub organization, and every listed team
+# must have at least read access to this repository. GitHub silently ignores a CODEOWNERS
+# entry naming a team that does not exist or cannot see the repository, which would turn
+# the gate off without any error, so verify both after any org or team rename.
+
+# Default: both languages review anything not matched more specifically below.
+*                       @idfkit/python-maintainers @idfkit/javascript-maintainers
+
+# The conformance cases. Both runners execute these, so a case that suits one language and
+# not the other is a case that lands red on the other side.
+/cases/                 @idfkit/python-maintainers @idfkit/javascript-maintainers
+/manifest.json          @idfkit/python-maintainers @idfkit/javascript-maintainers
+
+# The accepted-failure list. Adding a divergence excuses one side from an assertion the
+# other still meets, which is not a decision one side makes alone.
+/known-divergence.toml  @idfkit/python-maintainers @idfkit/javascript-maintainers
+
+# The governance files: the naming register and the parity ledger. They define the words
+# both libraries use in public. Both sides read them at a pinned governance tag, so a
+# change here reaches both libraries at their next pin bump.
+/governance/            @idfkit/python-maintainers @idfkit/javascript-maintainers
+
+# The runners themselves, and the tooling that regenerates expected output. A change to
+# how a case is compared changes what both gates mean.
+/runners/               @idfkit/python-maintainers @idfkit/javascript-maintainers
+/tools/                 @idfkit/python-maintainers @idfkit/javascript-maintainers
+
+# This file, and the workflows that enforce the gates.
+/.github/               @idfkit/python-maintainers @idfkit/javascript-maintainers

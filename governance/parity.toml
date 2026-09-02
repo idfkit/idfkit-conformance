@@ -1,0 +1,704 @@
+# The parity ledger: every public capability of the two idfkit libraries, the languages that
+# implement it, and the tier it belongs to. FR-034, FR-046 to FR-050, FR-068, FR-075 to FR-078.
+#
+# HOW THIS FILE IS READ
+#
+# Consumers read this file at a pinned `governance-YYYY.N` tag, never from the default branch
+# (FR-081). A gate or a documentation build that followed the branch would change its verdict
+# without any change landing in the repository it is gating, which is the failure this pinning
+# exists to prevent.
+#
+# Three things consume it:
+#
+#   1. `idfkit/docs/explanation/parity.md` (T124) renders entirely from this file. Nothing on that
+#      page is hand-written, so a hand-edited page can never disagree with the source.
+#   2. The `parity(id)` documentation macro (T125, T126) resolves its argument against the `id`
+#      field below, renders an explicit statement of unavailability in the affected language and
+#      nothing in the other, and FAILS THE BUILD when the argument resolves to nothing.
+#   3. `idfkit/scripts/check_parity_ledger.py` and `idfkit-js/scripts/check-parity-ledger.mjs`
+#      (T128, T129) diff the exported capability set of each library against this file.
+#
+# Because both the rendered page's anchors and the macro's argument are the `id`, EVERY `id` BELOW
+# IS A STABLE PUBLIC IDENTIFIER. Renaming one breaks inbound links and breaks every page that
+# declares the capability. Add and deprecate ids; do not rename them.
+#
+# SCHEMA (contracts/parity-ledger.md)
+#
+#   id            slug, stable, required
+#   title         reader-facing string, required
+#   tier          "tier-1" | "tier-2" | "tier-3" | "never", required
+#   python        "complete" | "partial" | "absent", required
+#   typescript    "complete" | "partial" | "absent", required
+#   absence_kind  "not-yet" | "never", required when either side is "absent"
+#   differences   non-empty string, required when either side is "partial"
+#   issue         tracking URL, required when absence_kind = "not-yet"
+#   note          string, required when absence_kind = "never"
+#   names         list of naming-register concepts, required
+#
+# RULES THAT SHAPE THE ENTRIES BELOW
+#
+#   One entry per mechanism (FR-068). Where both languages do something recognisably similar by
+#   fundamentally different means, that is two capabilities, not one. Recorded as one entry,
+#   whichever language the entry is written from makes the other read as deficient. Simulation and
+#   visual output are both split for exactly this reason: see `local-simulation` /
+#   `browser-simulation` and `svg-visualisation` / `scene-rendering`.
+#
+#   `never` is terminal. Moving a `never` capability to any other state requires a constitutional
+#   amendment, not an edit to this file.
+#
+#   Same-change updates (FR-048). A change that lands or removes a capability updates this file in
+#   that same change, never afterwards.
+#
+# OPEN ITEM AT AUTHORING TIME
+#
+#   Every `issue` field currently reads "TODO: open tracking issue in idfkit-js". The tracking
+#   issues do not exist yet, and a fabricated URL would be worse than a visible marker: it would
+#   pass the gate and dead-link the reader. Each marker must be replaced with a real issue URL
+#   before the governance tag is cut, because `absence_kind = "not-yet"` with no issue fails the
+#   gate by its exit contract.
+
+
+# ---------------------------------------------------------------------------
+# Tier 1: the shared core. Present in both languages at landing.
+# ---------------------------------------------------------------------------
+
+# Python: load_idf, load_epjson, parse_idf, parse_epjson, IDFParser, get_idf_version, IDFParseError
+# TypeScript: parseIdf, parseEpJson, loadIdf, loadEpJson, detectVersion, detectEpJsonVersion, lex
+[[capability]]
+id         = "parse"
+title      = "Reading IDF and epJSON"
+tier       = "tier-1"
+python     = "complete"
+typescript = "complete"
+names      = [
+  "parse IDF from a string",
+  "parse epJSON from a string",
+  "read IDF from disk",
+  "read epJSON from disk",
+  "the parse error type",
+  "detect a document version",
+]
+
+# Python: write_idf, write_epjson (splitting into write_* and save_* in the rename batch)
+# TypeScript: writeIdf, writeEpJson, toEpJson, writeObject, saveIdf, saveEpJson
+[[capability]]
+id         = "write"
+title      = "Writing IDF and epJSON"
+tier       = "tier-1"
+python     = "complete"
+typescript = "complete"
+names      = [
+  "serialize IDF to a string",
+  "serialize epJSON to a string",
+  "write IDF to disk",
+  "write epJSON to disk",
+]
+
+# Python: IDFDocument, IDFCollection, IDFObject, new_document
+# TypeScript: IDFDocument (becoming IdfDocument), IdfCollection, IdfObject, ObjectShape, shapeFor,
+#             shapeOf, ExtensibleGroup
+[[capability]]
+id         = "document-model"
+title      = "Documents, collections, and objects"
+tier       = "tier-1"
+python     = "complete"
+typescript = "complete"
+names      = [
+  "the document class",
+  "the collection class",
+  "the object class",
+  "an extensible group",
+  "create a new document",
+  "add an object",
+  "remove an object",
+  "rename an object",
+  "every object of a type",
+  "untyped collection access",
+  "one object, or nothing",
+  "one object, or an error",
+  "collection to a sequence",
+  "an object's type name",
+  "version",
+]
+
+# Python: ReferenceGraph, IDFDocument.get_referencing
+# TypeScript: ReferenceGraph, ReferenceEdge, IDFDocument.references
+[[capability]]
+id         = "references"
+title      = "Reference graph"
+tier       = "tier-1"
+python     = "complete"
+typescript = "complete"
+names      = [
+  "the reference graph",
+  "objects referencing a name",
+]
+
+# Python: EpJSONSchema, SchemaManager, get_schema, get_schema_manager, ENERGYPLUS_VERSIONS,
+#         LATEST_VERSION, MINIMUM_VERSION, find_closest_version, is_supported_version,
+#         version_string
+# TypeScript: Schema, SchemaBundle, BundleSource, httpSource, nodeSource, localBundle,
+#             compareVersions, resolveVersion, versionKey
+[[capability]]
+id         = "schema-access"
+title      = "Schema access and the version registry"
+tier       = "tier-1"
+python     = "complete"
+typescript = "complete"
+names      = [
+  "load a schema for a version",
+  "the supported version list",
+  "resolve a version string",
+]
+
+# Python: validate_document, validate_object, ValidationResult, ValidationError
+# TypeScript: validateDocument, validateObject, ValidationResult, ValidationError
+# Ported in this feature (research R15, validation.py, 545 lines, pure and schema-driven).
+[[capability]]
+id         = "validation"
+title      = "Model validation"
+tier       = "tier-1"
+python     = "complete"
+typescript = "complete"
+names      = [
+  "validate a document",
+  "validate an object",
+  "validation result",
+  "validation finding",
+  "validation severity",
+]
+
+# Python: describe_object_type, ObjectDescription, FieldDescription
+# TypeScript: describeObjectType, ObjectDescription, FieldDescription
+# Ported in this feature (research R15, introspection.py, 315 lines).
+[[capability]]
+id         = "introspection"
+title      = "Describing an object type from the schema"
+tier       = "tier-1"
+python     = "complete"
+typescript = "complete"
+names      = [
+  "describe an object type",
+  "object description",
+  "field description",
+]
+
+# Python: docs_url_for_object, io_reference_url, engineering_reference_url, search_url, DocsUrl
+# TypeScript: docsUrlForObject, ioReferenceUrl, engineeringReferenceUrl, searchUrl, DocsUrl
+# Ported in this feature (research R15, docs.py, 184 lines).
+[[capability]]
+id         = "documentation-urls"
+title      = "Building EnergyPlus documentation URLs"
+tier       = "tier-1"
+python     = "complete"
+typescript = "complete"
+names      = [
+  "resolved documentation URL",
+  "documentation URL for an object type",
+  "I/O reference URL",
+  "engineering reference URL",
+  "documentation search URL",
+]
+
+# Python: idfkit._generated_types (regenerated by idfkit.codegen.generate_stubs, diffed by
+#         `make check-stubs`), applied through idfkit/document.pyi
+# TypeScript: @idfkit/core/types/v26-1 and /v9-4, AnyTypeMap, UntypedMap, ObjectOf, TypeNameOf,
+#             ValuesOf
+[[capability]]
+id         = "generated-object-types"
+title      = "Static types generated from the schema"
+tier       = "tier-1"
+python     = "partial"
+typescript = "complete"
+differences = """
+Coverage differs, and the difference is visible to anyone not on the newest release. The Python
+stub set is generated for one EnergyPlus version at a time and is currently shipped for 26.1.0
+only, so a model loaded at 9.4 gets the 26.1 field names and choice lists from the editor. The
+TypeScript type maps are emitted per version and selected by the caller, who parameterises the
+document with the map for the version being read, so an older model is typed as that older model
+or is left untyped rather than mistyped.
+
+Application differs too. Python's stubs apply implicitly to every document. TypeScript's are opt-in
+by construction: an unparameterised document stays untyped, which is what version-generic code
+needs.
+"""
+names      = [
+  "generated object types",
+  "a version type map",
+]
+
+# Python: IDFParseError carries ParseDiagnostic entries; non-fatal problems go to the logger
+# TypeScript: ParseResult.diagnostics, ParseDiagnostic, LexDiagnostic, loadIdfWithDiagnostics
+[[capability]]
+id         = "parse-diagnostics"
+title      = "Diagnostics from a parse"
+tier       = "tier-1"
+python     = "partial"
+typescript = "complete"
+differences = """
+Both libraries produce diagnostics for a malformed input; only one hands them back. Python raises
+IDFParseError carrying the diagnostics that stopped the parse, and reports the recoverable ones
+(skipped malformed objects, discarded formatting trees, surplus fields on a non-extensible type)
+through the logging module, where a caller who wants them must install a handler. TypeScript
+returns them: parseIdf and loadIdfWithDiagnostics both yield a ParseResult whose `diagnostics`
+array holds the non-fatal findings alongside the document.
+
+This matters to the conformance corpus, whose `diagnostics` assertion compares what each side
+reports for a malformed case (contracts/conformance-corpus.md).
+"""
+names      = [
+  "a parse diagnostic",
+  "diagnostics from a parse",
+]
+
+# Python: idfkit.weather StationIndex, WeatherStation, SearchResult, SpatialResult,
+#         WeatherDownloader, WeatherFiles
+# TypeScript: @idfkit/weather StationIndex, WeatherStation, SearchResult, SpatialResult,
+#             loadStationIndex, refreshStationIndex, checkForUpdates, fetchEpw, fetchWeatherFiles,
+#             saveWeatherFiles
+[[capability]]
+id         = "weather-index"
+title      = "Weather station index and file retrieval"
+tier       = "tier-1"
+python     = "complete"
+typescript = "partial"
+differences = """
+Installation differs, and the difference is deliberate. `pip install idfkit` installs weather and
+its station index unconditionally, because Python extras gate dependencies rather than files, so a
+Python reader has weather whether or not they wanted it. `npm install idfkit` installs neither:
+weather is an opt-in peer there, added with `npm install @idfkit/weather`. Both libraries ship
+their own index once installed and neither retrieves one to get started (FR-043, FR-075,
+research R11). A JavaScript reader who follows a weather page without installing that package
+gets a resolution error, not a smaller feature, which is why the packaging is recorded here as a
+stated difference rather than left as an undescribed detail.
+
+Freshness handling differs. Python fires a throttled nudge from StationIndex.load(): at most once
+every 24 hours it probes the upstream KML files, warns when the bundled or cached index is behind,
+records the check under the cache directory, and can be turned off with
+IDFKIT_NO_WEATHER_UPDATE_CHECK. JavaScript has no such nudge and no timestamp to throttle against.
+It exposes checkForUpdates and refreshStationIndex for a caller who asks, and does nothing on its
+own, because the nudge is built on a writable cache directory and a browser-targeted package has
+none. The consequence for a reader is concrete: a stale index goes unmentioned in JavaScript until
+they check for themselves.
+"""
+names      = [
+  "the station index",
+  "search stations",
+  "a weather station",
+  "download a weather file",
+  "refresh the station index",
+]
+
+# Python: idfkit.weather geocode, detect_location, GeocodingError
+# TypeScript: @idfkit/weather geocode, detectLocation, GeocodingError, RateLimiter
+[[capability]]
+id         = "geocoding"
+title      = "Geocoding a place name"
+tier       = "tier-1"
+python     = "complete"
+typescript = "complete"
+names      = [
+  "geocode a place name",
+  "detect the current location",
+]
+
+
+# ---------------------------------------------------------------------------
+# Tier 2: deliberately not ported in this feature (FR-034, research R15).
+#
+# Every entry here is a capability the second language could have and does not yet. Each carries
+# absence_kind = "not-yet" and a tracking issue, because recording any of them as `never` would be
+# a permanent claim the code does not support.
+# ---------------------------------------------------------------------------
+
+# Python: load_idf(preserve_formatting=True) building a CST (idfkit/cst.py), reproduced by
+#         write_idf; load_epjson(preserve_formatting=True) retaining the raw JSON text
+# TypeScript: none. packages/core/src/write/idf.ts states plainly that it does not round-trip
+#             formatting, and `3.0` comes back as `3`.
+[[capability]]
+id         = "lossless-round-trip"
+title      = "Formatting-preserving round-trip"
+tier       = "tier-2"
+python     = "complete"
+typescript = "absent"
+absence_kind = "not-yet"
+issue      = "TODO: open tracking issue in idfkit-js"
+names      = [
+  "preserve formatting on a round-trip",
+]
+
+# Python: Vector3D, Polygon3D, calculate_surface_area, calculate_surface_azimuth,
+#         calculate_surface_tilt, calculate_zone_floor_area, calculate_zone_ceiling_area,
+#         calculate_zone_height, calculate_zone_volume, polygon_area_2d, polygon_contains_2d,
+#         polygon_intersection_2d, polygon_difference_2d
+# Reserved for the eventual port: @idfkit/geometry at subpath idfkit/geometry (FR-077).
+[[capability]]
+id         = "geometry-extraction"
+title      = "Reading geometry from a model"
+tier       = "tier-2"
+python     = "complete"
+typescript = "absent"
+absence_kind = "not-yet"
+issue      = "TODO: open tracking issue in idfkit-js"
+names      = [
+  "three-dimensional vector",
+  "three-dimensional polygon",
+  "read a surface's coordinates",
+  "a zone's origin",
+  "a zone's rotation",
+  "transform relative coordinates to world coordinates",
+  "a surface's area",
+  "a surface's tilt",
+  "a surface's azimuth",
+  "a zone's floor area",
+  "a zone's volume",
+]
+
+# Python: set_wwr, rotate_building, translate_building, scale_building, bounding_box,
+#         add_shading_block, split_horizontal_surface, set_default_constructions,
+#         detect_horizontal_adjacencies, link_horizontal_surfaces, HorizontalAdjacency
+[[capability]]
+id         = "geometry-authoring"
+title      = "Building and transforming geometry"
+tier       = "tier-2"
+python     = "complete"
+typescript = "absent"
+absence_kind = "not-yet"
+issue      = "TODO: open tracking issue in idfkit-js"
+names      = [
+  "set the window to wall ratio",
+  "rotate a building",
+  "translate a building",
+  "scale a building",
+  "add a shading block",
+  "set default constructions",
+]
+
+# Python: intersect_and_match, intersect_match, MatchOptions, MatchReport
+[[capability]]
+id         = "surface-matching"
+title      = "Intersecting and matching surfaces"
+tier       = "tier-2"
+python     = "complete"
+typescript = "absent"
+absence_kind = "not-yet"
+issue      = "TODO: open tracking issue in idfkit-js"
+names      = [
+  "intersect and match surfaces",
+  "a surface match report",
+]
+
+# Python: create_block, link_blocks, footprint_rectangle, footprint_l_shape, footprint_t_shape,
+#         footprint_u_shape, footprint_h_shape, footprint_courtyard, ZonedBlock, ZoneFootprint,
+#         ZoningScheme, ASHRAE_PERIMETER_DEPTH
+[[capability]]
+id         = "zoning"
+title      = "Generating zoned blocks from a footprint"
+tier       = "tier-2"
+python     = "complete"
+typescript = "absent"
+absence_kind = "not-yet"
+issue      = "TODO: open tracking issue in idfkit-js"
+names      = [
+  "create a zoned block",
+  "a zone footprint",
+  "a zoning scheme",
+  "link blocks",
+]
+
+# Python: idfkit.thermal get_thermal_properties, calculate_u_value, calculate_r_value,
+#         calculate_shgc, calculate_visible_transmittance, gas_gap_resistance,
+#         get_construction_layers, get_gas_properties, typical_gap_r_value,
+#         ConstructionThermalProperties, LayerThermalProperties, GasProperties, GasType,
+#         FILM_RESISTANCE, NFRC_FILM_COEFFICIENTS, TYPICAL_GAP_R_VALUES
+[[capability]]
+id         = "thermal-properties"
+title      = "Construction thermal properties"
+tier       = "tier-2"
+python     = "complete"
+typescript = "absent"
+absence_kind = "not-yet"
+issue      = "TODO: open tracking issue in idfkit-js"
+names      = [
+  "construction thermal properties",
+  "a construction's U-value",
+  "a construction's R-value",
+  "a construction's solar heat gain coefficient",
+  "a construction's layers",
+]
+
+# Python: idfkit.schedules evaluate, values, to_series, plot_day, plot_week, plot_schedule,
+#         create_constant_schedule, create_compact_schedule_from_values,
+#         create_schedule_type_limits, extract_special_days, get_holidays,
+#         get_special_days_by_type, ScheduleFileCache, and the schedule error and type surface
+# Reserved for the eventual port: @idfkit/schedules at subpath idfkit/schedules (FR-077).
+[[capability]]
+id         = "schedules"
+title      = "Schedule evaluation"
+tier       = "tier-2"
+python     = "complete"
+typescript = "absent"
+absence_kind = "not-yet"
+issue      = "TODO: open tracking issue in idfkit-js"
+names      = [
+  "evaluate a schedule",
+  "a schedule's values for a year",
+  "a schedule as a series",
+  "create a constant schedule",
+  "create a compact schedule",
+  "extract special days",
+  "the holidays in a model",
+]
+
+# Python: idfkit.simulation.parsers.rdd (parse_rdd_file, parse_mdd_file, OutputVariable,
+#         OutputMeter) and idfkit.simulation.outputs (OutputVariableIndex, prep_outputs)
+#
+# Kept separate from `local-simulation` on purpose (FR-076). Measured at authoring time, the two
+# files are 287 and 161 lines, 448 together, and import only re, warnings, dataclasses, pathlib,
+# and typing. They read the dictionary EnergyPlus writes and choose variables from it; they never
+# invoke EnergyPlus and never look for an installation. Recording that as permanently absent from
+# JavaScript would be a false permanent claim about pure, dependency-free text parsing.
+[[capability]]
+id         = "output-variable-selection"
+title      = "Reading the output variable dictionary and selecting variables"
+tier       = "tier-2"
+python     = "complete"
+typescript = "absent"
+absence_kind = "not-yet"
+issue      = "TODO: open tracking issue in idfkit-js"
+names      = [
+  "read the output variable dictionary",
+  "an output variable",
+  "an output meter",
+  "select output variables for a run",
+]
+
+# Python: idfkit.weather DesignDayManager, DesignDayType, apply_ashrae_sizing, PartialWeatherFiles,
+#         NoDesignDaysError
+# TypeScript: @idfkit/weather retrieves the DDY member of the archive as text but neither parses it
+#             nor injects design days into a model.
+[[capability]]
+id         = "design-day-sizing"
+title      = "Design days and ASHRAE sizing conditions"
+tier       = "tier-2"
+python     = "complete"
+typescript = "absent"
+absence_kind = "not-yet"
+issue      = "TODO: open tracking issue in idfkit-js"
+names      = [
+  "apply ASHRAE sizing conditions",
+  "the design day manager",
+]
+
+
+# ---------------------------------------------------------------------------
+# Tier 3: deliberately not ported in this feature (FR-034, research R15).
+#
+# Node-bound or tooling capabilities. Absent from JavaScript today, and not permanently so: each is
+# reachable in Node, which is why none of them carries absence_kind = "never".
+# ---------------------------------------------------------------------------
+
+# Python: idfkit.migration migrate, async_migrate, MigrationReport, MigrationDiff, MigrationStep,
+#         MigrationStepResult, MigrationProgress, Migrator, AsyncMigrator, SubprocessMigrator,
+#         AsyncSubprocessMigrator, plan_migration_chain, document_diff, MigrationError
+[[capability]]
+id         = "version-migration"
+title      = "Forward-migrating a model between EnergyPlus versions"
+tier       = "tier-3"
+python     = "complete"
+typescript = "absent"
+absence_kind = "not-yet"
+issue      = "TODO: open tracking issue in idfkit-js"
+names      = [
+  "migrate a model to a newer version",
+  "a migration report",
+  "a migration step",
+]
+
+# Python: the `idfkit` console script (idfkit.compat._cli:main), with the `check` and `migrate`
+#         subcommands
+[[capability]]
+id         = "command-line"
+title      = "Command-line interface"
+tier       = "tier-3"
+python     = "complete"
+typescript = "absent"
+absence_kind = "not-yet"
+issue      = "TODO: open tracking issue in idfkit-js"
+names      = [
+  "the command line entry point",
+]
+
+# Python: idfkit.compat check_compatibility, diff_schemas, extract_literals, build_schema_index,
+#         resolve_version, format_sarif, Diagnostic, SchemaDiff, SchemaIndex, ExtractedLiteral,
+#         LiteralKind, CompatSeverity, DIAGNOSTIC_CODES
+[[capability]]
+id         = "schema-compatibility-check"
+title      = "Checking source against another EnergyPlus version's schema"
+tier       = "tier-3"
+python     = "complete"
+typescript = "absent"
+absence_kind = "not-yet"
+issue      = "TODO: open tracking issue in idfkit-js"
+names      = [
+  "check source compatibility with a version",
+  "diff two schemas",
+  "a compatibility diagnostic",
+]
+
+# Python: idfkit.simulation.plotting PlotBackend, get_default_backend, plot_energy_balance,
+#         plot_temperature_profile, plot_comfort_hours
+#
+# The chart-drawing layer over simulation results, separate from running the simulation and from
+# reading its output files. Kept out of `local-simulation` because it needs neither an EnergyPlus
+# installation nor a subprocess, only result data and a plotting backend.
+[[capability]]
+id         = "result-plotting"
+title      = "Plotting simulation results"
+tier       = "tier-3"
+python     = "complete"
+typescript = "absent"
+absence_kind = "not-yet"
+issue      = "TODO: open tracking issue in idfkit-js"
+names      = [
+  "plot an energy balance",
+  "plot a temperature profile",
+  "plot comfort hours",
+  "a plotting backend",
+]
+
+
+# ---------------------------------------------------------------------------
+# never: permanently single-language. Two mechanisms, never merged (FR-068, FR-078).
+#
+# Simulation appears TWICE and visual output appears TWICE. Each pair is two capabilities delivered
+# by fundamentally different means, and collapsing either pair into one entry would make one
+# language read as deficient at something it does not lack.
+# ---------------------------------------------------------------------------
+
+# Python: idfkit.simulation simulate, simulate_batch, async_simulate, async_simulate_batch,
+#         async_simulate_batch_stream, find_energyplus, expand_objects, run_preprocessing,
+#         run_slab_preprocessor, run_basement_preprocessor, needs_ground_heat_preprocessing,
+#         EnergyPlusConfig, SimulationResult, BatchResult, SimulationCache, CacheKey,
+#         SimulationJob, SimulationProgress, SimulationEvent, ProgressParser, tqdm_progress,
+#         the FileSystem family, and the result readers (ESOResult, CSVResult, SQLResult,
+#         TimeSeriesResult, ErrorReport, TabularRow, EnvironmentInfo, VariableInfo)
+#
+# Narrowed on purpose: this entry covers running a locally installed EnergyPlus and reading the
+# files that run writes. Choosing which variables to ask for is `output-variable-selection` and
+# drawing the results is `result-plotting`; both are pure and both are portable, so neither belongs
+# under a permanent absence.
+[[capability]]
+id         = "local-simulation"
+title      = "Running a locally installed EnergyPlus and reading its results"
+tier       = "never"
+python     = "complete"
+typescript = "absent"
+absence_kind = "never"
+note       = """
+Requires an EnergyPlus installation on the machine and a subprocess to drive it, then reads the
+eplusout files that run leaves on disk. Neither the installation nor the subprocess is available in
+a browser, which is the runtime the JavaScript library targets. JavaScript reaches EnergyPlus by
+the other mechanism instead: see `browser-simulation`, which is not a workaround for this entry but
+a different capability.
+"""
+names      = [
+  "the local simulation surface",
+]
+
+# TypeScript: @idfkit/engine (createEnergyPlus, expandObjects, detectExternalFileReferences) with
+#             @idfkit/engine-assets, both installed by name and neither reachable through the
+#             shared install name.
+[[capability]]
+id         = "browser-simulation"
+title      = "Running EnergyPlus in the browser"
+tier       = "never"
+python     = "absent"
+typescript = "complete"
+absence_kind = "never"
+note       = """
+Delivered by @idfkit/engine, installed separately and deliberately not part of the shared install
+name: not a subpath, not a dependency, not an optional peer (research R19). The WebAssembly build
+exists to reach a runtime Python does not target, so Python has no counterpart and is not getting
+one. @idfkit/engine-assets is roughly 51 MB and versions on the EnergyPlus release it carries,
+while the loader versions on its own API, which is a second reason the facade does not carry it.
+
+This is not a gap in Python. Python runs EnergyPlus by the other mechanism: see
+`local-simulation`.
+"""
+# No `names`: the naming register governs `idfkit` and `@idfkit/core`, and @idfkit/engine is
+# reachable only by its own install name. Registering its names would imply the shared surface
+# carries it, which is the claim this entry exists to deny.
+names      = []
+
+# Python: idfkit.visualization, nine exports, verified at authoring time: ColorBy,
+#         ModelViewConfig, SVGConfig, construction_to_svg, generate_construction_svg,
+#         view_exploded, view_floor_plan, view_model, view_normals.
+#
+# All nine produce a vector image: construction_to_svg and generate_construction_svg emit SVG
+# cross-sections of a construction assembly, and the four view_* functions emit plotly figures of
+# the model. Vector output, drawn once and handed back. This is not the same mechanism as a
+# real-time rendered scene: see `scene-rendering`.
+[[capability]]
+id         = "svg-visualisation"
+title      = "Rendering a model to a vector image"
+tier       = "never"
+python     = "complete"
+typescript = "absent"
+absence_kind = "never"
+note       = """
+A Python-side capability with no JavaScript counterpart and no plan for one. The output is a static
+vector image produced for a notebook, a report, or a file on disk, which is a Python workflow. A
+JavaScript caller wanting to look at a model is already in a runtime that draws, and is served by
+the other mechanism: see `scene-rendering`. Recording the two as one `visualization` entry would
+make each language read as missing something the other has, which is exactly the failure FR-078
+and FR-068 forbid.
+"""
+names      = [
+  "the vector image surface",
+]
+
+# TypeScript: @idfkit/viewer, installed by its own name. Built outside this feature, and
+#             deliberately NOT reserved on the facade's export map or in the naming register: the
+#             renderer is not reachable through the shared install name (FR-078, data-model.md).
+[[capability]]
+id         = "scene-rendering"
+title      = "Rendering a three-dimensional scene"
+tier       = "never"
+python     = "absent"
+typescript = "complete"
+absence_kind = "never"
+note       = """
+Delivered by @idfkit/viewer, installed by its own name like the simulation engine, and NOT reachable
+through the shared install name: no subpath, no dependency, no export-map entry, and no reserved
+name in the naming register. A reader reaches it by installing it explicitly, and the documentation
+says so rather than implying the facade carries it.
+
+Python has no counterpart and is not getting one. A real-time interactive scene needs a rendering
+context that a Python process does not have, and Python's static vector output is a different
+mechanism serving a different workflow: see `svg-visualisation`. Neither is a gap in the other.
+"""
+# No `names`: @idfkit/viewer is deliberately absent from the naming register, which says so in
+# its reserved-package section. Registering a concept for it here would imply the shared surface
+# carries it, which is the claim this entry exists to deny.
+names      = []
+
+# Python: the eppy compatibility mixin on IDFDocument (idfkit/_compat.py, idfkit/_compat_object.py):
+#         idfobjects, newidfobject, addidfobject, popidfobject, removeidfobject, saveas, and the
+#         rest of the eppy-shaped surface.
+[[capability]]
+id         = "eppy-compatibility"
+title      = "eppy compatibility surface"
+tier       = "never"
+python     = "complete"
+typescript = "absent"
+absence_kind = "never"
+note       = """
+A Python ecosystem concern with no JavaScript counterpart. These methods exist solely so that code
+written against eppy keeps working after a move to idfkit; every one of them names an idfkit
+alternative in its own docstring. There is no eppy in JavaScript, so there is nothing to be
+compatible with. Listed explicitly so it is never ported by mistake.
+"""
+names      = [
+  "eppy compatibility surface",
+]
