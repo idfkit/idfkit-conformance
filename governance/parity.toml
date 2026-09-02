@@ -322,7 +322,7 @@ tier       = "tier-2"
 python     = "complete"
 typescript = "absent"
 absence_kind = "not-yet"
-issue      = "TODO: open tracking issue in idfkit-js"
+issue      = "https://github.com/idfkit/idfkit-js/issues/12"
 names      = [
   "preserve formatting on a round-trip",
 ]
@@ -339,7 +339,7 @@ tier       = "tier-2"
 python     = "complete"
 typescript = "absent"
 absence_kind = "not-yet"
-issue      = "TODO: open tracking issue in idfkit-js"
+issue      = "https://github.com/idfkit/idfkit-js/issues/13"
 names      = [
   "three-dimensional vector",
   "three-dimensional polygon",
@@ -364,7 +364,7 @@ tier       = "tier-2"
 python     = "complete"
 typescript = "absent"
 absence_kind = "not-yet"
-issue      = "TODO: open tracking issue in idfkit-js"
+issue      = "https://github.com/idfkit/idfkit-js/issues/14"
 names      = [
   "set the window to wall ratio",
   "rotate a building",
@@ -382,7 +382,7 @@ tier       = "tier-2"
 python     = "complete"
 typescript = "absent"
 absence_kind = "not-yet"
-issue      = "TODO: open tracking issue in idfkit-js"
+issue      = "https://github.com/idfkit/idfkit-js/issues/15"
 names      = [
   "intersect and match surfaces",
   "a surface match report",
@@ -398,7 +398,7 @@ tier       = "tier-2"
 python     = "complete"
 typescript = "absent"
 absence_kind = "not-yet"
-issue      = "TODO: open tracking issue in idfkit-js"
+issue      = "https://github.com/idfkit/idfkit-js/issues/16"
 names      = [
   "create a zoned block",
   "a zone footprint",
@@ -418,7 +418,7 @@ tier       = "tier-2"
 python     = "complete"
 typescript = "absent"
 absence_kind = "not-yet"
-issue      = "TODO: open tracking issue in idfkit-js"
+issue      = "https://github.com/idfkit/idfkit-js/issues/17"
 names      = [
   "construction thermal properties",
   "a construction's U-value",
@@ -439,7 +439,7 @@ tier       = "tier-2"
 python     = "complete"
 typescript = "absent"
 absence_kind = "not-yet"
-issue      = "TODO: open tracking issue in idfkit-js"
+issue      = "https://github.com/idfkit/idfkit-js/issues/18"
 names      = [
   "evaluate a schedule",
   "a schedule's values for a year",
@@ -465,7 +465,7 @@ tier       = "tier-2"
 python     = "complete"
 typescript = "absent"
 absence_kind = "not-yet"
-issue      = "TODO: open tracking issue in idfkit-js"
+issue      = "https://github.com/idfkit/idfkit-js/issues/19"
 names      = [
   "read the output variable dictionary",
   "an output variable",
@@ -484,7 +484,7 @@ tier       = "tier-2"
 python     = "complete"
 typescript = "absent"
 absence_kind = "not-yet"
-issue      = "TODO: open tracking issue in idfkit-js"
+issue      = "https://github.com/idfkit/idfkit-js/issues/20"
 names      = [
   "apply ASHRAE sizing conditions",
   "the design day manager",
@@ -508,7 +508,7 @@ tier       = "tier-3"
 python     = "complete"
 typescript = "absent"
 absence_kind = "not-yet"
-issue      = "TODO: open tracking issue in idfkit-js"
+issue      = "https://github.com/idfkit/idfkit-js/issues/21"
 names      = [
   "migrate a model to a newer version",
   "a migration report",
@@ -524,7 +524,7 @@ tier       = "tier-3"
 python     = "complete"
 typescript = "absent"
 absence_kind = "not-yet"
-issue      = "TODO: open tracking issue in idfkit-js"
+issue      = "https://github.com/idfkit/idfkit-js/issues/22"
 names      = [
   "the command line entry point",
 ]
@@ -539,7 +539,7 @@ tier       = "tier-3"
 python     = "complete"
 typescript = "absent"
 absence_kind = "not-yet"
-issue      = "TODO: open tracking issue in idfkit-js"
+issue      = "https://github.com/idfkit/idfkit-js/issues/23"
 names      = [
   "check source compatibility with a version",
   "diff two schemas",
@@ -559,7 +559,7 @@ tier       = "tier-3"
 python     = "complete"
 typescript = "absent"
 absence_kind = "not-yet"
-issue      = "TODO: open tracking issue in idfkit-js"
+issue      = "https://github.com/idfkit/idfkit-js/issues/24"
 names      = [
   "plot an energy balance",
   "plot a temperature profile",
