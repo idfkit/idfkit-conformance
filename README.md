@@ -260,9 +260,14 @@ A level is an immutable git tag, `conformance-YYYY.N`. Each library declares the
 from one value read by both its CI job and its release check, so the declaration and the pin cannot
 diverge:
 
-- Python: `[tool.idfkit.conformance] level` in `pyproject.toml`, exposed as
-  `idfkit.CONFORMANCE_LEVEL`.
-- JavaScript: `idfkit.conformance` in `packages/core/package.json`, exposed as `CONFORMANCE_LEVEL`.
+- Python: `[tool.idfkit.conformance] level` in `pyproject.toml`.
+- JavaScript: `idfkit.conformance` in `packages/core/package.json`.
+
+Neither library exposes that value at runtime yet. `idfkit.CONFORMANCE_LEVEL` and the exported
+`CONFORMANCE_LEVEL` constant are specified and not written, so a caller who wants to know which
+level a build claims has to read the config file the way CI does. An earlier version of this
+section described them as though they existed, which is the failure this corpus is here to catch,
+committed in its own README.
 
 The two libraries release on independent schedules. Matching version numbers must never be read as
 agreement. The declared level is the claim, and it is the stronger claim precisely because it is
