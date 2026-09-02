@@ -5,13 +5,15 @@
 # outstanding entry with its issue link on every run rather than suppressing it. An entry whose
 # case now passes is a failure, not a pass: the change that fixes the bug removes the entry.
 #
-# ISSUE LINKS ARE PLACEHOLDERS. Every `issue` below points at `.../issues/TODO`, which is not a
-# real issue and is not meant to resolve. Task T040 opens the real issues; the session that
-# curated this register had no GitHub write access, and fabricating an issue number would have
-# been worse than an obvious placeholder. The URL form is forced: `Divergence.__post_init__` in
-# runners/model.py and its mirror in runners/model.mjs both require `issue` to match
-# ^https?://\S+$, so a bare "TODO" string makes the register unloadable and both runners abort.
-# Replace all 25 URLs when the issues exist.
+# Every entry carries a real tracking issue, opened 2026-09-02 (task T040). The URL form is forced:
+# `Divergence.__post_init__` in runners/model.py and its mirror in runners/model.mjs both require
+# `issue` to match ^https?://\S+$, so an entry cannot be added without one.
+#
+# The 25 entries group into 15 issues, one per root cause rather than one per failing assertion:
+# idfkit 178 to 187, idfkit-js 7 to 11. Two bugs exist identically in BOTH libraries, choice-field
+# casing (idfkit 180, idfkit-js 10) and latin-1 decoding of UTF-8 input (idfkit 186, idfkit-js 11).
+# Fixing either side alone turns its entries stale, which the runner reports as a failure, so those
+# four issues must land together.
 #
 # Counts at the time of writing, against idfkit 0.12.2 and @idfkit/core 0.0.0, EnergyPlus 26.1.0:
 # 17 entries against python, 8 against typescript, over 41 cases and 117 assertions.
