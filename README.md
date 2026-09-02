@@ -16,7 +16,7 @@ happened on the first fixture written.
 
 ## Read this first: the coverage this corpus does NOT have
 
-Partial coverage is easy to mistake for complete coverage. Two gaps are open at landing.
+Partial coverage is easy to mistake for complete coverage. Three gaps are open at landing.
 
 ### EnergyPlus 26.1.0 only
 
@@ -34,6 +34,40 @@ raises typed exceptions instead. Until a shared code vocabulary exists on both s
 `malformed` proves only that the parse failed, not that it failed for the stated reason.
 
 Deferring costs nothing later, because adding a `code` field is additive.
+
+### Neither library's file reading is tested
+
+The runners decode the input file themselves and hand a string to the parser, so that comparison
+rule 6 fixes the encoding rather than leaving it to each library:
+
+```js
+const text = readFileSync(job.inputPath).toString('latin1');
+library.core.parseIdf(text, schema);
+```
+
+```python
+document = idfkit.parse_idf(job.input_path, encoding=IDF_ENCODING)
+```
+
+That is deliberate, and it is what makes an encoding difference a finding rather than noise. The
+cost is that the read-from-disk entry points, `loadIdf` in TypeScript and the path-taking form in
+Python, are never exercised. A bug that lives in the decode step rather than in the parse step is
+invisible to every case in this corpus, no matter how many cases are added.
+
+This is not hypothetical. `loadIdf` refuses any IDF file carrying a UTF-8 byte-order mark, because
+the mark survives a latin-1 decode as three visible characters and the version detector then anchors
+its pattern past them, so the file is reported as versionless. Python reads the same file correctly.
+That is a one-sided divergence of exactly the kind this corpus exists to catch, and it was reported
+from downstream rather than found here.
+See [idfkit-js#28](https://github.com/idfkit/idfkit-js/issues/28).
+
+Closing this gap needs a check that calls each library's own reader, which no `input.idf` plus
+`expected.epJSON` pair can express. That is what the `checks/` directory the contract reserves is
+for. It has no members yet.
+
+A second consequence, worth stating separately: cases are curated from a sweep of the EnergyPlus
+example files, so the corpus only sees hazards that EnergyPlus's own files exhibit. Byte-order marks,
+CRLF line endings, and the other things real editors emit are not in that set.
 
 ## Why `known-divergence.toml` ships populated
 
