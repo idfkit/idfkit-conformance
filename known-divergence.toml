@@ -24,7 +24,7 @@
 case      = "encoding-latin1-high-bytes"
 library   = "python"
 assertion = "epjson"
-issue     = "https://github.com/idfkit/idfkit/issues/TODO"
+issue     = "https://github.com/idfkit/idfkit/issues/186"
 observed  = '''/Output:Variable/Output:Variable 1/key_value is "Café Zürich Zone". The file's 0xE9 and 0xFC are read as latin-1 and the accented characters are preserved intact.'''
 expected  = '''/Output:Variable/Output:Variable 1/key_value is "Caf<U+FFFD> Z<U+FFFD>rich Zone". ConvertInputFormat decodes the file as UTF-8 and substitutes one U+FFFD replacement character (bytes EF BF BD) for each byte that is not valid UTF-8. Preserving the byte is arguably the better behaviour; the corpus records what the oracle does, and this entry is where that is argued.'''
 
@@ -32,7 +32,7 @@ expected  = '''/Output:Variable/Output:Variable 1/key_value is "Caf<U+FFFD> Z<U+
 case      = "encoding-latin1-high-bytes"
 library   = "typescript"
 assertion = "epjson"
-issue     = "https://github.com/idfkit/idfkit-js/issues/TODO"
+issue     = "https://github.com/idfkit/idfkit-js/issues/11"
 observed  = '''/Output:Variable/Output:Variable 1/key_value is "Café Zürich Zone", byte for byte the same behaviour as Python: the latin-1 high bytes survive as accented characters.'''
 expected  = '''/Output:Variable/Output:Variable 1/key_value is "Caf<U+FFFD> Z<U+FFFD>rich Zone", one U+FFFD per byte that is not valid UTF-8. Both libraries agree here and both differ from the oracle, so agreement is not evidence.'''
 
@@ -40,7 +40,7 @@ expected  = '''/Output:Variable/Output:Variable 1/key_value is "Caf<U+FFFD> Z<U+
 case      = "encoding-utf8-object-name"
 library   = "python"
 assertion = "epjson"
-issue     = "https://github.com/idfkit/idfkit/issues/TODO"
+issue     = "https://github.com/idfkit/idfkit/issues/186"
 observed  = '''The Material:NoMass object is keyed "è¯éª". The six UTF-8 bytes E8 AF 95 E9 AA 8C are decoded one byte at a time as latin-1, so the object is not lost but its epJSON key, which is its identity, is mojibake.'''
 expected  = '''The Material:NoMass object is keyed "试验", carrying {"roughness": "Rough", "thermal_resistance": 5.0}. EnergyPlus itself accepts UTF-8 object names here.'''
 
@@ -48,7 +48,7 @@ expected  = '''The Material:NoMass object is keyed "试验", carrying {"roughnes
 case      = "encoding-utf8-object-name"
 library   = "typescript"
 assertion = "epjson"
-issue     = "https://github.com/idfkit/idfkit-js/issues/TODO"
+issue     = "https://github.com/idfkit/idfkit-js/issues/11"
 observed  = '''The Material:NoMass object is keyed "è¯éª", the identical latin-1 corruption Python produces, which is why the bootstrap sweep reported this shape against both sides at once.'''
 expected  = '''The Material:NoMass object is keyed "试验", carrying {"roughness": "Rough", "thermal_resistance": 5.0}.'''
 
@@ -60,7 +60,7 @@ expected  = '''The Material:NoMass object is keyed "试验", carrying {"roughnes
 case      = "extensible-schedule-compact-numeric-field"
 library   = "python"
 assertion = "epjson"
-issue     = "https://github.com/idfkit/idfkit/issues/TODO"
+issue     = "https://github.com/idfkit/idfkit/issues/179"
 observed  = '''/Schedule:Compact/Untyped Extensible Schedule/data/3/field, /data/5/field and /data/7/field are the JSON strings "0", "0.75" and "1". Python does not coerce a numeric value inside the untyped extensible field whose schema type is anyOf [number, string], so every numeric schedule value ships as text. This was the single largest finding in the bootstrap sweep: 67,341 occurrences across 729 example files.'''
 expected  = '''The same three pointers are the JSON numbers 0, 0.75 and 1, while the keyword entries "Through: 12/31", "For: AllDays", "Until: 08:00", "Until: 18:00" and "Until: 24:00" stay JSON strings. One field, two types, decided per value.'''
 
@@ -72,7 +72,7 @@ expected  = '''The same three pointers are the JSON numbers 0, 0.75 and 1, while
 case      = "malformed-truncated-object"
 library   = "python"
 assertion = "parse-outcome"
-issue     = "https://github.com/idfkit/idfkit/issues/TODO"
+issue     = "https://github.com/idfkit/idfkit/issues/187"
 observed  = '''Reading succeeds in about 30 ms and returns a document of Version and Building only. The unterminated GlobalGeometryRules object is discarded with no diagnostic of any kind, because _OBJECT_PATTERN at idf_parser.py:297 matches only text that reaches a semicolon, so an unterminated tail matches nothing at all.'''
 expected  = '''Reading fails. ConvertInputFormat refuses the file, with "UpperLeft" plus its newline matching no member of the starting_vertex_position enumeration, and the TypeScript core refuses it too, with "Unterminated object near UpperLeft (missing semicolon) (line 8)". Losing an object in silence is the hazard: the caller cannot distinguish this file from one that never held the object. The second half of the bug is recorded in the case itself: the same pattern nests a quantified group inside a quantified group and backtracks exponentially in the length of the unterminated tail, 34 ms at thirteen characters and over 100 s at thirty.'''
 
@@ -84,7 +84,7 @@ expected  = '''Reading fails. ConvertInputFormat refuses the file, with "UpperLe
 case      = "naming-blank-vs-absent"
 library   = "python"
 assertion = "epjson"
-issue     = "https://github.com/idfkit/idfkit/issues/TODO"
+issue     = "https://github.com/idfkit/idfkit/issues/178"
 observed  = '''One key under WeatherProperty:SkyTemperature: "WeatherProperty:SkyTemperature 1" -> {"calculation_type": "Brunt"}. The in-memory document holds both objects, with names ['', 'WeatherProperty:SkyTemperature 1'], but the epJSON writer keys the blank-named object "WeatherProperty:SkyTemperature 1" as well and the genuinely named object overwrites it. The ClarkAllen object is gone from the output.'''
 expected  = '''Two keys: "" -> {"calculation_type": "ClarkAllen"} and "WeatherProperty:SkyTemperature 1" -> {"calculation_type": "Brunt"}. A blank optional Name is kept verbatim, so the key is the empty string; only a type with no Name field at all gets the synthetic "<Type> N" key.'''
 
@@ -92,7 +92,7 @@ expected  = '''Two keys: "" -> {"calculation_type": "ClarkAllen"} and "WeatherPr
 case      = "naming-blank-vs-absent"
 library   = "typescript"
 assertion = "epjson"
-issue     = "https://github.com/idfkit/idfkit-js/issues/TODO"
+issue     = "https://github.com/idfkit/idfkit-js/issues/7"
 observed  = '''Two keys, but one identity is manufactured: "WeatherProperty:SkyTemperature 1" -> {"calculation_type": "Brunt"} and "WeatherProperty:SkyTemperature 2" -> {"calculation_type": "ClarkAllen"}, the second invented for the blank-named object after index 1 was found taken. No object is lost, but no object in the file is named "WeatherProperty:SkyTemperature 2".'''
 expected  = '''Two keys: "" -> {"calculation_type": "ClarkAllen"} and "WeatherProperty:SkyTemperature 1" -> {"calculation_type": "Brunt"}. The blank name is the key, not a seed for a counter.'''
 
@@ -100,7 +100,7 @@ expected  = '''Two keys: "" -> {"calculation_type": "ClarkAllen"} and "WeatherPr
 case      = "naming-synthetic-collision"
 library   = "python"
 assertion = "epjson"
-issue     = "https://github.com/idfkit/idfkit/issues/TODO"
+issue     = "https://github.com/idfkit/idfkit/issues/178"
 observed  = '''Two keys where the file holds three objects: "WeatherProperty:SkyTemperature 1" -> {"calculation_type": "ClarkAllen"} and "WeatherProperty:SkyTemperature 2" -> {"calculation_type": "Idso"}. Python numbers a blank-named object without checking whether the key is already in use, so the blank object took "WeatherProperty:SkyTemperature 1" and destroyed the object the user actually named, whose calculation_type was "Brunt".'''
 expected  = '''Three keys: "" -> {"calculation_type": "ClarkAllen"}, "WeatherProperty:SkyTemperature 1" -> {"calculation_type": "Brunt"}, "WeatherProperty:SkyTemperature 2" -> {"calculation_type": "Idso"}. Because the blank keeps the empty-string key, no counter is needed and no collision is possible.'''
 
@@ -108,7 +108,7 @@ expected  = '''Three keys: "" -> {"calculation_type": "ClarkAllen"}, "WeatherPro
 case      = "naming-synthetic-collision"
 library   = "typescript"
 assertion = "epjson"
-issue     = "https://github.com/idfkit/idfkit-js/issues/TODO"
+issue     = "https://github.com/idfkit/idfkit-js/issues/7"
 observed  = '''Three keys, nothing lost, but the third is invented: "WeatherProperty:SkyTemperature 1" -> Brunt, "WeatherProperty:SkyTemperature 2" -> Idso, and "WeatherProperty:SkyTemperature 3" -> ClarkAllen, manufactured for the blank-named object after indices 1 and 2 were found taken. A name that appears nowhere in the file is now that object's identity, and any consumer resolving references by name will miss it.'''
 expected  = '''Three keys: "" -> ClarkAllen, "WeatherProperty:SkyTemperature 1" -> Brunt, "WeatherProperty:SkyTemperature 2" -> Idso. The two real names keep the low indices they declared and the blank keeps the empty-string key.'''
 
@@ -120,7 +120,7 @@ expected  = '''Three keys: "" -> ClarkAllen, "WeatherProperty:SkyTemperature 1" 
 case      = "numeric-autocalculate-casing"
 library   = "typescript"
 assertion = "epjson"
-issue     = "https://github.com/idfkit/idfkit-js/issues/TODO"
+issue     = "https://github.com/idfkit/idfkit-js/issues/8"
 observed  = '''The three Zone sentinels echo the file's casing verbatim: /Zone/Sentinel Zone/ceiling_height "autocalculate", /volume "AUTOCALCULATE", /floor_area "AutoCalculate". Three spellings of one sentinel produce three different epJSON values, so a consumer testing for equality against "Autocalculate" matches none of them.'''
 expected  = '''All three are "Autocalculate", the schema's own casing, whatever casing the IDF used. Python already does this; the sweep found 37,164 occurrences across 722 example files where the TypeScript core does not.'''
 
@@ -128,7 +128,7 @@ expected  = '''All three are "Autocalculate", the schema's own casing, whatever 
 case      = "numeric-autosize-casing"
 library   = "typescript"
 assertion = "epjson"
-issue     = "https://github.com/idfkit/idfkit-js/issues/TODO"
+issue     = "https://github.com/idfkit/idfkit-js/issues/8"
 observed  = '''The three coils echo the file: /Coil:Heating:Electric/Lower Coil/nominal_capacity "autosize", /Upper Coil/nominal_capacity "AUTOSIZE", /Mixed Coil/nominal_capacity "AutoSize". This is the autosize half of the same sentinel bug as numeric-autocalculate-casing.'''
 expected  = '''All three are "Autosize". The three coils differ only in the casing they wrote and must be indistinguishable in the epJSON.'''
 
@@ -136,7 +136,7 @@ expected  = '''All three are "Autosize". The three coils differ only in the casi
 case      = "numeric-sentinel-schema-remap"
 library   = "python"
 assertion = "epjson"
-issue     = "https://github.com/idfkit/idfkit/issues/TODO"
+issue     = "https://github.com/idfkit/idfkit/issues/181"
 observed  = '''/AirTerminal:SingleDuct:VAV:Reheat/Reheat Terminal/maximum_flow_fraction_during_reheat is "Autocalculate". Python canonicalises the sentinel word the file happened to write rather than the sentinel the field's own schema declares: that field's enum is ["", "Autosize"] and holds no autocalculate spelling at all, so "Autocalculate" is not a legal value there.'''
 expected  = '''"Autosize". The schema, not the file, decides which sentinel a field accepts. Every other pointer in this case agrees on all three sides, so exactly one value differs. This is the three-way split: Python says "Autocalculate", TypeScript says "AUTOCALCULATE", the oracle says "Autosize", and it is the case that proves agreement between the two libraries would not have been correctness.'''
 
@@ -144,7 +144,7 @@ expected  = '''"Autosize". The schema, not the file, decides which sentinel a fi
 case      = "numeric-sentinel-schema-remap"
 library   = "typescript"
 assertion = "epjson"
-issue     = "https://github.com/idfkit/idfkit-js/issues/TODO"
+issue     = "https://github.com/idfkit/idfkit-js/issues/9"
 observed  = '''/AirTerminal:SingleDuct:VAV:Reheat/Reheat Terminal/maximum_flow_fraction_during_reheat is "AUTOCALCULATE", the file's as-written casing, with neither canonicalisation nor a remap to the field's declared sentinel.'''
 expected  = '''"Autosize", the one sentinel that field's schema enum ["", "Autosize"] names. Fixing the casing bug alone (numeric-autocalculate-casing) would yield "Autocalculate" here and still be wrong.'''
 
@@ -152,7 +152,7 @@ expected  = '''"Autosize", the one sentinel that field's schema enum ["", "Autos
 case      = "numeric-zero-against-blank"
 library   = "python"
 assertion = "round-trip"
-issue     = "https://github.com/idfkit/idfkit/issues/TODO"
+issue     = "https://github.com/idfkit/idfkit/issues/183"
 observed  = '''Re-parsing Python's own write_idf output yields a Zone of 4 fields against the original 7: /Zone/0/fields is length 4 on the left and 7 on the right. The parsed document keeps the three trailing blank slots (type, multiplier, ceiling_height) as the empty string, write_idf drops them, so the write is lossy against the model. The epjson assertion passes because write_epjson strips those same empty strings, which is exactly why only assertion 3 sees this.'''
 expected  = '''Re-parsing deep-equals the original document. Either the parser stops at the last set field, as the TypeScript core does and as the oracle output implies, or the writer preserves what the parser kept. The model and the two writers must not disagree about whether a trailing blank is a field.'''
 
@@ -164,7 +164,7 @@ expected  = '''Re-parsing deep-equals the original document. Either the parser s
 case      = "positional-extensible-group-trailing-unset"
 library   = "python"
 assertion = "epjson"
-issue     = "https://github.com/idfkit/idfkit/issues/TODO"
+issue     = "https://github.com/idfkit/idfkit/issues/182"
 observed  = '''Both extensible entries carry six keys, the last two being the empty string: /ZoneHVAC:EquipmentList/Main Zone Equipment/equipment/0 and /equipment/1 each hold zone_equipment_sequential_cooling_fraction_schedule_name = "" and zone_equipment_sequential_heating_fraction_schedule_name = "". The epJSON writer strips an empty string in the fixed-field section, which is why positional-trailing-unset-before-extensible passes on that same path, but not inside an extensible group.'''
 expected  = '''Each entry has exactly four keys: zone_equipment_object_type, zone_equipment_name, zone_equipment_cooling_sequence and zone_equipment_heating_or_no_load_sequence. Neither fraction-schedule key appears on either entry. The sweep found this shape 5,558 times across 579 example files, over 16 distinct field pairs.'''
 
@@ -172,7 +172,7 @@ expected  = '''Each entry has exactly four keys: zone_equipment_object_type, zon
 case      = "positional-extensible-group-trailing-unset"
 library   = "python"
 assertion = "round-trip"
-issue     = "https://github.com/idfkit/idfkit/issues/TODO"
+issue     = "https://github.com/idfkit/idfkit/issues/182"
 observed  = '''write_idf drops the two blanks that close the object at its semicolon but keeps the two that close the first group, so the two groups come back asymmetric: re-parsing loses zone_equipment_sequential_cooling_fraction_schedule_name and its heating counterpart from /ZoneHVAC:EquipmentList/0/fields/1/value/1, the last group only.'''
 expected  = '''Re-parsing deep-equals the original document, with both extensible groups holding the same field count after the write. A blank that ends the last group and a blank that ends any other group are the same thing and must survive the same way.'''
 
@@ -180,7 +180,7 @@ expected  = '''Re-parsing deep-equals the original document, with both extensibl
 case      = "positional-trailing-unset-no-extensible"
 library   = "python"
 assertion = "round-trip"
-issue     = "https://github.com/idfkit/idfkit/issues/TODO"
+issue     = "https://github.com/idfkit/idfkit/issues/183"
 observed  = '''The Zone spelled out with eight explicit blank commas parses to 12 fields, the eight blanks held as the empty string including the numeric ones, then write_idf drops them and re-parsing yields 4: /Zone/1/fields is length 4 on the left and 12 on the right. The Zone truncated with an early semicolon holds 4 fields from the start and round-trips cleanly, so only the blank-comma spelling is lossy.'''
 expected  = '''Re-parsing deep-equals the original document. The two spellings, truncated at the semicolon and written out as blank commas, mean the same thing, converge on the same epJSON already, and must also converge after a write.'''
 
@@ -192,7 +192,7 @@ expected  = '''Re-parsing deep-equals the original document. The two spellings, 
 case      = "types-choice-field-casing"
 library   = "python"
 assertion = "epjson"
-issue     = "https://github.com/idfkit/idfkit/issues/TODO"
+issue     = "https://github.com/idfkit/idfkit/issues/180"
 observed  = '''Choice values are echoed as the file wrote them: /GlobalGeometryRules/GlobalGeometryRules 1/vertex_entry_direction "CounterClockWise", /ScheduleTypeLimits/Any Number Limits/numeric_type "CONTINUOUS", /Output:Variable/Output:Variable 1/reporting_frequency "hourly".'''
 expected  = '''The casing the schema declares for each choice: "Counterclockwise", "Continuous", "Hourly". ConvertInputFormat normalises a choice field to its schema spelling, so a consumer may compare a choice value for equality without folding case.'''
 
@@ -200,7 +200,7 @@ expected  = '''The casing the schema declares for each choice: "Counterclockwise
 case      = "types-choice-field-casing"
 library   = "typescript"
 assertion = "epjson"
-issue     = "https://github.com/idfkit/idfkit-js/issues/TODO"
+issue     = "https://github.com/idfkit/idfkit-js/issues/10"
 observed  = '''The identical three values Python produces, at the identical three pointers: "CounterClockWise", "CONTINUOUS" and "hourly". Both libraries preserve the file's as-written casing and both differ from the oracle, 54,468 occurrences over 749 example files and 184 distinct shapes in the bootstrap sweep.'''
 expected  = '''"Counterclockwise", "Continuous" and "Hourly". This is the flagship case for FR-015: no comparison between the two libraries could ever have found it, because the two libraries agree.'''
 
@@ -212,7 +212,7 @@ expected  = '''"Counterclockwise", "Continuous" and "Hourly". This is the flagsh
 case      = "versions-late-version-object"
 library   = "python"
 assertion = "parse-outcome"
-issue     = "https://github.com/idfkit/idfkit/issues/TODO"
+issue     = "https://github.com/idfkit/idfkit/issues/185"
 observed  = '''Reading raises VersionNotFoundError: "Could not detect EnergyPlus version in file". _detect_version in idfkit/idf_parser.py slices header = content[:10240] and runs _VERSION_PATTERN over that prefix only, and get_idf_version (line 641) reads f.read(10240) the same way. The Version object in this input sits at byte 10502, so the detector never sees it. The bootstrap sweep hit this on three real example files, including RefBldgPrimarySchoolNew2004_Chicago.idf.'''
 expected  = '''Reading succeeds and the document reports version 26.1.0, wherever in the file the Version object sits. The TypeScript core detectVersion returns "26.1.0" on this same input, and ConvertInputFormat converts it without complaint. A fixed-size window is not a version detector.'''
 
@@ -220,7 +220,7 @@ expected  = '''Reading succeeds and the document reports version 26.1.0, whereve
 case      = "versions-late-version-object"
 library   = "python"
 assertion = "epjson"
-issue     = "https://github.com/idfkit/idfkit/issues/TODO"
+issue     = "https://github.com/idfkit/idfkit/issues/185"
 observed  = '''Nothing to compare: the read raised VersionNotFoundError, so no document and no epJSON were produced. This entry is downstream of the parse-outcome entry on the same case and disappears with it.'''
 expected  = '''The epJSON equals expected.epJSON: "Version": {"Version 1": {"version_identifier": "26.1"}} alongside Building/Conformance and GlobalGeometryRules 1. That expectation is byte-identical to versions-26-1-0/expected.epJSON, so the ten-kilobyte comment header changes nothing about the document.'''
 
@@ -228,7 +228,7 @@ expected  = '''The epJSON equals expected.epJSON: "Version": {"Version 1": {"ver
 case      = "versions-late-version-object"
 library   = "python"
 assertion = "round-trip"
-issue     = "https://github.com/idfkit/idfkit/issues/TODO"
+issue     = "https://github.com/idfkit/idfkit/issues/185"
 observed  = '''Nothing to compare: the read raised VersionNotFoundError before any document existed to write back. Downstream of the parse-outcome entry on the same case.'''
 expected  = '''Re-parsing Python's own IDF output deep-equals the original document, Version object included.'''
 
@@ -236,7 +236,7 @@ expected  = '''Re-parsing Python's own IDF output deep-equals the original docum
 case      = "versions-nine-zero-schema-nine-zero-one"
 library   = "python"
 assertion = "parse-outcome"
-issue     = "https://github.com/idfkit/idfkit/issues/TODO"
+issue     = "https://github.com/idfkit/idfkit/issues/184"
 observed  = '''Reading raises IDFParseError: "Unknown object type 'WindowsCalculationEngine'" at input.idf:28:3. Verified directly: SchemaManager._find_schema_file((9,0,0)) returns None, find_closest_version((9,0,0)) falls back to (8,9,0), and get_schema((9,0,0)) loads schemas/V8-9-0/Energy+.schema.epJSON.gz, 799 types, with no WindowsCalculationEngine and with WindowProperty:ShadingControl (removed in 9.0.1) still present. Every file from the 9.0 release line writes "Version, 9.0", so this misroutes a whole release line to a schema one release earlier.'''
 expected  = '''Reading succeeds. Version, 9.0 resolves to the bundled 9.0.1 schema, under which WindowsCalculationEngine exists. TypeScript resolveVersion matches on major and minor, lands on 9.0.1, and emits "WindowsCalculationEngine": {"WindowsCalculationEngine 1": {"windows_engine": "BuiltInWindowsModel"}}. Falling back to 8.9.0 is not a near miss: 8.9.0 and 9.0.1 are different schemas, and a file read against the wrong one is silently a different model.'''
 
@@ -244,6 +244,6 @@ expected  = '''Reading succeeds. Version, 9.0 resolves to the bundled 9.0.1 sche
 case      = "versions-nine-zero-schema-nine-zero-one"
 library   = "python"
 assertion = "round-trip"
-issue     = "https://github.com/idfkit/idfkit/issues/TODO"
+issue     = "https://github.com/idfkit/idfkit/issues/184"
 observed  = '''Nothing to compare: the read raised IDFParseError on WindowsCalculationEngine, so no document existed to write back. Downstream of the parse-outcome entry on the same case.'''
 expected  = '''Re-parsing Python's own IDF output deep-equals the original document, WindowsCalculationEngine included.'''
