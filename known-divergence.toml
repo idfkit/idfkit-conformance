@@ -83,42 +83,6 @@ expected  = '''Reading fails. ConvertInputFormat refuses the file, with "UpperLe
 # ---------------------------------------------------------------------------
 
 [[divergence]]
-case      = "naming-blank-vs-absent"
-library   = "python"
-assertion = "epjson"
-issue     = "https://github.com/idfkit/idfkit/issues/178"
-observed  = '''One key under WeatherProperty:SkyTemperature: "WeatherProperty:SkyTemperature 1" -> {"calculation_type": "Brunt"}. The in-memory document holds both objects, with names ['', 'WeatherProperty:SkyTemperature 1'], but the epJSON writer keys the blank-named object "WeatherProperty:SkyTemperature 1" as well and the genuinely named object overwrites it. The ClarkAllen object is gone from the output.'''
-expected  = '''Two keys: "" -> {"calculation_type": "ClarkAllen"} and "WeatherProperty:SkyTemperature 1" -> {"calculation_type": "Brunt"}. A blank optional Name is kept verbatim, so the key is the empty string; only a type with no Name field at all gets the synthetic "<Type> N" key.'''
-
-[[divergence]]
-case      = "naming-blank-vs-absent"
-library   = "typescript"
-assertion = "epjson"
-issue     = "https://github.com/idfkit/idfkit-js/issues/7"
-observed  = '''Two keys, but one identity is manufactured: "WeatherProperty:SkyTemperature 1" -> {"calculation_type": "Brunt"} and "WeatherProperty:SkyTemperature 2" -> {"calculation_type": "ClarkAllen"}, the second invented for the blank-named object after index 1 was found taken. No object is lost, but no object in the file is named "WeatherProperty:SkyTemperature 2".'''
-expected  = '''Two keys: "" -> {"calculation_type": "ClarkAllen"} and "WeatherProperty:SkyTemperature 1" -> {"calculation_type": "Brunt"}. The blank name is the key, not a seed for a counter.'''
-
-[[divergence]]
-case      = "naming-synthetic-collision"
-library   = "python"
-assertion = "epjson"
-issue     = "https://github.com/idfkit/idfkit/issues/178"
-observed  = '''Two keys where the file holds three objects: "WeatherProperty:SkyTemperature 1" -> {"calculation_type": "ClarkAllen"} and "WeatherProperty:SkyTemperature 2" -> {"calculation_type": "Idso"}. Python numbers a blank-named object without checking whether the key is already in use, so the blank object took "WeatherProperty:SkyTemperature 1" and destroyed the object the user actually named, whose calculation_type was "Brunt".'''
-expected  = '''Three keys: "" -> {"calculation_type": "ClarkAllen"}, "WeatherProperty:SkyTemperature 1" -> {"calculation_type": "Brunt"}, "WeatherProperty:SkyTemperature 2" -> {"calculation_type": "Idso"}. Because the blank keeps the empty-string key, no counter is needed and no collision is possible.'''
-
-[[divergence]]
-case      = "naming-synthetic-collision"
-library   = "typescript"
-assertion = "epjson"
-issue     = "https://github.com/idfkit/idfkit-js/issues/7"
-observed  = '''Three keys, nothing lost, but the third is invented: "WeatherProperty:SkyTemperature 1" -> Brunt, "WeatherProperty:SkyTemperature 2" -> Idso, and "WeatherProperty:SkyTemperature 3" -> ClarkAllen, manufactured for the blank-named object after indices 1 and 2 were found taken. A name that appears nowhere in the file is now that object's identity, and any consumer resolving references by name will miss it.'''
-expected  = '''Three keys: "" -> ClarkAllen, "WeatherProperty:SkyTemperature 1" -> Brunt, "WeatherProperty:SkyTemperature 2" -> Idso. The two real names keep the low indices they declared and the blank keeps the empty-string key.'''
-
-# ---------------------------------------------------------------------------
-# numeric
-# ---------------------------------------------------------------------------
-
-[[divergence]]
 case      = "numeric-autocalculate-casing"
 library   = "typescript"
 assertion = "epjson"
