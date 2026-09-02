@@ -52,6 +52,9 @@ export const MANIFEST_SCHEMA_REF = './manifest.schema.json';
 export const CASE_FILE = 'case.toml';
 export const EXPECTED_EPJSON = 'expected.epJSON';
 export const EXPECTED_DIAGNOSTICS = 'expected.diag.json';
+export const EXPECTED_VALIDATION = 'expected.validation.json';
+export const EXPECTED_INTROSPECTION = 'expected.introspection.json';
+export const EXPECTED_DOCS_URL = 'expected.docs-url.json';
 
 export const CASES_DIR = 'cases';
 export const MANIFEST_FILE = 'manifest.json';
@@ -94,7 +97,47 @@ export const Assertion = Object.freeze({
   EPJSON: 'epjson',
   ROUND_TRIP: 'round-trip',
   DIAGNOSTICS: 'diagnostics',
+  VALIDATION: 'validation',
+  INTROSPECTION: 'introspection',
+  DOCS_URL: 'docs-url',
 });
+
+/**
+ * The assertion that needs an expectation file, the manifest key that names it, and the file it
+ * names. One table rather than four hand-written rules, so that adding an assertion cannot leave
+ * one of the four checks behind. `EPJSON`'s expectation is `expected`, which is governed by `truth`
+ * rather than by an assertion, and is deliberately not in here.
+ *
+ * Mirrors `EXPECTATION_FILES` in `model.py`.
+ *
+ * @type {ReadonlyArray<{assertion: Assertion, key: string, property: string, file: string}>}
+ */
+export const EXPECTATION_FILES = Object.freeze([
+  {
+    assertion: 'diagnostics',
+    key: 'expected_diagnostics',
+    property: 'expectedDiagnostics',
+    file: EXPECTED_DIAGNOSTICS,
+  },
+  {
+    assertion: 'validation',
+    key: 'expected_validation',
+    property: 'expectedValidation',
+    file: EXPECTED_VALIDATION,
+  },
+  {
+    assertion: 'introspection',
+    key: 'expected_introspection',
+    property: 'expectedIntrospection',
+    file: EXPECTED_INTROSPECTION,
+  },
+  {
+    assertion: 'docs-url',
+    key: 'expected_docs_url',
+    property: 'expectedDocsUrl',
+    file: EXPECTED_DOCS_URL,
+  },
+]);
 
 /**
  * The hazard taxonomy. Cases are grouped by the hazard they pin, never by feature area (FR-021).
@@ -269,6 +312,9 @@ export class Case {
  * @property {Truth} truth
  * @property {string | null} [expected]
  * @property {string | null} [expectedDiagnostics]
+ * @property {string | null} [expectedValidation]
+ * @property {string | null} [expectedIntrospection]
+ * @property {string | null} [expectedDocsUrl]
  */
 
 /**
@@ -291,6 +337,9 @@ export class ManifestEntry {
     truth,
     expected = null,
     expectedDiagnostics = null,
+    expectedValidation = null,
+    expectedIntrospection = null,
+    expectedDocsUrl = null,
   }) {
     /** @type {string} */
     this.id = id;
@@ -312,6 +361,12 @@ export class ManifestEntry {
     this.expected = expected ?? null;
     /** @type {string | null} */
     this.expectedDiagnostics = expectedDiagnostics ?? null;
+    /** @type {string | null} */
+    this.expectedValidation = expectedValidation ?? null;
+    /** @type {string | null} */
+    this.expectedIntrospection = expectedIntrospection ?? null;
+    /** @type {string | null} */
+    this.expectedDocsUrl = expectedDocsUrl ?? null;
 
     checkCaseId(this.id, ManifestError);
     checkNonEmpty(this.title, 'title', ManifestError);
@@ -334,19 +389,24 @@ export class ManifestEntry {
       );
     }
 
-    const wantsDiagnostics = this.assertions.includes(Assertion.DIAGNOSTICS);
-    if (wantsDiagnostics && this.expectedDiagnostics !== EXPECTED_DIAGNOSTICS) {
-      throw new ManifestError(
-        `case ${repr(this.id)}: the 'diagnostics' assertion requires ` +
-          `expected_diagnostics = ${repr(EXPECTED_DIAGNOSTICS)}, ` +
-          `got ${repr(this.expectedDiagnostics)}`
-      );
-    }
-    if (!wantsDiagnostics && this.expectedDiagnostics !== null) {
-      throw new ManifestError(
-        `case ${repr(this.id)}: expected_diagnostics is set to ${repr(this.expectedDiagnostics)} ` +
-          `but 'diagnostics' is not among the assertions`
-      );
+    // An assertion that reads an expectation file must name it, and an entry must not name a file
+    // for an assertion it does not declare: a named expectation nobody reads looks like coverage
+    // and is not.
+    for (const { assertion, key, property, file } of EXPECTATION_FILES) {
+      const declared = this.assertions.includes(assertion);
+      const named = /** @type {string | null} */ (this[property]);
+      if (declared && named !== file) {
+        throw new ManifestError(
+          `case ${repr(this.id)}: the ${repr(assertion)} assertion requires ` +
+            `${key} = ${repr(file)}, got ${repr(named)}`
+        );
+      }
+      if (!declared && named !== null) {
+        throw new ManifestError(
+          `case ${repr(this.id)}: ${key} is set to ${repr(named)} but ${repr(assertion)} is not ` +
+            `among the assertions`
+        );
+      }
     }
     Object.freeze(this);
   }
@@ -370,8 +430,11 @@ export class ManifestEntry {
     if (this.expected !== null) {
       entry.expected = this.expected;
     }
-    if (this.expectedDiagnostics !== null) {
-      entry.expected_diagnostics = this.expectedDiagnostics;
+    for (const { key, property } of EXPECTATION_FILES) {
+      const named = /** @type {string | null} */ (this[property]);
+      if (named !== null) {
+        entry[key] = named;
+      }
     }
     return entry;
   }
@@ -1355,6 +1418,9 @@ const ENTRY_KEYS = new Set([
   'parse_outcome',
   'expected',
   'expected_diagnostics',
+  'expected_validation',
+  'expected_introspection',
+  'expected_docs_url',
 ]);
 const MANIFEST_KEYS = new Set([
   '$schema',
@@ -1414,10 +1480,12 @@ export function loadCase(caseDir) {
         `external expectation, and keeping one would let agreed convention pass as truth`
     );
   }
-  if (record.expectsDiagnostics && !isFile(join(caseDir, EXPECTED_DIAGNOSTICS))) {
-    throw new CaseError(
-      `${path}: the 'diagnostics' assertion requires ${EXPECTED_DIAGNOSTICS} in ${caseDir}`
-    );
+  for (const { assertion, file } of EXPECTATION_FILES) {
+    if (record.assertions.includes(assertion) && !isFile(join(caseDir, file))) {
+      throw new CaseError(
+        `${path}: the ${repr(assertion)} assertion requires ${file} in ${caseDir}`
+      );
+    }
   }
   return record;
 }
@@ -1445,6 +1513,9 @@ function loadEntry(rawEntry, truth, path, index) {
     truth,
     expected: readOptionalString(raw, 'expected', options),
     expectedDiagnostics: readOptionalString(raw, 'expected_diagnostics', options),
+    expectedValidation: readOptionalString(raw, 'expected_validation', options),
+    expectedIntrospection: readOptionalString(raw, 'expected_introspection', options),
+    expectedDocsUrl: readOptionalString(raw, 'expected_docs_url', options),
   });
 }
 

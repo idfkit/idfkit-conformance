@@ -1,0 +1,33 @@
+title = "An object declares a name through any field carrying reference, not only through its name field"
+why = """
+Over-validation is as much a defect as under-validation, and this is the one that produced the most
+noise: 3,640 false E009 findings across the 760 EnergyPlus example files, all from the same wrong
+assumption, that the only name an object contributes to a reference list is the one in its name
+field.
+
+The schema says otherwise. A field carrying `reference` CONTRIBUTES its value to the lists it
+names, exactly as a field carrying `object_list` points into them, and the two keywords are
+independent of whether the object has a name field at all. `FluidProperties:Name` is the clearest
+instance and the one this case uses: it declares no name field, and its `fluid_name` carries
+`reference: ["FluidAndGlycolNames", "FluidNames"]`. Writing `R22` there is how a model names a
+refrigerant. Eleven fields in the 26.1.0 schema declare a reference this way.
+
+A validator that indexes only name fields therefore sees no R22 anywhere in the document and
+reports every pointer at it as dangling. The document here holds two pointers so that the case
+falsifies both halves of the rule at once:
+
+  FluidProperties:Saturated  fluid_name = R22   resolves. Nothing is reported.
+  FluidProperties:Saturated  fluid_name = R99   E009. Nothing declares R99, by a field or otherwise.
+
+A library that goes back to indexing name fields alone reports two findings and fails. A library
+that over-corrects by indexing every string it sees reports none and fails as well, so the case
+cannot be satisfied by loosening reference checking, only by reading the schema keyword.
+
+Both referring objects are anonymous, so `object_name` is the empty string on both sides. That is
+itself worth pinning: a library that substituted a synthetic key here, the way epJSON keying does
+for anonymous objects, would report a finding this file does not contain.
+"""
+tags = ["tier1", "references"]
+energyplus_version = "26.1.0"
+truth = "convention"
+assertions = ["parse-outcome", "validation"]

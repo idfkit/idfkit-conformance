@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * The JavaScript conformance runner: three shipping assertions against one exit contract.
+ * The JavaScript conformance runner: six shipping assertions against one exit contract.
  *
  * Run it from the root of this repository, pointing `--library` at a checkout of the JavaScript
  * monorepo. The flag takes a **path**, never a language word, because the runner file already
@@ -17,6 +17,9 @@
  * 3. `round-trip`     re-parsing the library's own IDF output deep-equals the original document.
  * 4. `diagnostics`    accepted and reported as skipped. Assertion 4 is deferred to phase two, and a
  *                     case may declare it today so that landing it later changes no case file.
+ * 5. `validation`     the findings the library reports equal `expected.validation.json`.
+ * 6. `introspection`  its type descriptions equal `expected.introspection.json`.
+ * 7. `docs-url`       its documentation addresses equal `expected.docs-url.json`.
  *
  * This file is a section-by-section mirror of `run.py`: the same section headers, the same shapes,
  * the same statuses, the same reconciliation, and byte-for-byte the same report strings apart from
@@ -39,7 +42,7 @@
  * `/Zone/0/fields/4/value` is its value. A field that moved shows up as a `value` difference on
  * the `name` path, which is what a positional bug looks like.
  *
- * Three behaviours that are requirements rather than conveniences:
+ * Four behaviours that are requirements rather than conveniences:
  *
  * - **Outstanding exceptions are printed in the normal output**, never behind a verbose flag. A
  *   silent allowlist is how a temporary exception becomes permanent, so every entry in
@@ -49,10 +52,14 @@
  * - **An empty corpus is a clean pass**, not a crash. `cases/` is populated by curation from a
  *   bootstrap sweep, and the runner must be usable, and testable, before that lands. No case id
  *   appears anywhere in this file.
+ * - **A `--case` or `--tag` filter that selects nothing cannot start.** A green run over zero cases
+ *   proves nothing, and it is the one failure a conformance suite must not have: `--tag tier1`
+ *   wired into CI against a corpus carrying no such case would report success for ever. That is a
+ *   different situation from an empty corpus, and it is reported differently.
  *
  * Exit codes: 0 when everything is green or every failure is allowlisted, 1 for any blocking
  * failure, stale entry, or corpus fault, and 2 when the run could not start at all, for instance
- * because `--library` names no built checkout.
+ * because `--library` names no built checkout or because a filter matched no case.
  *
  * LOADING THE LIBRARY. `@idfkit/core` is an ESM TypeScript workspace, and this repository has no
  * `package.json`, no TypeScript, and no dependencies. The runner therefore imports the package's
@@ -73,14 +80,24 @@ import { dirname, isAbsolute, join, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
 
-import { AssertionReport, compareDocuments, compareEpjson, compareOutcome } from './compare.mjs';
+import {
+  AssertionReport,
+  compareDocuments,
+  compareEpjson,
+  compareOutcome,
+  compareUnordered,
+  compareValues,
+} from './compare.mjs';
 import {
   Assertion,
   CASES_DIR,
   CORPUS_LEVEL_PATTERN,
   CorpusError,
   DIVERGENCE_FILE,
+  EXPECTED_DOCS_URL,
   EXPECTED_EPJSON,
+  EXPECTED_INTROSPECTION,
+  EXPECTED_VALIDATION,
   InputFile,
   Library,
   MANIFEST_FILE,
@@ -110,6 +127,9 @@ const ASSERTION_ORDER = Object.freeze([
   Assertion.EPJSON,
   Assertion.ROUND_TRIP,
   Assertion.DIAGNOSTICS,
+  Assertion.VALIDATION,
+  Assertion.INTROSPECTION,
+  Assertion.DOCS_URL,
 ]);
 
 const DEFAULT_DIFFERENCE_LIMIT = 20;
@@ -562,6 +582,13 @@ function gitTag(root, exact) {
  * Both filters may be repeated. Given both, a case must match an id **and** carry a tag, so
  * `--case x --tag numeric` asks whether that one case pins that hazard.
  *
+ * A filter that selects nothing is a `RunnerError`, and so exit 2, never an empty pass. A run that
+ * checks no case proves nothing, and reporting it green is how `--tag tier1` ends up in CI as a
+ * gate over a corpus that carries no such case. This is the same treatment an unknown `--case` id
+ * and an unknown `--tag` value already get, for the same reason. An empty **corpus** is a different
+ * situation and keeps its own message and its clean pass: `cases/` is curated after the runner
+ * ships, so nothing is wrong with a runner that has nothing to run yet.
+ *
  * @param {import('./model.mjs').Corpus} corpus
  * @param {readonly string[]} caseIds
  * @param {readonly Tag[]} tags
@@ -600,11 +627,28 @@ export function buildJobs(corpus, caseIds, tags) {
       })
     );
   }
+
+  // Every id and every tag was individually valid, and together they still match nothing. The
+  // filters are named back rather than summarised, because the caller has to see which pair of
+  // them cannot both hold.
+  if (jobs.length === 0 && (caseIds.length > 0 || tags.length > 0)) {
+    const filters = [
+      ...caseIds.map((caseId) => `--case ${quote(caseId)}`),
+      ...tags.map((tag) => `--tag ${quote(tag)}`),
+    ].join(' ');
+    throw new RunnerError(
+      `${filters} selected no case, so the run would check nothing. The corpus holds ` +
+        `${known.size} case(s)` +
+        (caseIds.length > 0 && tags.length > 0
+          ? `, and given both filters a case must match an id and carry a tag`
+          : '')
+    );
+  }
   return Object.freeze(jobs);
 }
 
 // ---------------------------------------------------------------------------
-// The three shipping assertions
+// The six shipping assertions
 // ---------------------------------------------------------------------------
 
 /** What reading the input did: the outcome, the document if there is one, and the error if not. */
@@ -816,7 +860,16 @@ async function runAssertion(library, job, assertion, parse, limit) {
   if (assertion === Assertion.ROUND_TRIP) {
     return assertRoundTrip(library, job, parse.document, limit);
   }
-  // A fifth assertion added to model.mjs without a runner change lands here. Saying so beats
+  if (assertion === Assertion.VALIDATION) {
+    return assertValidation(library, job, parse.document, limit);
+  }
+  if (assertion === Assertion.INTROSPECTION) {
+    return assertIntrospection(library, job, parse.document, limit);
+  }
+  if (assertion === Assertion.DOCS_URL) {
+    return assertDocsUrl(library, job, parse.document, limit);
+  }
+  // An eighth assertion added to model.mjs without a runner change lands here. Saying so beats
   // falling through to whichever branch happened to be last.
   return errored(
     job.caseId,
@@ -969,6 +1022,236 @@ async function assertRoundTrip(library, job, document, limit) {
     job.caseId,
     Assertion.ROUND_TRIP,
     compareDocuments(reparsed, original),
+    limit
+  );
+}
+
+/**
+ * Read the expectation a Tier 1 assertion compares against, or `undefined` when the case has none.
+ *
+ * `JSON.parse` is left to throw on a file that is not JSON, exactly as assertion 2 leaves it: a
+ * corrupt expectation is reported against the case by `runCase` rather than swallowed here, and a
+ * runner that guessed at a half-parsed expectation would compare against something nobody wrote.
+ *
+ * @param {CaseJob} job
+ * @param {string} file
+ * @returns {*}
+ */
+function expectation(job, file) {
+  const path = join(job.caseDir, file);
+  return isFile(path) ? JSON.parse(readFileSync(path, 'utf8')) : undefined;
+}
+
+/**
+ * The error for an expectation file a case declares an assertion for and does not carry.
+ *
+ * `model.mjs` already refuses to load such a case, so reaching this means the corpus was edited
+ * underneath a loaded manifest. It is an error rather than a skip, because an assertion nobody can
+ * evaluate reads as a green tick.
+ *
+ * @param {string} caseId
+ * @param {Assertion} assertion
+ * @param {string} file
+ * @returns {AssertionOutcome}
+ */
+function missingExpectation(caseId, assertion, file) {
+  return errored(
+    caseId,
+    assertion,
+    `${file} is missing while the case declares the ${quote(assertion)} assertion. Seed it with ` +
+      `tools/seed_tier1.py, read the draft against the rule that governs it, and commit it`
+  );
+}
+
+/**
+ * An absent value written as JSON `null`, which is the corpus's spelling for one.
+ *
+ * Every key of a Tier 1 record is always present, which is what keeps rule 3's "absent is not
+ * `null`" meaningful here: a key missing from a description is a library that lost a member of its
+ * own type, and that is a difference rather than an absent value.
+ *
+ * @param {*} value
+ * @returns {*}
+ */
+function orNull(value) {
+  return value === undefined ? null : value;
+}
+
+/**
+ * The object types the parsed document holds, sorted.
+ *
+ * Assertions 6 and 7 describe what the document contains rather than what the schema defines, so
+ * the case input decides the coverage and a maintainer reading the expectation sees only the types
+ * that case put there. The sort makes the file diffable and means nothing else: rule 3 does not
+ * compare object key order.
+ *
+ * @param {*} document
+ * @returns {readonly string[]}
+ */
+function objectTypesOf(document) {
+  return [...document.types()].sort();
+}
+
+/**
+ * Assertion 5: the findings the library reports against `expected.validation.json`.
+ *
+ * The three severity arrays are concatenated because severity is one of the members a finding is
+ * compared on, so keeping the split would compare the split instead of the findings. The result is
+ * an unordered multiset under rule 7: neither library promises an order within one array, and a
+ * library that visited object types in a different order would otherwise fail every validation
+ * case for a property nobody claims.
+ *
+ * `message` is never serialized, for the reason assertion 4 gives: wording is a presentation choice
+ * each library is free to improve. The two already differ where both are right, Python rendering
+ * one finding as `Value -5.0 is below minimum 0.0` and JavaScript as `Value -5 is below minimum 0`,
+ * because one runtime distinguishes int from float and the other has no way to.
+ *
+ * The keys are the corpus's snake_case rather than this library's camelCase. The vocabulary belongs
+ * to neither library, and a file written in either spelling would read as a transcript of that one.
+ *
+ * @param {LibraryUnderTest} library
+ * @param {CaseJob} job
+ * @param {*} document
+ * @param {number} limit
+ * @returns {AssertionOutcome}
+ */
+function assertValidation(library, job, document, limit) {
+  const expected = expectation(job, EXPECTED_VALIDATION);
+  if (expected === undefined) {
+    return missingExpectation(job.caseId, Assertion.VALIDATION, EXPECTED_VALIDATION);
+  }
+
+  const result = library.core.validateDocument(document);
+  const findings = [...result.errors, ...result.warnings, ...result.info].map((finding) => ({
+    object_type: finding.objType,
+    object_name: finding.objName,
+    field: orNull(finding.field),
+    code: finding.code,
+    severity: finding.severity,
+  }));
+  return fromComparison(
+    job.caseId,
+    Assertion.VALIDATION,
+    compareUnordered(findings, expected.findings, { path: '/findings' }),
+    limit
+  );
+}
+
+/**
+ * Assertion 6: the library's description of every type in the document against
+ * `expected.introspection.json`.
+ *
+ * Field entries stay in schema order, in an array, because that order is the positional order of
+ * the type and rule 7 is what makes an array compared index by index. `field_type` for an `anyOf`
+ * field is the pipe-delimited union in declaration order, and `exclusive_minimum` and
+ * `exclusive_maximum` carry whatever the schema declares, a boolean on 8.9.0 through 9.5.0 and a
+ * number from 9.6.0. Both are the library's business rather than this runner's; the runner renames
+ * and never reshapes.
+ *
+ * @param {LibraryUnderTest} library
+ * @param {CaseJob} job
+ * @param {*} document
+ * @param {number} limit
+ * @returns {AssertionOutcome}
+ */
+function assertIntrospection(library, job, document, limit) {
+  const expected = expectation(job, EXPECTED_INTROSPECTION);
+  if (expected === undefined) {
+    return missingExpectation(job.caseId, Assertion.INTROSPECTION, EXPECTED_INTROSPECTION);
+  }
+
+  /** @type {Record<string, unknown>} */
+  const objectTypes = {};
+  for (const objType of objectTypesOf(document)) {
+    const described = library.core.describeObjectType(document.schema, objType);
+    objectTypes[objType] = {
+      obj_type: described.objType,
+      memo: orNull(described.memo),
+      has_name: described.hasName,
+      is_extensible: described.isExtensible,
+      extensible_size: orNull(described.extensibleSize),
+      required_fields: [...described.requiredFields],
+      fields: described.fields.map(fieldEntry),
+    };
+  }
+  return fromComparison(
+    job.caseId,
+    Assertion.INTROSPECTION,
+    compareValues({ object_types: objectTypes }, expected),
+    limit
+  );
+}
+
+/**
+ * One field of a type description, in the corpus vocabulary.
+ *
+ * Written out key by key rather than derived from a name list, so that a member this library
+ * renames or drops is a compile-time-visible edit here instead of a silently absent key.
+ *
+ * @param {*} field
+ * @returns {Record<string, unknown>}
+ */
+function fieldEntry(field) {
+  return {
+    name: field.name,
+    field_type: orNull(field.fieldType),
+    required: field.required,
+    default: orNull(field.default),
+    units: orNull(field.units),
+    enum_values: orNull(field.enumValues),
+    minimum: orNull(field.minimum),
+    maximum: orNull(field.maximum),
+    exclusive_minimum: orNull(field.exclusiveMinimum),
+    exclusive_maximum: orNull(field.exclusiveMaximum),
+    note: orNull(field.note),
+    is_reference: field.isReference,
+    object_list: orNull(field.objectList),
+  };
+}
+
+/**
+ * Assertion 7: the documentation address the library builds for every type in the document against
+ * `expected.docs-url.json`.
+ *
+ * The version segment comes from the document, never from a constant, so a library that hardcoded a
+ * release fails this the next time one ships. The schema is passed because without it a type
+ * outside the bundled mapping resolves to nothing here, and the schema-group fallback that covers
+ * those types is half of what this assertion exists to compare.
+ *
+ * `null` where the library builds no address, which is a value the expectation records and not an
+ * absence: rule 3 keeps the two apart, and a type losing its address is exactly the 404 in front of
+ * a reader that this assertion is here to catch.
+ *
+ * @param {LibraryUnderTest} library
+ * @param {CaseJob} job
+ * @param {*} document
+ * @param {number} limit
+ * @returns {AssertionOutcome}
+ */
+function assertDocsUrl(library, job, document, limit) {
+  const expected = expectation(job, EXPECTED_DOCS_URL);
+  if (expected === undefined) {
+    return missingExpectation(job.caseId, Assertion.DOCS_URL, EXPECTED_DOCS_URL);
+  }
+
+  /** @type {Record<string, unknown>} */
+  const objectTypes = {};
+  for (const objType of objectTypesOf(document)) {
+    const address = library.core.docsUrlForObject(objType, document.version, document.schema);
+    objectTypes[objType] =
+      address === undefined
+        ? null
+        : {
+            url: address.url,
+            doc_set: address.docSet,
+            version: address.version,
+            label: address.label,
+          };
+  }
+  return fromComparison(
+    job.caseId,
+    Assertion.DOCS_URL,
+    compareValues({ object_types: objectTypes }, expected),
     limit
   );
 }

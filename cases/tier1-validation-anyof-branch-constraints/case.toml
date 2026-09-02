@@ -1,0 +1,45 @@
+title = "A value is valid only when it satisfies one anyOf branch completely"
+why = """
+This case exists because both libraries were found to under-validate, and because the finding was
+invisible to every check the corpus had at the time. Neither library read the constraints inside an
+`anyOf` branch: Python checked branch types in one place and constraints in another, so a value
+could satisfy branch A's type and branch B's absence of bounds and be accepted having satisfied
+neither branch completely. TypeScript then suppressed its own hoisted copies of those constraints
+in order to stay in agreement with Python. The two agreed, and both were wrong, which is the same
+shape as numeric-sentinel-schema-remap and the reason FR-015 exists.
+
+The rule they must now implement is written in `runners/validate.md` and is ordinary JSON Schema:
+a value is valid when it fully satisfies at least one branch, where "fully" means the branch's
+type, its enum, and its bounds together. Assertion 5 on this case is the rule made observable.
+
+`ZoneHVAC:Baseboard:Convective:Electric` is the reproducer because it declares no required fields
+and one optional reference, so nothing in it can fire a finding except the field under test.
+`heating_design_capacity` is `anyOf [{number, minimum 0}, {string, enum ["", "Autosize"]}]`, which
+is the commonest of the seven shapes the schemas actually contain. Four objects put the four
+outcomes side by side:
+
+  Below The Branch Minimum        -5.0        E005. Matches the number branch on type, fails its
+                                              minimum. Produced no finding at all before the fix.
+  The Sentinel The Schema Names   Autosize    Nothing. Matches the string branch completely.
+  Not A Sentinel The Schema Names Bogus       E004, not E002. The string branch matches on TYPE, so
+                                              step 2 of the rule never fires and the branch then
+                                              fails on its enum, which is step 4. E002 is reserved
+                                              for a value matching no branch on type at all.
+  Above A Plain Field Maximum     efficiency  E007 on a field with no anyOf, so the new branch logic
+                                              did not replace the plain path on its way in.
+
+`ElectricLoadCenter:Transformer.phase` carries the rarest shape and the one most likely to be
+dropped: `anyOf [{number, enum [1, 3]}, {string, enum [""]}]`. Only four fields in the 26.1.0
+schema put an enum on the NUMBER branch, and a library that treats every anyOf as "a number or a
+sentinel word" accepts 2 here, which EnergyPlus does not. Writing 2 makes that omission fail.
+
+Message text is not compared, and this case is why the exclusion is load-bearing rather than
+convenient: Python renders the same finding as "Value -5.0 is below minimum 0.0" and JavaScript as
+"Value -5 is below minimum 0", because one runtime distinguishes int from float and the other has
+no way to. Both are correct. Pinning either wording would make the case a test of number
+formatting.
+"""
+tags = ["tier1", "numeric", "types"]
+energyplus_version = "26.1.0"
+truth = "convention"
+assertions = ["parse-outcome", "validation"]

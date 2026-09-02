@@ -75,6 +75,9 @@ MANIFEST_SCHEMA_REF: Final = "./manifest.schema.json"
 CASE_FILE: Final = "case.toml"
 EXPECTED_EPJSON: Final = "expected.epJSON"
 EXPECTED_DIAGNOSTICS: Final = "expected.diag.json"
+EXPECTED_VALIDATION: Final = "expected.validation.json"
+EXPECTED_INTROSPECTION: Final = "expected.introspection.json"
+EXPECTED_DOCS_URL: Final = "expected.docs-url.json"
 
 CASES_DIR: Final = "cases"
 MANIFEST_FILE: Final = "manifest.json"
@@ -106,12 +109,20 @@ class Truth(str, Enum):
 
 
 class Assertion(str, Enum):
-    """The four assertions. ``DIAGNOSTICS`` is accepted and skipped by the runners until phase two."""
+    """The assertions a case may declare. ``DIAGNOSTICS`` is accepted and skipped until phase two.
+
+    ``VALIDATION``, ``INTROSPECTION`` and ``DOCS_URL`` are the Tier 1 assertions: they cover the
+    three capabilities ported into the JavaScript library under this feature, and ``compare.md``
+    states plainly that none of them has an oracle behind it.
+    """
 
     PARSE_OUTCOME = "parse-outcome"
     EPJSON = "epjson"
     ROUND_TRIP = "round-trip"
     DIAGNOSTICS = "diagnostics"
+    VALIDATION = "validation"
+    INTROSPECTION = "introspection"
+    DOCS_URL = "docs-url"
 
 
 class Tag(str, Enum):
@@ -127,6 +138,18 @@ class Tag(str, Enum):
     ENCODING = "encoding"
     MALFORMED = "malformed"
     TIER1 = "tier1"
+
+
+# The assertion that needs an expectation file, the manifest key that names it, and the file it
+# names. One table rather than four hand-written rules, so that adding an assertion cannot leave one
+# of the four checks behind. ``EPJSON``'s expectation is ``expected``, which is governed by ``truth``
+# rather than by an assertion, and is deliberately not in here.
+EXPECTATION_FILES: Final[dict[str, tuple[str, str]]] = {
+    "diagnostics": ("expected_diagnostics", EXPECTED_DIAGNOSTICS),
+    "validation": ("expected_validation", EXPECTED_VALIDATION),
+    "introspection": ("expected_introspection", EXPECTED_INTROSPECTION),
+    "docs-url": ("expected_docs_url", EXPECTED_DOCS_URL),
+}
 
 
 class InputFile(str, Enum):
@@ -231,6 +254,9 @@ class ManifestEntry:
     truth: Truth
     expected: str | None = None
     expected_diagnostics: str | None = None
+    expected_validation: str | None = None
+    expected_introspection: str | None = None
+    expected_docs_url: str | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "tags", tuple(self.tags))
@@ -252,17 +278,20 @@ class ManifestEntry:
                 f"case {self.id!r}: truth = convention forbids an expectation, got expected = {self.expected!r}"
             )
 
-        wants_diagnostics = Assertion.DIAGNOSTICS in self.assertions
-        if wants_diagnostics and self.expected_diagnostics != EXPECTED_DIAGNOSTICS:
-            raise ManifestError(
-                f"case {self.id!r}: the 'diagnostics' assertion requires "
-                f"expected_diagnostics = {EXPECTED_DIAGNOSTICS!r}, got {self.expected_diagnostics!r}"
-            )
-        if not wants_diagnostics and self.expected_diagnostics is not None:
-            raise ManifestError(
-                f"case {self.id!r}: expected_diagnostics is set to {self.expected_diagnostics!r} but "
-                f"'diagnostics' is not among the assertions"
-            )
+        # An assertion that reads an expectation file must name it, and an entry must not name a
+        # file for an assertion it does not declare: a named expectation nobody reads looks like
+        # coverage and is not.
+        declared = {assertion.value for assertion in self.assertions}
+        for assertion_value, (key, filename) in EXPECTATION_FILES.items():
+            named: str | None = getattr(self, key)
+            if assertion_value in declared and named != filename:
+                raise ManifestError(
+                    f"case {self.id!r}: the {assertion_value!r} assertion requires {key} = {filename!r}, got {named!r}"
+                )
+            if assertion_value not in declared and named is not None:
+                raise ManifestError(
+                    f"case {self.id!r}: {key} is set to {named!r} but {assertion_value!r} is not among the assertions"
+                )
 
     def to_json_obj(self) -> dict[str, Any]:
         """The entry as it is written to ``manifest.json``. The JSON boundary, not a model type."""
@@ -277,8 +306,10 @@ class ManifestEntry:
         }
         if self.expected is not None:
             entry["expected"] = self.expected
-        if self.expected_diagnostics is not None:
-            entry["expected_diagnostics"] = self.expected_diagnostics
+        for key, _ in EXPECTATION_FILES.values():
+            named: str | None = getattr(self, key)
+            if named is not None:
+                entry[key] = named
         return entry
 
 
@@ -555,6 +586,9 @@ _ENTRY_KEYS: Final = frozenset(
         "parse_outcome",
         "expected",
         "expected_diagnostics",
+        "expected_validation",
+        "expected_introspection",
+        "expected_docs_url",
     }
 )
 _MANIFEST_KEYS: Final = frozenset({"$schema", "schema_version", "corpus_level", "oracle", "convention"})
@@ -564,9 +598,9 @@ _DIVERGENCE_KEYS: Final = frozenset({"case", "library", "assertion", "issue", "o
 def load_case(case_dir: Path) -> Case:
     """Read ``case_dir/case.toml`` into a :class:`Case`, with the id taken from the directory name.
 
-    Beyond the field rules, this enforces the two file rules the case directory must satisfy:
+    Beyond the field rules, this enforces the file rules the case directory must satisfy:
     ``truth = oracle`` requires ``expected.epJSON`` to be present, ``truth = convention`` forbids
-    it, and the ``diagnostics`` assertion requires ``expected.diag.json``.
+    it, and every assertion in :data:`EXPECTATION_FILES` requires the file it names.
     """
     path = case_dir / CASE_FILE
     if not path.is_file():
@@ -596,8 +630,10 @@ def load_case(case_dir: Path) -> Case:
             f"{path}: truth = convention but {expected_path} exists. A convention case has no "
             f"external expectation, and keeping one would let agreed convention pass as truth"
         )
-    if case.expects_diagnostics and not (case_dir / EXPECTED_DIAGNOSTICS).is_file():
-        raise CaseError(f"{path}: the 'diagnostics' assertion requires {EXPECTED_DIAGNOSTICS} in {case_dir}")
+    declared = {assertion.value for assertion in case.assertions}
+    for assertion_value, (_, filename) in EXPECTATION_FILES.items():
+        if assertion_value in declared and not (case_dir / filename).is_file():
+            raise CaseError(f"{path}: the {assertion_value!r} assertion requires {filename} in {case_dir}")
     return case
 
 
@@ -618,6 +654,11 @@ def _load_entry(raw_entry: object, truth: Truth, path: Path, index: int) -> Mani
         expected_diagnostics=_read_optional_str(
             raw, "expected_diagnostics", path=path, where=where, error=ManifestError
         ),
+        expected_validation=_read_optional_str(raw, "expected_validation", path=path, where=where, error=ManifestError),
+        expected_introspection=_read_optional_str(
+            raw, "expected_introspection", path=path, where=where, error=ManifestError
+        ),
+        expected_docs_url=_read_optional_str(raw, "expected_docs_url", path=path, where=where, error=ManifestError),
     )
 
 

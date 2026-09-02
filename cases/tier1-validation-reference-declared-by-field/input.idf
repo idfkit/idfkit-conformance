@@ -1,0 +1,21 @@
+! tier1-validation-reference-declared-by-field
+Version,
+  26.1;                                   !- Version Identifier
+
+FluidProperties:Name,
+  R22,                                    !- Fluid Name
+  Refrigerant;                            !- Fluid Type
+
+FluidProperties:Saturated,
+  R22,                                    !- Fluid Name
+  Pressure,                               !- Fluid Property Type
+  Fluid,                                  !- Fluid Phase
+  ,                                       !- Temperature Values Name
+  100.0;                                  !- Property Value 1
+
+FluidProperties:Saturated,
+  R99,                                    !- Fluid Name
+  Pressure,                               !- Fluid Property Type
+  Fluid,                                  !- Fluid Phase
+  ,                                       !- Temperature Values Name
+  100.0;                                  !- Property Value 1

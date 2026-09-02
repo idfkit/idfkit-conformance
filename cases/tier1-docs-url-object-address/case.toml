@@ -1,0 +1,33 @@
+title = "A documentation address is built from the bundled mapping, or from the schema group when there is none"
+why = """
+Both libraries hand out documentation links, and a link is either right or it is a 404 in front of
+a user. The addresses have to be identical: one library sending a reader to a page the other does
+not know about is the gap-marker problem this feature exists to remove, moved from the site into
+the libraries.
+
+Two object types, one per construction path:
+
+  Zone                      In the bundled mapping, which is generated from the documentation search
+                            index and holds 816 of the 858 types in 26.1.0. The address is looked up
+                            and the anchor appended.
+
+  WindowsCalculationEngine  One of the 42 types the mapping does not hold, so the address is built
+                            from the schema's own IDD group instead. This is the path that silently
+                            diverges if one library reads `group` case-insensitively and the other
+                            does not, and it is unreachable through a type the mapping covers.
+
+Both paths run the same anchor rule, which lowercases the type name and strips `:`, `/`, `(`, `)`
+and spaces. `WindowsCalculationEngine` has none of those characters and `Zone` has none either,
+which is deliberate: the anchor rule is exercised across the whole mapping by the libraries' own
+tests, and putting a punctuated type here would mix two questions into one case.
+
+The version segment is compared as part of the address. `v26.1` comes from the document's own
+version, not from a constant, so a library that hardcoded a release would fail this case the next
+time one ships.
+
+`Version` is present because the file cannot parse without it, and its address is compared too.
+"""
+tags = ["tier1"]
+energyplus_version = "26.1.0"
+truth = "convention"
+assertions = ["parse-outcome", "docs-url"]

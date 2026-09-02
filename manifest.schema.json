@@ -59,9 +59,9 @@
       ]
     },
     "assertion": {
-      "description": "One of the four assertions. 'diagnostics' is accepted and skipped by the runners until phase two.",
+      "description": "One assertion. 'diagnostics' is accepted and skipped by the runners until phase two. 'validation', 'introspection' and 'docs-url' are the Tier 1 assertions, which have no oracle behind them; see runners/compare.md.",
       "type": "string",
-      "enum": ["parse-outcome", "epjson", "round-trip", "diagnostics"]
+      "enum": ["parse-outcome", "epjson", "round-trip", "diagnostics", "validation", "introspection", "docs-url"]
     },
     "case": {
       "description": "One case entry. Shared by both sections; the section decides whether 'expected' is required or forbidden.",
@@ -113,16 +113,52 @@
           "description": "Expected diagnostics file, relative to the case directory. Required when 'assertions' includes 'diagnostics', forbidden otherwise.",
           "type": "string",
           "const": "expected.diag.json"
+        },
+        "expected_validation": {
+          "description": "Expected validation findings, relative to the case directory. Required when 'assertions' includes 'validation', forbidden otherwise.",
+          "type": "string",
+          "const": "expected.validation.json"
+        },
+        "expected_introspection": {
+          "description": "Expected type descriptions, relative to the case directory. Required when 'assertions' includes 'introspection', forbidden otherwise.",
+          "type": "string",
+          "const": "expected.introspection.json"
+        },
+        "expected_docs_url": {
+          "description": "Expected documentation addresses, relative to the case directory. Required when 'assertions' includes 'docs-url', forbidden otherwise.",
+          "type": "string",
+          "const": "expected.docs-url.json"
         }
       },
-      "if": {
-        "required": ["assertions"],
-        "properties": {
-          "assertions": { "contains": { "const": "diagnostics" } }
-        }
+      "allOf": [
+        { "$ref": "#/$defs/expectationRule/diagnostics" },
+        { "$ref": "#/$defs/expectationRule/validation" },
+        { "$ref": "#/$defs/expectationRule/introspection" },
+        { "$ref": "#/$defs/expectationRule/docsUrl" }
+      ]
+    },
+    "expectationRule": {
+      "description": "One rule per assertion that reads an expectation file: declaring the assertion requires the file, and not declaring it forbids naming one. Kept as four parallel entries rather than one parameterised rule because JSON Schema has no way to express the parameter.",
+      "diagnostics": {
+        "if": { "required": ["assertions"], "properties": { "assertions": { "contains": { "const": "diagnostics" } } } },
+        "then": { "required": ["expected_diagnostics"] },
+        "else": { "not": { "required": ["expected_diagnostics"] } }
       },
-      "then": { "required": ["expected_diagnostics"] },
-      "else": { "not": { "required": ["expected_diagnostics"] } }
+      "validation": {
+        "if": { "required": ["assertions"], "properties": { "assertions": { "contains": { "const": "validation" } } } },
+        "then": { "required": ["expected_validation"] },
+        "else": { "not": { "required": ["expected_validation"] } }
+      },
+      "introspection": {
+        "if": { "required": ["assertions"], "properties": { "assertions": { "contains": { "const": "introspection" } } } },
+        "then": { "required": ["expected_introspection"] },
+        "else": { "not": { "required": ["expected_introspection"] } }
+      },
+      "docsUrl": {
+        "if": { "required": ["assertions"], "properties": { "assertions": { "contains": { "const": "docs-url" } } } },
+        "then": { "required": ["expected_docs_url"] },
+        "else": { "not": { "required": ["expected_docs_url"] } }
+      }
     },
     "oracleCase": {
       "description": "A case with truth = oracle. Its expectation was generated offline by ConvertInputFormat and committed.",

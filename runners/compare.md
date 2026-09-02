@@ -14,7 +14,7 @@ maintainers to ignore the suite, or false confidence, which is worse.
 | Term | Meaning |
 | ---- | ------- |
 | **left** | The value produced by the library under test |
-| **right** | The expectation: `expected.epJSON` in assertion 2, the original parsed document in assertion 3 |
+| **right** | The expectation: `expected.epJSON` in assertion 2, the original parsed document in assertion 3, and the matching `expected.*.json` in assertions 5 to 7 |
 | **difference** | One reported disagreement, with a path, a kind, and both values |
 | **path** | The location of a difference inside the compared value (see [Reporting](#reporting)) |
 
@@ -145,11 +145,16 @@ difference, and a value difference is the finding.
 ### 7. Unordered collections are compared unordered
 
 A collection is compared unordered only when the structure that produced it has no defined order.
-Today exactly two do:
+Today exactly three do:
 
 1. **Object key sets** (rule 3).
 2. **The assertion 4 diagnostic collection**, compared as an unordered multiset of
    `(code, line, typeName)` tuples, once assertion 4 ships.
+3. **The assertion 5 finding collection**, compared as an unordered multiset of
+   `(object_type, object_name, field, code, severity)` tuples. Validation returns findings in three
+   arrays split by severity, and neither library promises an order within one; a library that
+   visited object types in a different order would otherwise fail every validation case for a
+   property nobody claims.
 
 Everything else, in particular **every JSON array**, is ordered and compared index by index: epJSON
 extensible groups are arrays whose order is the field order, and losing it is a bug.
@@ -190,7 +195,7 @@ type and an object name are ordinary segments, so a difference inside a zone rea
 Every difference reports both values verbatim as parsed, never reformatted, so the exit contract's
 "the differing value" is the value the library actually produced.
 
-## The four assertions
+## The assertions
 
 | # | Assertion | Ships |
 | - | --------- | ----- |
@@ -198,9 +203,14 @@ Every difference reports both values verbatim as parsed, never reformatted, so t
 | 2 | Canonical epJSON of the parsed document equals `expected.epJSON` | now |
 | 3 | Round trip: re-parsing the library's own IDF output deep-equals the original document | now |
 | 4 | Diagnostics match `expected.diag.json` as an unordered set of `(code, line, typeName)`, never on message text | deferred |
+| 5 | Validation findings match `expected.validation.json` as an unordered multiset, never on message text | now |
+| 6 | Type descriptions match `expected.introspection.json` | now |
+| 7 | Documentation addresses match `expected.docs-url.json` | now |
 
 Rules 1, 2, 3, 5, 6, and 7 apply to assertions 2 and 3. Rule 4 applies to assertion 3 only.
 Assertion 1 compares an outcome, not a value, and uses no rule but rule 6 for reading the input.
+Assertions 5 to 7 are governed by [The Tier 1 assertions](#the-tier-1-assertions) below, and by
+every rule except rule 4: they compare values that have no IDF field order.
 
 Assertions 1 to 3 need no changes inside either library, which is why they ship now. Assertion 4
 does need changes: `ParseDiagnostic` in JavaScript carries free-text `message`, `line`, and
@@ -229,3 +239,100 @@ to invent a vocabulary and the mapping stays mechanical:
 
 Codes are compared exactly, under rule 5. A diagnostic a library emits with no code, or with a code
 outside this table, is a difference and not a near match.
+
+## The Tier 1 assertions
+
+Assertions 5 to 7 cover the three capabilities ported into `@idfkit/core` under this feature:
+validation, type introspection, and documentation addresses. They exist because FR-023 asks for the
+ported behaviour to be proven rather than assumed, and nothing in assertions 1 to 3 looks at any of
+it.
+
+### They have no oracle, and the corpus must say so
+
+`ConvertInputFormat` converts a file. It does not validate one, does not describe a type, and does
+not build a documentation address. There is therefore no external authority to rule on what
+assertions 5 to 7 should produce, and every Tier 1 case is `truth = convention` and lives in the
+manifest's `convention` section, where FR-020 keeps it from being read as external truth.
+
+`convention` is the right bucket and its usual gloss is not. Elsewhere it means the two libraries
+agreed and nobody outside them ruled. Here the expectation is derived from a written rule:
+`validate.md` for assertion 5, and the epJSON schema itself for assertions 6 and 7. Inter-library
+agreement is not what makes a Tier 1 expectation right, and `tier1-validation-anyof-branch-
+constraints` exists because the two libraries agreed for months on an answer that was wrong.
+
+The practical consequence: a Tier 1 case that fails is not automatically a port bug. Read the rule
+first. If the rule says the expectation is wrong, amend `validate.md` and reseed, in that order.
+
+### Serialization
+
+Each Tier 1 assertion turns a library's output into a JSON value using the corpus vocabulary, then
+compares it against the case's expectation under the rules above. The vocabulary is snake_case and
+belongs to neither library: Python's attributes are already snake_case and TypeScript's are
+camelCase, so a file written in either spelling would read as a transcript of that library rather
+than as the corpus's own record.
+
+An absent value is written as JSON `null`, in both languages, and every key is always present.
+Rule 3's "absent is not `null`" then means what it should here: a key missing from a description is
+a library that lost a member of its own type, and is a difference.
+
+**Assertion 5, `expected.validation.json`.** Validate the parsed document with every check the
+library enables by default, concatenate the error, warning and info arrays, and emit one entry per
+finding:
+
+```json
+{ "findings": [
+  { "object_type": "ZoneList", "object_name": "Both Zones",
+    "field": "zone_name", "code": "E009", "severity": "error" } ] }
+```
+
+`field` is `null` for a finding about the object rather than one of its fields. `object_name` is the
+empty string for an object whose type declares no name field; it is never the synthetic `<Type> N`
+key that epJSON uses, because a finding names an object and not an epJSON key. Compared as an
+unordered multiset under rule 7.
+
+`message` is not serialized and is never compared, for the reason assertion 4 gives: wording is a
+presentation choice each library is free to improve. It is also already known to differ. Python
+renders one finding as `Value -5.0 is below minimum 0.0` and JavaScript as `Value -5 is below
+minimum 0`, because one runtime distinguishes int from float and the other has no way to. Both are
+correct.
+
+**Assertion 6, `expected.introspection.json`.** Describe every object type present in the parsed
+document, keyed by type name:
+
+```json
+{ "object_types": { "Zone": {
+  "obj_type": "Zone", "memo": "...", "has_name": true,
+  "is_extensible": false, "extensible_size": null, "required_fields": [],
+  "fields": [ { "name": "x_origin", "field_type": "number", "required": false,
+                "default": 0.0, "units": "m", "enum_values": null,
+                "minimum": null, "maximum": null,
+                "exclusive_minimum": null, "exclusive_maximum": null,
+                "note": null, "is_reference": false, "object_list": null } ] } } }
+```
+
+Field entries stay in schema order, which is an ordered array under rule 7. `field_type` for an
+`anyOf` field is the pipe-delimited union in declaration order, `"number|string"`.
+`exclusive_minimum` and `exclusive_maximum` carry whatever the schema declares, which is a boolean
+on 8.9.0 through 9.5.0 and a number from 9.6.0; see `validate.md`. Rule 2 makes `1` and `1.0` the
+same value, which is what lets `extensible_size` agree across the two runtimes.
+
+**Assertion 7, `expected.docs-url.json`.** Build the best documentation address for every object
+type present in the parsed document, keyed by type name:
+
+```json
+{ "object_types": { "Zone": {
+  "url": "https://docs.idfkit.com/v26.1/io-reference/overview/group-thermal-zone-description-geometry/#zone",
+  "doc_set": "io-reference", "version": "v26.1", "label": "Zone — I/O Reference" } } }
+```
+
+`null` where the library builds no address. The document's own version supplies the version segment,
+never a constant. Compared under rule 5, so the label's dash and spacing are part of the contract.
+
+### Seeding a Tier 1 expectation
+
+`tools/seed_tier1.py` writes these files from the Python library. It is a typing aid and nothing
+more: the output is a draft that a maintainer must read against the governing rule before
+committing, and `regenerate.sh`'s prohibition on copying an expectation out of a library still holds
+for every assertion that has an oracle. Seeding from Python and then running the JavaScript runner
+checks that the port is faithful, which is a different question from whether the expectation is
+right, and the second question is the one to answer first.

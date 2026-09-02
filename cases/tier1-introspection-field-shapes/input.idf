@@ -1,0 +1,10 @@
+! tier1-introspection-field-shapes
+Version,
+  26.1;                                   !- Version Identifier
+
+Zone,
+  Described Zone;                         !- Name
+
+ZoneList,
+  Described Zone List,                    !- Name
+  Described Zone;                         !- Zone 1 Name

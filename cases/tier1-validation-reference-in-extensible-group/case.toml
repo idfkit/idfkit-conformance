@@ -1,0 +1,32 @@
+title = "A reference inside a repeated group is indexed like any other reference"
+why = """
+Python's reference index was built from an object's top-level fields and stopped there, so the 90
+schema fields that carry `object_list` inside an extensible group were never indexed at all.
+Nothing pointing from inside a repeated group could ever be reported as dangling, which covers
+`Schedule:Year`, `Schedule:Week:Compact`, `SpaceList` and `ZoneList` among others: a whole class of
+broken model went unreported.
+
+`ZoneList` is the smallest object that shows it. Its single extensible field is `zone_name`,
+carrying `object_list: ["ZoneNames"]`, and one `ZoneList` holds as many repeats as the model needs.
+The document declares two zones and then points at one that exists and one that does not, so a
+library blind to the group reports nothing and a library that indexes the group reports exactly
+one E009.
+
+The reported field name is `zone_name` and not `zone_2_name`. That is the schema's own spelling for
+the field inside the group, and pinning it matters: the two libraries index extensible groups by
+different internal shapes, and a finding that named the flattened positional spelling in one
+language and the schema spelling in the other would be a divergence users would meet in their own
+error output.
+
+This case is the direct reason agreement between the two libraries is necessary and not sufficient.
+While it was being written, `5ZoneAirCooledWithSpacesHVAC.idf` was found to reference
+`Zone 5-Remainder` three times, twice from extensible groups and once from a fixed field. Both
+libraries already reported the fixed one. Had Python's extensible fix landed on its own, the
+differential would have gone green with both libraries rejecting a model EnergyPlus accepts, and
+the second fix, teaching both libraries that a zone list expands into implicit remainder spaces,
+would have looked like a regression. Two fixes, one green signal, and only one of them correct.
+"""
+tags = ["tier1", "references", "extensible"]
+energyplus_version = "26.1.0"
+truth = "convention"
+assertions = ["parse-outcome", "validation"]

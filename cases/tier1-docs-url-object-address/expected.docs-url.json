@@ -1,0 +1,22 @@
+{
+  "object_types": {
+    "Version": {
+      "url": "https://docs.idfkit.com/v26.1/io-reference/overview/group-simulation-parameters/#version",
+      "doc_set": "io-reference",
+      "version": "v26.1",
+      "label": "Version — I/O Reference"
+    },
+    "WindowsCalculationEngine": {
+      "url": "https://docs.idfkit.com/v26.1/io-reference/overview/group-surface-construction-elements/#windowscalculationengine",
+      "doc_set": "io-reference",
+      "version": "v26.1",
+      "label": "WindowsCalculationEngine — I/O Reference"
+    },
+    "Zone": {
+      "url": "https://docs.idfkit.com/v26.1/io-reference/overview/group-thermal-zone-description-geometry/#zone",
+      "doc_set": "io-reference",
+      "version": "v26.1",
+      "label": "Zone — I/O Reference"
+    }
+  }
+}

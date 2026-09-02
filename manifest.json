@@ -677,6 +677,87 @@
       ],
       "input": "input.idf",
       "parse_outcome": "success"
+    },
+    {
+      "id": "tier1-validation-anyof-branch-constraints",
+      "title": "A value is valid only when it satisfies one anyOf branch completely",
+      "tags": [
+        "tier1",
+        "numeric",
+        "types"
+      ],
+      "energyplus_version": "26.1.0",
+      "assertions": [
+        "parse-outcome",
+        "validation"
+      ],
+      "input": "input.idf",
+      "parse_outcome": "success",
+      "expected_validation": "expected.validation.json"
+    },
+    {
+      "id": "tier1-validation-reference-declared-by-field",
+      "title": "An object declares a name through any field carrying reference, not only through its name field",
+      "tags": [
+        "tier1",
+        "references"
+      ],
+      "energyplus_version": "26.1.0",
+      "assertions": [
+        "parse-outcome",
+        "validation"
+      ],
+      "input": "input.idf",
+      "parse_outcome": "success",
+      "expected_validation": "expected.validation.json"
+    },
+    {
+      "id": "tier1-validation-reference-in-extensible-group",
+      "title": "A reference inside a repeated group is indexed like any other reference",
+      "tags": [
+        "tier1",
+        "references",
+        "extensible"
+      ],
+      "energyplus_version": "26.1.0",
+      "assertions": [
+        "parse-outcome",
+        "validation"
+      ],
+      "input": "input.idf",
+      "parse_outcome": "success",
+      "expected_validation": "expected.validation.json"
+    },
+    {
+      "id": "tier1-introspection-field-shapes",
+      "title": "A type description carries the same field set and the same constraints in both languages",
+      "tags": [
+        "tier1",
+        "types"
+      ],
+      "energyplus_version": "26.1.0",
+      "assertions": [
+        "parse-outcome",
+        "introspection"
+      ],
+      "input": "input.idf",
+      "parse_outcome": "success",
+      "expected_introspection": "expected.introspection.json"
+    },
+    {
+      "id": "tier1-docs-url-object-address",
+      "title": "A documentation address is built from the bundled mapping, or from the schema group when there is none",
+      "tags": [
+        "tier1"
+      ],
+      "energyplus_version": "26.1.0",
+      "assertions": [
+        "parse-outcome",
+        "docs-url"
+      ],
+      "input": "input.idf",
+      "parse_outcome": "success",
+      "expected_docs_url": "expected.docs-url.json"
     }
   ]
 }

@@ -1,0 +1,289 @@
+{
+  "object_types": {
+    "Version": {
+      "obj_type": "Version",
+      "memo": "Specifies the EnergyPlus version of the IDF file.",
+      "has_name": false,
+      "is_extensible": false,
+      "extensible_size": null,
+      "required_fields": [],
+      "fields": [
+        {
+          "name": "version_identifier",
+          "field_type": "string",
+          "required": false,
+          "default": 26.1,
+          "units": null,
+          "enum_values": null,
+          "minimum": null,
+          "maximum": null,
+          "exclusive_minimum": null,
+          "exclusive_maximum": null,
+          "note": null,
+          "is_reference": false,
+          "object_list": null
+        }
+      ]
+    },
+    "Zone": {
+      "obj_type": "Zone",
+      "memo": "Defines a thermal zone of the building. Every zone contains one or more Spaces. Space is an optional input. If a Zone has no Space(s) specified in input then a default Space named <Zone Name> will be created. If some surfaces in a Zone are assigned to a space and some are not, then a default Space named <Zone Name>-Remainder will be created. Input references to Space Names must have a matching Space object (default space names may not be referenced except in output variable keys).",
+      "has_name": true,
+      "is_extensible": false,
+      "extensible_size": null,
+      "required_fields": [],
+      "fields": [
+        {
+          "name": "direction_of_relative_north",
+          "field_type": "number",
+          "required": false,
+          "default": 0.0,
+          "units": "deg",
+          "enum_values": null,
+          "minimum": null,
+          "maximum": null,
+          "exclusive_minimum": null,
+          "exclusive_maximum": null,
+          "note": null,
+          "is_reference": false,
+          "object_list": null
+        },
+        {
+          "name": "x_origin",
+          "field_type": "number",
+          "required": false,
+          "default": 0.0,
+          "units": "m",
+          "enum_values": null,
+          "minimum": null,
+          "maximum": null,
+          "exclusive_minimum": null,
+          "exclusive_maximum": null,
+          "note": null,
+          "is_reference": false,
+          "object_list": null
+        },
+        {
+          "name": "y_origin",
+          "field_type": "number",
+          "required": false,
+          "default": 0.0,
+          "units": "m",
+          "enum_values": null,
+          "minimum": null,
+          "maximum": null,
+          "exclusive_minimum": null,
+          "exclusive_maximum": null,
+          "note": null,
+          "is_reference": false,
+          "object_list": null
+        },
+        {
+          "name": "z_origin",
+          "field_type": "number",
+          "required": false,
+          "default": 0.0,
+          "units": "m",
+          "enum_values": null,
+          "minimum": null,
+          "maximum": null,
+          "exclusive_minimum": null,
+          "exclusive_maximum": null,
+          "note": null,
+          "is_reference": false,
+          "object_list": null
+        },
+        {
+          "name": "type",
+          "field_type": "integer",
+          "required": false,
+          "default": 1,
+          "units": null,
+          "enum_values": null,
+          "minimum": 1,
+          "maximum": 1,
+          "exclusive_minimum": null,
+          "exclusive_maximum": null,
+          "note": null,
+          "is_reference": false,
+          "object_list": null
+        },
+        {
+          "name": "multiplier",
+          "field_type": "integer",
+          "required": false,
+          "default": 1,
+          "units": null,
+          "enum_values": null,
+          "minimum": 1,
+          "maximum": null,
+          "exclusive_minimum": null,
+          "exclusive_maximum": null,
+          "note": null,
+          "is_reference": false,
+          "object_list": null
+        },
+        {
+          "name": "ceiling_height",
+          "field_type": "number|string",
+          "required": false,
+          "default": "Autocalculate",
+          "units": "m",
+          "enum_values": [
+            "",
+            "Autocalculate"
+          ],
+          "minimum": null,
+          "maximum": null,
+          "exclusive_minimum": null,
+          "exclusive_maximum": null,
+          "note": "If this field is 0.0, negative or autocalculate, then the average height of the zone is automatically calculated and used in subsequent calculations. If this field is positive, then the number entered here will be used. Note that the Zone Ceiling Height is the distance from the Floor to the Ceiling in the Zone, not an absolute height from the ground.",
+          "is_reference": false,
+          "object_list": null
+        },
+        {
+          "name": "volume",
+          "field_type": "number|string",
+          "required": false,
+          "default": "Autocalculate",
+          "units": "m3",
+          "enum_values": [
+            "",
+            "Autocalculate"
+          ],
+          "minimum": null,
+          "maximum": null,
+          "exclusive_minimum": null,
+          "exclusive_maximum": null,
+          "note": "If this field is 0.0, negative or autocalculate, then the volume of the zone is automatically calculated and used in subsequent calculations. If this field is positive, then the number entered here will be used.",
+          "is_reference": false,
+          "object_list": null
+        },
+        {
+          "name": "floor_area",
+          "field_type": "number|string",
+          "required": false,
+          "default": "Autocalculate",
+          "units": "m2",
+          "enum_values": [
+            "",
+            "Autocalculate"
+          ],
+          "minimum": null,
+          "maximum": null,
+          "exclusive_minimum": null,
+          "exclusive_maximum": null,
+          "note": "If this field is 0.0, negative or autocalculate, then the floor area of the zone is automatically calculated and used in subsequent calculations. If this field is positive, then the number entered here will be used.",
+          "is_reference": false,
+          "object_list": null
+        },
+        {
+          "name": "zone_inside_convection_algorithm",
+          "field_type": "string",
+          "required": false,
+          "default": null,
+          "units": null,
+          "enum_values": [
+            "",
+            "ASTMC1340",
+            "AdaptiveConvectionAlgorithm",
+            "CeilingDiffuser",
+            "Simple",
+            "TARP",
+            "TrombeWall"
+          ],
+          "minimum": null,
+          "maximum": null,
+          "exclusive_minimum": null,
+          "exclusive_maximum": null,
+          "note": "Will default to same value as SurfaceConvectionAlgorithm:Inside object setting this field overrides the default SurfaceConvectionAlgorithm:Inside for this zone Simple = constant natural convection (ASHRAE) TARP = variable natural convection based on temperature difference (ASHRAE) CeilingDiffuser = ACH based forced and mixed convection correlations for ceiling diffuser configuration with simple natural convection limit AdaptiveConvectionAlgorithm = dynamic selection of convection models based on conditions TrombeWall = variable natural convection in an enclosed rectangular cavity ASTMC1340 = mixed convection correlations specified for attic zone",
+          "is_reference": false,
+          "object_list": null
+        },
+        {
+          "name": "zone_outside_convection_algorithm",
+          "field_type": "string",
+          "required": false,
+          "default": null,
+          "units": null,
+          "enum_values": [
+            "",
+            "AdaptiveConvectionAlgorithm",
+            "DOE-2",
+            "MoWiTT",
+            "SimpleCombined",
+            "TARP"
+          ],
+          "minimum": null,
+          "maximum": null,
+          "exclusive_minimum": null,
+          "exclusive_maximum": null,
+          "note": "Will default to same value as SurfaceConvectionAlgorithm:Outside object setting this field overrides the default SurfaceConvectionAlgorithm:Outside for this zone SimpleCombined = Combined radiation and convection coefficient using simple ASHRAE model TARP = correlation from models developed by ASHRAE, Walton, and Sparrow et. al. MoWiTT = correlation from measurements by Klems and Yazdanian for smooth surfaces DOE-2 = correlation from measurements by Klems and Yazdanian for rough surfaces AdaptiveConvectionAlgorithm = dynamic selection of correlations based on conditions",
+          "is_reference": false,
+          "object_list": null
+        },
+        {
+          "name": "part_of_total_floor_area",
+          "field_type": "string",
+          "required": false,
+          "default": "Yes",
+          "units": null,
+          "enum_values": [
+            "",
+            "No",
+            "Yes"
+          ],
+          "minimum": null,
+          "maximum": null,
+          "exclusive_minimum": null,
+          "exclusive_maximum": null,
+          "note": null,
+          "is_reference": false,
+          "object_list": null
+        }
+      ]
+    },
+    "ZoneList": {
+      "obj_type": "ZoneList",
+      "memo": "Defines a list of thermal zones which can be referenced as a group. The ZoneList name may be used elsewhere in the input to apply a parameter to all zones in the list. ZoneLists can be used effectively with the following objects: People, Lights, ElectricEquipment, GasEquipment, HotWaterEquipment, ZoneInfiltration:DesignFlowRate, ZoneVentilation:DesignFlowRate, Sizing:Zone, ZoneControl:Thermostat, and others.",
+      "has_name": true,
+      "is_extensible": true,
+      "extensible_size": 1.0,
+      "required_fields": [],
+      "fields": [
+        {
+          "name": "zones",
+          "field_type": "array",
+          "required": false,
+          "default": null,
+          "units": null,
+          "enum_values": null,
+          "minimum": null,
+          "maximum": null,
+          "exclusive_minimum": null,
+          "exclusive_maximum": null,
+          "note": null,
+          "is_reference": false,
+          "object_list": null
+        },
+        {
+          "name": "zone_name",
+          "field_type": "string",
+          "required": false,
+          "default": null,
+          "units": null,
+          "enum_values": null,
+          "minimum": null,
+          "maximum": null,
+          "exclusive_minimum": null,
+          "exclusive_maximum": null,
+          "note": null,
+          "is_reference": true,
+          "object_list": [
+            "ZoneNames"
+          ]
+        }
+      ]
+    }
+  }
+}

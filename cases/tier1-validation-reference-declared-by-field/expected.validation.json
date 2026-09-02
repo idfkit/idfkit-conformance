@@ -1,0 +1,11 @@
+{
+  "findings": [
+    {
+      "object_type": "FluidProperties:Saturated",
+      "object_name": "",
+      "field": "fluid_name",
+      "code": "E009",
+      "severity": "error"
+    }
+  ]
+}

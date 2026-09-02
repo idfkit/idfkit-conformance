@@ -1,0 +1,11 @@
+{
+  "findings": [
+    {
+      "object_type": "ZoneList",
+      "object_name": "Both Zones",
+      "field": "zone_name",
+      "code": "E009",
+      "severity": "error"
+    }
+  ]
+}

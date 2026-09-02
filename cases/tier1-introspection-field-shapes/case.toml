@@ -1,0 +1,42 @@
+title = "A type description carries the same field set and the same constraints in both languages"
+why = """
+Type introspection is what an editor, a language server and an agent all read to find out what a
+field accepts, so a description that disagrees between the two languages is a tool that gives
+different advice depending on which one it was built against. Nothing else in the corpus looks at
+it: assertions 1 to 3 compare documents, and a description is a view of the schema.
+
+Two types, chosen for their shapes rather than their subject matter:
+
+  Zone      Twelve fields covering every constraint a description can carry. `x_origin` has units
+            and a default. `type` has a minimum and a maximum. `multiplier` has a minimum alone.
+            `ceiling_height` is an anyOf field, so `field_type` must be the pipe-delimited union
+            "number|string" in declaration order rather than whichever branch was read last.
+            `zone_inside_convection_algorithm` is an enum whose first member is the empty string.
+
+  ZoneList  Extensible, so `is_extensible` is true and `extensible_size` is 1. Its description
+            holds two fields, not one: `zones`, the array that wraps the group and whose
+            `field_type` is "array", and `zone_name`, the field repeated inside it, which points
+            into a reference list and so carries `is_reference` true and `object_list`
+            ["ZoneNames"]. A description that flattened the group into `zone_1_name`,
+            `zone_2_name` and so on would produce a different field list for the same schema, and
+            one that dropped the wrapper would lose where the group begins.
+
+`Version` is present because the file cannot parse without it, and its description is compared too.
+
+`extensible_size` is 1 in JavaScript and 1.0 in Python, which rule 2 makes equal: epJSON has one
+number type and neither library claims otherwise. The case is written knowing this, not in spite
+of it.
+
+`memo` and `note` are the one place the two languages genuinely differ, and the expectation carries
+Python's values rather than hiding them. TypeScript reads the slim schema bundle, which drops both
+keys deliberately, so `@idfkit/core` reports them as undefined for every type and every field. The
+parity ledger records introspection as `partial` for exactly this reason, and `known-divergence.toml`
+carries the matching entry. Writing the case so that both sides agreed would have meant choosing a
+type whose memo happens to be absent, which would have hidden a difference the ledger already
+admits to. As written, the case enforces the ledger: if TypeScript ever populates memo, the entry
+goes stale and the runner fails until the ledger is corrected too.
+"""
+tags = ["tier1", "types"]
+energyplus_version = "26.1.0"
+truth = "convention"
+assertions = ["parse-outcome", "introspection"]

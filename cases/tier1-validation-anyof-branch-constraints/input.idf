@@ -1,0 +1,48 @@
+! tier1-validation-anyof-branch-constraints
+Version,
+  26.1;                                   !- Version Identifier
+
+ZoneHVAC:Baseboard:Convective:Electric,
+  Below The Branch Minimum,               !- Name
+  ,                                       !- Availability Schedule Name
+  HeatingDesignCapacity,                  !- Heating Design Capacity Method
+  -5.0,                                   !- Heating Design Capacity
+  ,                                       !- Heating Design Capacity Per Floor Area
+  ,                                       !- Fraction of Autosized Heating Design Capacity
+  1.0;                                    !- Efficiency
+
+ZoneHVAC:Baseboard:Convective:Electric,
+  The Sentinel The Schema Names,          !- Name
+  ,                                       !- Availability Schedule Name
+  HeatingDesignCapacity,                  !- Heating Design Capacity Method
+  Autosize,                               !- Heating Design Capacity
+  ,                                       !- Heating Design Capacity Per Floor Area
+  ,                                       !- Fraction of Autosized Heating Design Capacity
+  1.0;                                    !- Efficiency
+
+ZoneHVAC:Baseboard:Convective:Electric,
+  Not A Sentinel The Schema Names,        !- Name
+  ,                                       !- Availability Schedule Name
+  HeatingDesignCapacity,                  !- Heating Design Capacity Method
+  Bogus,                                  !- Heating Design Capacity
+  ,                                       !- Heating Design Capacity Per Floor Area
+  ,                                       !- Fraction of Autosized Heating Design Capacity
+  1.0;                                    !- Efficiency
+
+ZoneHVAC:Baseboard:Convective:Electric,
+  Above A Plain Field Maximum,            !- Name
+  ,                                       !- Availability Schedule Name
+  HeatingDesignCapacity,                  !- Heating Design Capacity Method
+  Autosize,                               !- Heating Design Capacity
+  ,                                       !- Heating Design Capacity Per Floor Area
+  ,                                       !- Fraction of Autosized Heating Design Capacity
+  2.0;                                    !- Efficiency
+
+ElectricLoadCenter:Transformer,
+  Off The Numeric Branch Enum,            !- Name
+  ,                                       !- Availability Schedule Name
+  PowerInFromGrid,                        !- Transformer Usage
+  ,                                       !- Zone Name
+  ,                                       !- Radiative Fraction
+  15000.0,                                !- Rated Capacity
+  2;                                      !- Phase

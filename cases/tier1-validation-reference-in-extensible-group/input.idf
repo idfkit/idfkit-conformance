@@ -1,0 +1,14 @@
+! tier1-validation-reference-in-extensible-group
+Version,
+  26.1;                                   !- Version Identifier
+
+Zone,
+  Zone One;                               !- Name
+
+Zone,
+  Zone Two;                               !- Name
+
+ZoneList,
+  Both Zones,                             !- Name
+  Zone One,                               !- Zone 1 Name
+  Zone Three;                             !- Zone 2 Name

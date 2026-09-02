@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""The Python conformance runner: three shipping assertions against one exit contract.
+"""The Python conformance runner: six shipping assertions against one exit contract.
 
 Run it from the root of this repository, pointing ``--library`` at a checkout of the Python
 library. The flag takes a **path**, never a language word, because the runner file already fixes
@@ -16,6 +16,17 @@ What it checks, per case, in this order:
 3. ``round-trip``     re-parsing the library's own IDF output deep-equals the original document.
 4. ``diagnostics``    accepted and reported as skipped. Assertion 4 is deferred to phase two, and a
                       case may declare it today so that landing it later changes no case file.
+5. ``validation``     the library's validation findings equal ``expected.validation.json``.
+6. ``introspection``  the library's type descriptions equal ``expected.introspection.json``.
+7. ``docs-url``       the library's documentation addresses equal ``expected.docs-url.json``.
+
+Assertions 5 to 7 have no oracle behind them: ``ConvertInputFormat`` converts a file, and does not
+validate one, describe a type, or build a documentation address. What rules them is written down
+instead, in ``validate.md`` for assertion 5 and in the epJSON schema itself for assertions 6 and 7,
+so a Tier 1 failure is read against that rule before it is read as a port bug. Their expectations
+are also serialized in the corpus's own snake_case vocabulary rather than either library's, which
+is why this file spells out every key it emits instead of handing a library object to the
+comparator: ``tools/seed_tier1.py`` writes the same shapes, and the two must not drift.
 
 Assertion 3 is the only place IDF field order is compared, which is rule 4 of ``compare.md``. That
 rule is a constraint on what this runner hands to the comparator rather than on the comparator
@@ -83,12 +94,18 @@ from compare import (  # noqa: E402
     compare_documents,
     compare_epjson,
     compare_outcome,
+    compare_unordered,
+    compare_values,
+    json_pointer,
 )
 from model import (  # noqa: E402
     CASES_DIR,
     CORPUS_LEVEL_PATTERN,
     DIVERGENCE_FILE,
+    EXPECTED_DOCS_URL,
     EXPECTED_EPJSON,
+    EXPECTED_INTROSPECTION,
+    EXPECTED_VALIDATION,
     MANIFEST_FILE,
     Assertion,
     Corpus,
@@ -135,6 +152,33 @@ ASSERTION_ORDER: Final = (
     Assertion.EPJSON,
     Assertion.ROUND_TRIP,
     Assertion.DIAGNOSTICS,
+    Assertion.VALIDATION,
+    Assertion.INTROSPECTION,
+    Assertion.DOCS_URL,
+)
+
+# The members of one field description, in the order ``compare.md`` writes them. Spelled out here
+# rather than read off the library object because the corpus vocabulary is snake_case and belongs
+# to neither library: Python's attributes already read this way and TypeScript's are camelCase, so
+# a file written from whichever object happened to be handed over would be a transcript of that
+# library. Naming the keys also makes rule 3 do its work, since a key the library stopped
+# populating is then a ``missing`` difference rather than a silently shorter description.
+# ``tools/seed_tier1.py`` holds the same tuple, and the two must agree or the runner and the
+# seeder disagree about what the corpus records.
+INTROSPECTION_FIELD_KEYS: Final = (
+    "name",
+    "field_type",
+    "required",
+    "default",
+    "units",
+    "enum_values",
+    "minimum",
+    "maximum",
+    "exclusive_minimum",
+    "exclusive_maximum",
+    "note",
+    "is_reference",
+    "object_list",
 )
 
 DEFAULT_DIFFERENCE_LIMIT: Final = 20
@@ -419,6 +463,13 @@ def build_jobs(corpus: Corpus, case_ids: Sequence[str], tags: Sequence[Tag]) -> 
 
     Both filters may be repeated. Given both, a case must match an id **and** carry a tag, so
     ``--case x --tag numeric`` asks whether that one case pins that hazard.
+
+    A filter that selects nothing raises, which exits 2, symmetric with an unknown ``--case`` id
+    and an unknown ``--tag`` value. A selection matching no case runs no assertion and would
+    otherwise report a green PASS proving nothing, and a green gate that proves nothing is worse
+    than a red one: wiring one into CI is exactly the mistake this refusal prevents. An empty
+    corpus is a different thing, and stays a clean pass with its own message, because ``cases/`` is
+    populated by curation and the runner must be usable before that lands.
     """
     known = {entry.id for entry in corpus.manifest.entries()}
     unknown = [case_id for case_id in case_ids if case_id not in known]
@@ -446,11 +497,21 @@ def build_jobs(corpus: Corpus, case_ids: Sequence[str], tags: Sequence[Tag]) -> 
                 assertions=tuple(a for a in ASSERTION_ORDER if a in entry.assertions),
             )
         )
+
+    if not jobs and (case_ids or tags):
+        given = ", ".join(
+            (*(f"--case {case_id}" for case_id in case_ids), *(f"--tag {tag.value}" for tag in tags)),
+        )
+        raise RunnerError(
+            f"{given} matched no case, so nothing would run and the result would be a green PASS that "
+            f"checked nothing. The corpus holds {len(known)} case(s). Widen the selection, or drop the "
+            f"filter that no case satisfies"
+        )
     return tuple(jobs)
 
 
 # ---------------------------------------------------------------------------
-# The three shipping assertions
+# The shipping assertions
 # ---------------------------------------------------------------------------
 
 
@@ -561,7 +622,13 @@ def _run_assertion(job: CaseJob, assertion: Assertion, parse: _Parse, limit: int
         return _assert_epjson(job, parse.document, limit)
     if assertion is Assertion.ROUND_TRIP:
         return _assert_round_trip(job, parse.document, limit)
-    # A fifth assertion added to model.py without a runner change lands here. Saying so beats
+    if assertion is Assertion.VALIDATION:
+        return _assert_validation(job, parse.document, limit)
+    if assertion is Assertion.INTROSPECTION:
+        return _assert_introspection(job, parse.document, limit)
+    if assertion is Assertion.DOCS_URL:
+        return _assert_docs_url(job, parse.document, limit)
+    # A further assertion added to model.py without a runner change lands here. Saying so beats
     # falling through to whichever branch happened to be last.
     return _errored(job.case_id, assertion, f"this runner has no implementation for {assertion.value!r}")
 
@@ -648,6 +715,141 @@ def _assert_round_trip(job: CaseJob, document: Any, limit: int) -> AssertionOutc
     original = document_snapshot(document)
     reparsed = _round_trip_snapshot(document)
     return _from_comparison(job.case_id, Assertion.ROUND_TRIP, compare_documents(reparsed, original), limit)
+
+
+def _missing_expectation(job: CaseJob, assertion: Assertion, path: Path) -> AssertionOutcome | None:
+    """The error to report when a Tier 1 expectation file is absent, or ``None`` when it is there.
+
+    The same shape :func:`_assert_epjson` uses for a missing ``expected.epJSON``: an assertion with
+    nothing to compare against is a corpus fault, and reporting it as an error rather than passing
+    over it is what stops an assertion nobody can evaluate from reading as a green tick. The advice
+    differs because a Tier 1 expectation has no oracle to regenerate it from.
+    """
+    if path.is_file():
+        return None
+    return _errored(
+        job.case_id,
+        assertion,
+        f"{path.name} is missing while the case declares the {assertion.value!r} assertion. Draft it with "
+        f"tools/seed_tier1.py, read the draft against the rule that governs it, and commit it",
+    )
+
+
+def _validation_findings(document: Any) -> list[dict[str, Any]]:
+    """Every finding the library reports for the document, in the corpus vocabulary.
+
+    ``validate_document`` is called with every default in place, so what the corpus records is what
+    an ordinary caller gets rather than a configuration only the suite asks for. The three severity
+    arrays are concatenated into one list because rule 7 compares them as a single unordered
+    multiset: neither library promises an order within an array, and a library that visited object
+    types in a different order would otherwise fail every validation case for a property nobody
+    claims.
+
+    ``message`` is never serialized, for the reason assertion 4 gives about diagnostics: wording is
+    a presentation choice each library is free to improve. The two are already known to differ,
+    because one runtime distinguishes an int from a float and the other has no way to, and both
+    renderings are correct.
+    """
+    from idfkit.validation import validate_document
+
+    result = validate_document(document)
+    return [
+        {
+            "object_type": issue.obj_type,
+            "object_name": issue.obj_name,
+            "field": issue.field,
+            "code": issue.code,
+            "severity": issue.severity.value,
+        }
+        for issue in (*result.errors, *result.warnings, *result.info)
+    ]
+
+
+def _introspection_snapshot(document: Any) -> dict[str, Any]:
+    """One type description per object type the document holds, keyed by type name.
+
+    The document decides which types are described, so a case pins exactly the types its input
+    names and adding an object type to the input is what widens the assertion. Field entries stay
+    in schema order, which rule 7 compares index by index: the order is the order a caller is shown
+    the fields in, and a library that reordered them would be showing a different type.
+    """
+    from idfkit.introspection import describe_object_type
+
+    described: dict[str, Any] = {}
+    for obj_type in sorted(document.collections):
+        description = describe_object_type(document.schema, obj_type)
+        described[obj_type] = {
+            "obj_type": description.obj_type,
+            "memo": _jsonable(description.memo),
+            "has_name": description.has_name,
+            "is_extensible": description.is_extensible,
+            "extensible_size": _jsonable(description.extensible_size),
+            "required_fields": list(description.required_fields),
+            "fields": [
+                {key: _jsonable(getattr(described_field, key)) for key in INTROSPECTION_FIELD_KEYS}
+                for described_field in description.fields
+            ],
+        }
+    return {"object_types": described}
+
+
+def _docs_url_snapshot(document: Any) -> dict[str, Any]:
+    """The best documentation address per object type the document holds, or ``null`` for none.
+
+    The version segment comes from the document's own version and never from a constant, so a
+    library that hardcoded a release fails here the next time one ships. ``None`` is written as
+    JSON ``null`` rather than omitted, because rule 3 makes absent and ``null`` different: a type
+    the library has no address for is a fact the corpus records, and a type it dropped entirely is
+    a difference.
+    """
+    from idfkit.docs import docs_url_for_object
+
+    addresses: dict[str, Any] = {}
+    for obj_type in sorted(document.collections):
+        address = docs_url_for_object(obj_type, document.version, document.schema)
+        addresses[obj_type] = (
+            None
+            if address is None
+            else {"url": address.url, "doc_set": address.doc_set, "version": address.version, "label": address.label}
+        )
+    return {"object_types": addresses}
+
+
+def _assert_validation(job: CaseJob, document: Any, limit: int) -> AssertionOutcome:
+    """Assertion 5: validation findings against ``expected.validation.json``, as a multiset."""
+    path = job.case_dir / EXPECTED_VALIDATION
+    missing = _missing_expectation(job, Assertion.VALIDATION, path)
+    if missing is not None:
+        return missing
+
+    expected = json.loads(path.read_text(encoding="utf-8"))
+    findings = _validation_findings(document)
+    comparison = compare_unordered(findings, expected["findings"], path=json_pointer("findings"))
+    return _from_comparison(job.case_id, Assertion.VALIDATION, comparison, limit)
+
+
+def _assert_introspection(job: CaseJob, document: Any, limit: int) -> AssertionOutcome:
+    """Assertion 6: type descriptions against ``expected.introspection.json``."""
+    path = job.case_dir / EXPECTED_INTROSPECTION
+    missing = _missing_expectation(job, Assertion.INTROSPECTION, path)
+    if missing is not None:
+        return missing
+
+    expected = json.loads(path.read_text(encoding="utf-8"))
+    comparison = compare_values(_introspection_snapshot(document), expected)
+    return _from_comparison(job.case_id, Assertion.INTROSPECTION, comparison, limit)
+
+
+def _assert_docs_url(job: CaseJob, document: Any, limit: int) -> AssertionOutcome:
+    """Assertion 7: documentation addresses against ``expected.docs-url.json``."""
+    path = job.case_dir / EXPECTED_DOCS_URL
+    missing = _missing_expectation(job, Assertion.DOCS_URL, path)
+    if missing is not None:
+        return missing
+
+    expected = json.loads(path.read_text(encoding="utf-8"))
+    comparison = compare_values(_docs_url_snapshot(document), expected)
+    return _from_comparison(job.case_id, Assertion.DOCS_URL, comparison, limit)
 
 
 def _from_comparison(

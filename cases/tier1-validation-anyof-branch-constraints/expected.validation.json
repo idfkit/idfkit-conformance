@@ -1,0 +1,32 @@
+{
+  "findings": [
+    {
+      "object_type": "ElectricLoadCenter:Transformer",
+      "object_name": "Off The Numeric Branch Enum",
+      "field": "phase",
+      "code": "E004",
+      "severity": "error"
+    },
+    {
+      "object_type": "ZoneHVAC:Baseboard:Convective:Electric",
+      "object_name": "Above A Plain Field Maximum",
+      "field": "efficiency",
+      "code": "E007",
+      "severity": "error"
+    },
+    {
+      "object_type": "ZoneHVAC:Baseboard:Convective:Electric",
+      "object_name": "Below The Branch Minimum",
+      "field": "heating_design_capacity",
+      "code": "E005",
+      "severity": "error"
+    },
+    {
+      "object_type": "ZoneHVAC:Baseboard:Convective:Electric",
+      "object_name": "Not A Sentinel The Schema Names",
+      "field": "heating_design_capacity",
+      "code": "E004",
+      "severity": "error"
+    }
+  ]
+}
