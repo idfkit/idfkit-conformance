@@ -49,13 +49,10 @@
 #   Same-change updates (FR-048). A change that lands or removes a capability updates this file in
 #   that same change, never afterwards.
 #
-# OPEN ITEM AT AUTHORING TIME
-#
-#   Every `issue` field currently reads "TODO: open tracking issue in idfkit-js". The tracking
-#   issues do not exist yet, and a fabricated URL would be worse than a visible marker: it would
-#   pass the gate and dead-link the reader. Each marker must be replaced with a real issue URL
-#   before the governance tag is cut, because `absence_kind = "not-yet"` with no issue fails the
-#   gate by its exit contract.
+#   Tracking issues are real, not placeholders. Every `absence_kind = "not-yet"` entry carries the
+#   URL of an open issue in idfkit-js, opened at governance-2026.3. The gate rejects a `not-yet`
+#   entry with no issue, so a fabricated URL would be worse than a missing one: it would pass and
+#   dead-link the reader. Check that an issue exists before writing its address here.
 
 
 # ---------------------------------------------------------------------------
@@ -88,8 +85,55 @@ names      = [
 id         = "write"
 title      = "Writing IDF and epJSON"
 tier       = "tier-1"
-python     = "complete"
-typescript = "complete"
+python     = "partial"
+typescript = "partial"
+differences = """
+Both libraries write both formats, and every document either one writes is read back by the other
+and by EnergyPlus. What they do NOT do is produce the same bytes. One model written from Python and
+from JavaScript gives two files whose object headers match and whose every field line differs, and
+neither is more correct than the other, so the difference is recorded here rather than resolved by
+changing a writer both ecosystems have already published.
+
+Measured, not asserted. `5ZoneAirCooled.idf` from EnergyPlus 26.1.0, 359 objects, through
+`load_idf`/`save_idf` and through `loadIdf`/`saveIdf`, differs in seven ways:
+
+  1. Python opens the file with `!-Generator idfkit v<version>` and `!-Option SortedOrder`.
+     TypeScript writes no header.
+  2. Python orders objects by type name, alphabetically, with Version pinned first, which is what
+     its `SortedOrder` header declares. TypeScript groups objects by type in the order the types
+     first appeared in the source, with Version pinned first.
+  3. Python indents field lines two spaces. TypeScript indents four, and takes an `indent` option.
+  4. Both align the `!-` comment at column 30. They therefore overflow at different values, and on
+     overflow Python writes the comment flush against the comma while TypeScript keeps one space.
+  5. Python renders a float with `%g`, so an integral value loses its decimal point: `30.` in the
+     source comes back as `30`, and `0.0` as `0`. TypeScript consults the schema and writes `30.0`
+     and `0.0`, because JavaScript has one number type and a real-valued field would otherwise be
+     indistinguishable from an integer one on the way out.
+  6. Python title-cases every word of the field-name comment, `!- Number Of Vertices` and
+     `!- View Factor To Ground`. TypeScript keeps a list of minor words lowercase so the comment
+     reads as EnergyPlus writes it, `!- Number of Vertices` and `!- View Factor to Ground`. Both
+     drop the unit suffix the source carries, `{deg}` and the rest.
+  7. Python numbers the comment on each repeat of an extensible group, `!- Vertex X Coordinate 2`.
+     TypeScript repeats the unnumbered name on every repeat.
+
+Blank lines differ with them: Python puts one between every pair of objects, TypeScript one between
+objects of the same type and two at each type boundary. On this file that is 4031 lines against
+4125, for the same 359 objects.
+
+`partial` on BOTH sides, because neither writer's controls contain the other's. Python's `write_idf`
+takes `output_type`, so `"nocomment"` and `"compressed"`, and `preserve_formatting`; it offers no way
+to set the indent, the comment column, or the ordering. TypeScript's `writeIdf` takes `comments`,
+`commentColumn`, `indent`, and `versionFirst`; it has no compressed mode and no lossless mode, the
+second of which is `lossless-round-trip` rather than part of this entry.
+
+What is proven, and by what. The corpus asserts that a document survives its OWN writer without
+structural loss: assertion 3 re-parses each library's IDF output and compares object types, names,
+field names, field values, and field order against the document it started from. It does not compare
+the text, and `runners/compare.md` forbids any comparator from ever doing so, because one JSON value
+has many JSON texts. So the seven differences above are outside every assertion the corpus runs, and
+recording them here is the only place a reader meets them. A reader who needs byte-identical output
+from both languages does not have it and is not going to: pass EnergyPlus the model, not a diff.
+"""
 names      = [
   "serialize IDF to a string",
   "serialize epJSON to a string",
@@ -277,14 +321,20 @@ names      = [
   "diagnostics from a parse",
 ]
 
-# Python: idfkit.weather StationIndex, WeatherStation, SearchResult, SpatialResult,
-#         WeatherDownloader, WeatherFiles
+# Python: idfkit.weather StationIndex (load, search, check_for_updates), WeatherStation,
+#         SearchResult, SpatialResult, haversine_km
 # TypeScript: @idfkit/weather StationIndex, WeatherStation, SearchResult, SpatialResult,
-#             loadStationIndex, refreshStationIndex, checkForUpdates, fetchEpw, fetchWeatherFiles,
-#             saveWeatherFiles
+#             MatchField, StationRecord, IndexData, loadStationIndex, refreshStationIndex,
+#             checkForUpdates, indexFromData, parseKml, parseUrlMetadata, haversineKm,
+#             INDEX_FILES, SOURCES_BASE_URL, and @idfkit/weather/node loadBundledIndex
+#
+# Finding a station only. Retrieving the station's files is `weather-download`, and the on-disk
+# cache Python keeps for them is `weather-file-cache`. Splitting the three is FR-068: one entry
+# covering all of them would have to describe a browser-side retrieval, a cached retrieval, and an
+# index lookup as one thing, and would make each language read as deficient at part of it.
 [[capability]]
 id         = "weather-index"
-title      = "Weather station index and file retrieval"
+title      = "The weather station index"
 tier       = "tier-1"
 python     = "complete"
 typescript = "partial"
@@ -306,12 +356,15 @@ It exposes checkForUpdates and refreshStationIndex for a caller who asks, and do
 own, because the nudge is built on a writable cache directory and a browser-targeted package has
 none. The consequence for a reader is concrete: a stale index goes unmentioned in JavaScript until
 they check for themselves.
+
+The installation difference above is the whole weather surface's, not the index's alone. It is
+stated here because the index is where a reader meets it first, and `weather-download` and
+`weather-file-cache` refer back to it rather than repeat it.
 """
 names      = [
   "the station index",
   "search stations",
   "a weather station",
-  "download a weather file",
   "refresh the station index",
   "a text search result",
   "a proximity search result",
@@ -322,20 +375,67 @@ names      = [
   "parse a KML station index",
   "read station metadata from a download URL",
   "great-circle distance between two points",
-  "the retrieved weather files",
-  "read a ZIP archive",
-  "the injectable fetch",
-  "write weather files to disk",
-  "the written weather file paths",
   "the weather options-object types",
   "the station index wire form",
   "build an index from index data",
   "the upstream index file list",
   "the bundled station index",
   "check the station index for updates",
-  "download a station's archive",
+]
+
+# Python: idfkit.weather WeatherDownloader (download, get_epw, get_ddy, get_epw_by_filename,
+#         get_ddy_by_filename), WeatherFiles, PartialWeatherFiles
+# TypeScript: @idfkit/weather fetchWeatherFiles, fetchEpw, fetchEpwByFilename, fetchWeatherArchive,
+#             WeatherFiles, FetchWeatherOptions, FetchLike, unzip, and @idfkit/weather/node
+#             saveWeatherFiles, SavedWeatherFiles
+#
+# Getting the files, once `weather-index` has found the station. The on-disk cache Python keeps
+# them in is `weather-file-cache`, which is a separate and permanent asymmetry rather than part of
+# what either library does to retrieve.
+[[capability]]
+id         = "weather-download"
+title      = "Retrieving weather and design-day files"
+tier       = "tier-1"
+python     = "complete"
+typescript = "partial"
+differences = """
+Both libraries retrieve a station's ZIP archive from climate.onebuilding.org and unpack the EPW,
+DDY, and STAT members out of it. What they hand back differs, and it differs in the first line a
+reader writes. Python's WeatherDownloader.download returns a WeatherFiles whose epw, ddy, stat, and
+zip_path are Path objects, because the files are on disk by the time it returns and a path is what
+EnergyPlus is given. TypeScript's fetchWeatherFiles returns a WeatherFiles whose epw, ddy, and stat
+are the file TEXT, alongside a members map holding every archive member as bytes, because a browser
+has no disk and the text is what @idfkit/engine takes. Same name, different values, which the
+naming register records under `the retrieved weather files`: code written from one language's
+documentation is wrong at runtime against the other rather than merely awkward.
+
+Three things exist on one side only, and each follows from that one fact rather than from a gap.
+Python's download(station, only={".epw"}) extracts a chosen subset and returns PartialWeatherFiles;
+selective extraction is a property of writing into a cache, and the JavaScript side decodes from
+memory whatever the archive held. TypeScript's FetchWeatherOptions carries fetch, rewriteUrl, and
+signal, because climate.onebuilding.org sends no Access-Control-Allow-Origin header and a page can
+reach it only through a proxy the caller supplies; Python runs under no same-origin policy and owns
+its own urllib requests. TypeScript splits retrieving from writing, so @idfkit/weather/node adds
+saveWeatherFiles and SavedWeatherFiles, where in Python the two are one operation.
+
+Resolving a canonical EPW filename differs in one argument. Python's index parameter is optional and
+defaults to the bundled index, because it can always find one on disk. TypeScript's is required,
+because the caller had to obtain an index already and the function has nowhere to load one from.
+
+typescript = "partial" records the missing selective extraction and nothing else. It is not a
+verdict on the on-disk cache: that is `weather-file-cache`, which is permanently absent by decision
+rather than missing.
+"""
+names      = [
+  "download a weather file",
   "download a station's EPW file",
   "download an EPW file by filename",
+  "download a station's archive",
+  "the retrieved weather files",
+  "read a ZIP archive",
+  "the injectable fetch",
+  "write weather files to disk",
+  "the written weather file paths",
 ]
 
 # Python: idfkit.weather geocode, detect_location, GeocodingError, geocode.RateLimiter
@@ -754,4 +854,42 @@ compatible with. Listed explicitly so it is never ported by mistake.
 """
 names      = [
   "eppy compatibility surface",
+]
+# Python: idfkit.weather WeatherDownloader(cache_dir=..., max_age=...), WeatherDownloader.clear_cache,
+#         WeatherFiles.zip_path, PartialWeatherFiles, and the cache directory itself
+#         (idfkit/src/idfkit/weather/download.py and index.py, IDFKIT_CACHE_DIR).
+# TypeScript: none, and none is coming. @idfkit/weather holds nothing on disk.
+[[capability]]
+id         = "weather-file-cache"
+title      = "Caching retrieved weather files on disk"
+tier       = "never"
+python     = "complete"
+typescript = "absent"
+absence_kind = "never"
+note       = """
+FR-031, stated as a decision rather than a backlog item: the on-disk cache for retrieved weather and
+design-day files is Python's, and JavaScript MUST NOT grow one. Moving this entry out of `never`
+needs a constitutional amendment, not an edit here.
+
+What Python has. WeatherDownloader owns a cache directory, per platform by default and moved with
+cache_dir or IDFKIT_CACHE_DIR. download() looks in it first and reaches the network only on a miss
+or past max_age, so the second call for a station costs nothing; clear_cache empties it. Everything
+downstream follows: the record it returns is paths rather than text, zip_path addresses the archive
+it kept, and selective extraction through only= is meaningful because a suffix skipped this time may
+already be sitting there from an earlier call.
+
+Why JavaScript will not have one. @idfkit/weather targets a browser, a worker, and an edge runtime
+as well as Node. Two of those have no directory it could own, and picking one in Node would make the
+package behave differently depending on where it runs, which is the one thing a portable package
+must not do. So it fetches every time and returns text the caller keeps. saveWeatherFiles in
+@idfkit/weather/node writes a retrieved bundle where the caller says, and that is a caller-directed
+write rather than a cache: it consults nothing on the way in and remembers nothing on the way out.
+
+This is not a gap in JavaScript, and it is why several one-sided names exist on each side. The
+station index is shipped, not cached, in both languages (FR-043, FR-075), so nothing here changes
+how either library finds a station: that is `weather-index`. Retrieval itself is present in both
+languages: that is `weather-download`.
+"""
+names      = [
+  "the weather file cache",
 ]

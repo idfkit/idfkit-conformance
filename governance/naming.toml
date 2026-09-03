@@ -574,11 +574,32 @@ literal and its schema keys, `resolveVersion`, `compareVersions`, and `versionKe
 already.
 
 The STRING is canonical for anything crossing the boundary, because IDF text, epJSON, and the schema
-keys are strings already. Python renders it with `version_string`. The corpus asserts that both
-libraries render the same string for the same model (FR-004), so the divergence is documented AND
-tested rather than documented only.
+keys are strings already. Python renders it with the module-level `version_string(version)`. That is
+a function, not a property: there is no `doc.version_string`, and asking for one raises.
+
+WHAT THE CORPUS ACTUALLY PROVES, because an overstatement here is worse than a silence. The case is
+`cases/versions-canonical-string`. It asserts that the version identifier a file carries survives
+verbatim into the canonical epJSON in both libraries, which pins the text form where a version
+crosses the boundary inside a document. It does NOT call either accessor. None of the three shipping
+assertions reads `doc.version` or renders it, so the two libraries could disagree about what the
+accessor returns, or about what `version_string` renders, and every assertion would stay green. The
+case states that limit itself, in its own `why`, so this entry is not reading against it.
+
+Closing the gap needs an observation the case format cannot express: a check that calls the accessor
+on both sides and compares the rendered strings. The corpus reserves `checks/` for precisely that
+and has no member in it yet. Until one exists, this divergence is documented and only partly tested,
+and this entry says so rather than claiming a proof the corpus does not carry (FR-004, SC-004).
 """
-notes = "No signature changes anywhere. This entry is documentation and a corpus case, not a rename."
+notes = """
+No signature changes anywhere. This entry is documentation and a partial corpus case, not a rename.
+
+Nothing here is a claim about writer OUTPUT. Written from the same document, the two libraries
+produce IDF text that differs in indentation, object ordering, number rendering, the generator
+header, field-comment casing, and the comment on each extensible repeat. That is a behaviour
+difference rather than a naming one, so it is recorded where behaviour differences belong: the
+parity ledger's `write` capability, which lists every one of them and states that no corpus
+assertion covers any of them.
+"""
 rename_count = { python = 0, typescript = 0 }
 
 [[entry]]
@@ -770,6 +791,78 @@ notes      = """
 One row of a repeated field group, for example a single vertex inside a surface's vertex list.
 Python reaches it at `idfkit.objects.ExtensibleGroup` rather than through the top-level `__all__`;
 TypeScript exports the type from `@idfkit/core`. No acronym, so no casing divergence.
+
+The accessor that hands these rows out is the next entry, and unlike the row type it does NOT align.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "an object's extensible rows"
+python     = "obj.<extensible key>"
+typescript = "obj.extensible"
+kind       = "divergent"
+divergence_reason = """
+The two libraries disagree about the SHAPE of the access, not only about its spelling: Python has one
+named accessor per extensible type, TypeScript has one generic getter for all of them. Neither could
+take the other's form without becoming wrong in its own ecosystem, so this is recorded rather than
+reconciled.
+
+Python names the rows after the field group that holds them. The schema gives every extensible type
+one wrapper key, and Python exposes that key as an attribute: `surface.vertices`, `schedule.data`,
+`branchlist.branches`. Each returns an `ExtensibleList` view over the underlying list, and the
+generated stubs narrow the item type per object, so `surface.vertices` is typed
+`ExtensibleList[BuildingSurfaceVertex]` and an IDE completes `vertex_x_coordinate` on each row.
+Collapsing that to a single generic accessor would throw the narrowing away and would read as a
+foreign word in a language whose objects already answer to their own field names.
+
+TypeScript exposes `obj.extensible`, returning `ExtensibleGroup[]`: the underlying array itself, so
+pushing to it mutates the object. Generic is the only shape available there, because the type
+parameterisation lives elsewhere. A document carries a type map, the per-object field names come from
+`@idfkit/types-v26-1` or its sibling, and the default is `UntypedMap`, where a row is
+`Record<string, string | number>` and no per-key accessor could be typed at all. Generating one
+accessor per EnergyPlus type per version onto the object class is the 5.3 MB of type maps the core
+deliberately does not carry (FR-039, FR-040).
+"""
+notes      = """
+Registered here because it was missing, not because anything changed. The row type above aligns and
+the accessor never did, and a name absent from this file is not finished (Constitution I, SC-001).
+Neither spelling moves: `rename_count` stays at 0 on both sides.
+
+The return values differ with the accessors. Python's `ExtensibleList` is a view supporting indexing,
+iteration, append, insert, delete, pop, clear, extend, equality, and bulk replace, and it bumps the
+owner's mutation version on every write. TypeScript hands back the live array and needs no wrapper
+type to do it.
+
+Python's `obj[wrapper_key]` reaches the same rows and is not a second public name for the concept
+(FR-005). It is the ONLY path for the types whose wrapper key collides with a property of the object,
+`Schedule:Day:Interval` and `Schedule:Compact` both spelling theirs `data`; for every other type it
+resolves to the attribute above. Subscript syntax, not a second word.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "a view over an object's extensible rows"
+python     = "idfkit.objects.ExtensibleList"
+typescript = ""
+kind       = "divergent"
+divergence_reason = """
+Python names this type because its accessor returns a view rather than the rows themselves:
+`ExtensibleList` is a live window onto the owning object's field storage, generic in the row type so
+`surface.vertices` narrows to `ExtensibleList[BuildingSurfaceVertex]`. The view has to be a named
+class because it has to exist: something must hold the owner, the wrapper key, and the inner field
+names, and must write back through to the object when a row is assigned.
+
+TypeScript has nothing to name. `obj.extensible` hands back the underlying `ExtensibleGroup[]`
+array itself, so the language's own array type already is the view and pushing to it mutates the
+object. Introducing a wrapper class there would add a layer that Python needs only because its
+accessor cannot return storage directly.
+"""
+notes      = """
+Registered because the row type (`an extensible group`) and the accessor (`an object's extensible
+rows`) both are, and the return type sitting between them was the only part of the mechanism absent
+from this file. Nothing changed; it was missing (Constitution I, SC-001).
+
+`ExtensibleList` is reached at `idfkit.objects.ExtensibleList`, and is in that module's `__all__`.
 """
 rename_count = { python = 0, typescript = 0 }
 
@@ -1333,6 +1426,44 @@ already and the function has nowhere to load one from.
 rename_count = { python = 0, typescript = 0 }
 
 [[entry]]
+concept    = "download a station's DDY file"
+python     = "WeatherDownloader.get_ddy"
+typescript = ""
+kind       = "divergent"
+divergence_reason = """
+Python offers a per-member shortcut and TypeScript does not, and the cache is the reason. Both
+libraries retrieve one ZIP archive per station and unpack its members. Python's downloader keeps
+that archive's members on disk, so `get_ddy` after `get_epw` costs a path lookup, and a function per
+member is worth having.
+
+TypeScript keeps nothing. `fetchWeatherFiles` returns the EPW, DDY, and STAT text together from the
+one archive it just fetched, so the DDY is already in hand and a `fetchDdy` could only re-download
+the same bytes to hand back one of them. The concept exists on both sides; only Python has a reason
+to give it a name.
+"""
+notes      = """
+Registered alongside `download a station's EPW file`, whose `get_epw`/`fetchEpw` pair was already
+here while its DDY twin was not. See the `weather-file-cache` capability in the parity ledger for
+the cache this turns on, which is Python's permanently (FR-031).
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "download a DDY file by filename"
+python     = "WeatherDownloader.get_ddy_by_filename"
+typescript = ""
+kind       = "divergent"
+divergence_reason = """
+Resolve a canonical EPW filename to a station through the index, then retrieve that station's DDY.
+Python-only for the same reason as `download a station's DDY file` above: the cache makes a
+per-member accessor cheap, and without one there is nothing for a TypeScript counterpart to save.
+
+The index arrives as an optional keyword defaulting to the bundled copy, matching
+`get_epw_by_filename` rather than diverging from it.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
 concept    = "download a station's archive"
 python     = ""
 typescript = "fetchWeatherArchive"
@@ -1390,6 +1521,34 @@ browsers and Node 20 and later both have.
 Python has `zipfile` in its standard library and `WeatherDownloader` uses it directly. A public
 `unzip` there would be a wrapper over a module the caller can already import, which is a public name
 for an import statement.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "the weather file cache"
+python     = "PartialWeatherFiles, WeatherDownloader.clear_cache"
+typescript = ""
+kind       = "excluded"
+divergence_reason = """
+The on-disk cache for retrieved weather and design-day files, and the names that exist only because
+Python keeps one. `WeatherDownloader` owns a directory, per platform by default and moved with
+`cache_dir` or `IDFKIT_CACHE_DIR`; `download` consults it before the network and skips the request on
+a hit within `max_age`; `clear_cache` empties it; `PartialWeatherFiles` is the record selective
+extraction returns, and it is meaningful only because a suffix skipped this time may already be in
+the directory from an earlier call.
+
+Excluded rather than divergent, and excluded is terminal here by requirement rather than by
+convention: FR-031 says the second language MUST NOT implement one. A counterpart appearing on the
+TypeScript side fails the gate (FR-006), which is the point of recording it this way.
+
+`@idfkit/weather` is correct without one. It targets a browser, a worker, and an edge runtime as well
+as Node; two of those have no directory it could own, and choosing one in Node would make the package
+behave differently depending on where it runs. `saveWeatherFiles` in `@idfkit/weather/node` writes a
+retrieved bundle where the caller asks and is not a cache: it consults nothing on the way in and
+remembers nothing on the way out.
+
+The parity ledger records the capability as permanently single-language under `weather-file-cache`,
+and the consequences for retrieval, paths against text, under `weather-download`.
 """
 rename_count = { python = 0, typescript = 0 }
 
