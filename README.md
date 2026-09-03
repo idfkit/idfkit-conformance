@@ -16,7 +16,7 @@ happened on the first fixture written.
 
 ## Read this first: the coverage this corpus does NOT have
 
-Partial coverage is easy to mistake for complete coverage. Four gaps are open.
+Partial coverage is easy to mistake for complete coverage. Five gaps are open.
 
 ### EnergyPlus 26.1.0 only
 
@@ -87,6 +87,27 @@ build-time warm-up and a run with the network switched off, which is where the s
 it. The `tier1` tag therefore means "the Tier 1 capabilities this corpus can express", not "every
 Tier 1 capability", and a green `--tag tier1` is not a statement about weather.
 
+### Writer output is not compared as text, and cannot be
+
+The naming register once said this corpus proves that both libraries render the same string for
+the same model. It does not, and it is not able to.
+
+`runners/compare.md` forbids textual comparison outright, for a good reason set out there: a
+formatting difference and a value difference are not the same finding, and a comparator that is
+textual anywhere is textual everywhere. The assertion enum has no writer kind. What assertion 3
+does instead is re-parse each library's own IDF output and compare the resulting *document* to the
+original, which catches a field that moved or a value that was lost and says nothing about the
+bytes in between.
+
+The bytes do differ, and the differences are real. Round-tripping one file through both writers
+gives 2-space indentation against 4, insertion order against sorted order, a `!-Generator idfkit`
+header on one side only, and different comment capitalisation. None of it is a defect, none of it
+is hidden, and neither writer was changed to make the other's output appear: the parity ledger
+records `write` as `partial` on both sides with the differences stated, which is where a claim
+about output belongs.
+
+So a green run is a statement about what each library understood, never about what it typed.
+
 ## Why `known-divergence.toml` ships populated
 
 The corpus lands with real, currently failing disagreements already recorded in
@@ -138,8 +159,12 @@ reads, writes, validates or introspects, so the corpus runs anywhere the librari
 
 | Library | Wall clock | Result |
 | ------- | ---------- | ------ |
-| Python `idfkit` | 0.74 s | 116 passed, 13 failed and allowlisted, 3 skipped |
-| TypeScript `@idfkit/core` | 0.15 s | 122 passed, 7 failed and allowlisted, 3 skipped |
+| Python `idfkit` | 0.65 to 0.96 s | 116 passed, 13 failed and allowlisted, 3 skipped |
+| TypeScript `@idfkit/core` | 0.11 to 0.15 s | 122 passed, 7 failed and allowlisted, 3 skipped |
+
+A range rather than a figure, from repeated runs on one machine. A single number implies a
+precision that a warm cache and a busy laptop do not support, and the only question the budget
+asks is which side of five minutes this falls on.
 
 The budget is under 5 minutes per library. Both runners are three orders of magnitude inside it, so
 the budget is not a constraint on how the corpus grows: at this rate the case set could grow past
