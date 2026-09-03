@@ -443,6 +443,16 @@ names      = [
 # RateLimiter is public on both sides. It is absent from the Python sub-package's __all__,
 # which is why it read as TypeScript-only until the register covered the weather surface.
 [[capability]]
+id         = "conformance-declaration"
+title      = "Declaring the conformance level a release passes"
+tier       = "tier-1"
+python     = "complete"
+typescript = "complete"
+names      = [
+  "declared conformance level",
+]
+
+[[capability]]
 id         = "geocoding"
 title      = "Geocoding a place name"
 tier       = "tier-1"
