@@ -1,0 +1,15 @@
+{
+  "lookups": {
+    "Zone": { "names": ["Zone A", "Zone B"], "present": true },
+    "zone": { "names": ["Zone A", "Zone B"], "present": true },
+    "ZONE": { "names": ["Zone A", "Zone B"], "present": true },
+    "ZoNe": { "names": ["Zone A", "Zone B"], "present": true },
+    "ScheduleTypeLimits": { "names": ["Any Number Limits"], "present": true },
+    "scheduletypelimits": { "names": ["Any Number Limits"], "present": true },
+    "SCHEDULETYPELIMITS": { "names": ["Any Number Limits"], "present": true },
+    "Material": { "names": [], "present": false },
+    "Zoen": { "names": [], "present": false },
+    "NotAnEnergyPlusObject": { "names": [], "present": false }
+  },
+  "object_types_after": ["ScheduleTypeLimits", "Version", "Zone"]
+}

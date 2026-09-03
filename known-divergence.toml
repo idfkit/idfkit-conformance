@@ -220,18 +220,3 @@ issue     = "https://github.com/idfkit/idfkit/issues/185"
 observed  = '''Nothing to compare: the read raised VersionNotFoundError before any document existed to write back. Downstream of the parse-outcome entry on the same case.'''
 expected  = '''Re-parsing Python's own IDF output deep-equals the original document, Version object included.'''
 
-[[divergence]]
-case      = "versions-nine-zero-schema-nine-zero-one"
-library   = "python"
-assertion = "parse-outcome"
-issue     = "https://github.com/idfkit/idfkit/issues/184"
-observed  = '''Reading raises IDFParseError: "Unknown object type 'WindowsCalculationEngine'" at input.idf:28:3. Verified directly: SchemaManager._find_schema_file((9,0,0)) returns None, find_closest_version((9,0,0)) falls back to (8,9,0), and get_schema((9,0,0)) loads schemas/V8-9-0/Energy+.schema.epJSON.gz, 799 types, with no WindowsCalculationEngine and with WindowProperty:ShadingControl (removed in 9.0.1) still present. Every file from the 9.0 release line writes "Version, 9.0", so this misroutes a whole release line to a schema one release earlier.'''
-expected  = '''Reading succeeds. Version, 9.0 resolves to the bundled 9.0.1 schema, under which WindowsCalculationEngine exists. TypeScript resolveVersion matches on major and minor, lands on 9.0.1, and emits "WindowsCalculationEngine": {"WindowsCalculationEngine 1": {"windows_engine": "BuiltInWindowsModel"}}. Falling back to 8.9.0 is not a near miss: 8.9.0 and 9.0.1 are different schemas, and a file read against the wrong one is silently a different model.'''
-
-[[divergence]]
-case      = "versions-nine-zero-schema-nine-zero-one"
-library   = "python"
-assertion = "round-trip"
-issue     = "https://github.com/idfkit/idfkit/issues/184"
-observed  = '''Nothing to compare: the read raised IDFParseError on WindowsCalculationEngine, so no document existed to write back. Downstream of the parse-outcome entry on the same case.'''
-expected  = '''Re-parsing Python's own IDF output deep-equals the original document, WindowsCalculationEngine included.'''

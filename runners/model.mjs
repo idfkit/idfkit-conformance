@@ -55,6 +55,7 @@ export const EXPECTED_DIAGNOSTICS = 'expected.diag.json';
 export const EXPECTED_VALIDATION = 'expected.validation.json';
 export const EXPECTED_INTROSPECTION = 'expected.introspection.json';
 export const EXPECTED_DOCS_URL = 'expected.docs-url.json';
+export const EXPECTED_TYPE_LOOKUP = 'expected.type-lookup.json';
 
 export const CASES_DIR = 'cases';
 export const MANIFEST_FILE = 'manifest.json';
@@ -100,6 +101,7 @@ export const Assertion = Object.freeze({
   VALIDATION: 'validation',
   INTROSPECTION: 'introspection',
   DOCS_URL: 'docs-url',
+  TYPE_LOOKUP: 'type-lookup',
 });
 
 /**
@@ -136,6 +138,12 @@ export const EXPECTATION_FILES = Object.freeze([
     key: 'expected_docs_url',
     property: 'expectedDocsUrl',
     file: EXPECTED_DOCS_URL,
+  },
+  {
+    assertion: 'type-lookup',
+    key: 'expected_type_lookup',
+    property: 'expectedTypeLookup',
+    file: EXPECTED_TYPE_LOOKUP,
   },
 ]);
 
@@ -315,6 +323,7 @@ export class Case {
  * @property {string | null} [expectedValidation]
  * @property {string | null} [expectedIntrospection]
  * @property {string | null} [expectedDocsUrl]
+ * @property {string | null} [expectedTypeLookup]
  */
 
 /**
@@ -340,6 +349,7 @@ export class ManifestEntry {
     expectedValidation = null,
     expectedIntrospection = null,
     expectedDocsUrl = null,
+    expectedTypeLookup = null,
   }) {
     /** @type {string} */
     this.id = id;
@@ -367,6 +377,8 @@ export class ManifestEntry {
     this.expectedIntrospection = expectedIntrospection ?? null;
     /** @type {string | null} */
     this.expectedDocsUrl = expectedDocsUrl ?? null;
+    /** @type {string | null} */
+    this.expectedTypeLookup = expectedTypeLookup ?? null;
 
     checkCaseId(this.id, ManifestError);
     checkNonEmpty(this.title, 'title', ManifestError);
@@ -1421,6 +1433,7 @@ const ENTRY_KEYS = new Set([
   'expected_validation',
   'expected_introspection',
   'expected_docs_url',
+  'expected_type_lookup',
 ]);
 const MANIFEST_KEYS = new Set([
   '$schema',
@@ -1516,6 +1529,7 @@ function loadEntry(rawEntry, truth, path, index) {
     expectedValidation: readOptionalString(raw, 'expected_validation', options),
     expectedIntrospection: readOptionalString(raw, 'expected_introspection', options),
     expectedDocsUrl: readOptionalString(raw, 'expected_docs_url', options),
+    expectedTypeLookup: readOptionalString(raw, 'expected_type_lookup', options),
   });
 }
 

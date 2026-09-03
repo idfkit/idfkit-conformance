@@ -59,9 +59,9 @@
       ]
     },
     "assertion": {
-      "description": "One assertion. 'diagnostics' is accepted and skipped by the runners until phase two. 'validation', 'introspection' and 'docs-url' are the Tier 1 assertions, which have no oracle behind them; see runners/compare.md.",
+      "description": "One assertion. 'diagnostics' is accepted and skipped by the runners until phase two. 'validation', 'introspection' and 'docs-url' are the Tier 1 assertions, which have no oracle behind them; see runners/compare.md. 'type-lookup' has no oracle either and asks a different question from every other assertion: not what a library made of a file, but what it returns when a caller names an object type.",
       "type": "string",
-      "enum": ["parse-outcome", "epjson", "round-trip", "diagnostics", "validation", "introspection", "docs-url"]
+      "enum": ["parse-outcome", "epjson", "round-trip", "diagnostics", "validation", "introspection", "docs-url", "type-lookup"]
     },
     "case": {
       "description": "One case entry. Shared by both sections; the section decides whether 'expected' is required or forbidden.",
@@ -128,17 +128,23 @@
           "description": "Expected documentation addresses, relative to the case directory. Required when 'assertions' includes 'docs-url', forbidden otherwise.",
           "type": "string",
           "const": "expected.docs-url.json"
+        },
+        "expected_type_lookup": {
+          "description": "Expected collection lookups by object type name, relative to the case directory. Required when 'assertions' includes 'type-lookup', forbidden otherwise.",
+          "type": "string",
+          "const": "expected.type-lookup.json"
         }
       },
       "allOf": [
         { "$ref": "#/$defs/expectationRule/diagnostics" },
         { "$ref": "#/$defs/expectationRule/validation" },
         { "$ref": "#/$defs/expectationRule/introspection" },
-        { "$ref": "#/$defs/expectationRule/docsUrl" }
+        { "$ref": "#/$defs/expectationRule/docsUrl" },
+        { "$ref": "#/$defs/expectationRule/typeLookup" }
       ]
     },
     "expectationRule": {
-      "description": "One rule per assertion that reads an expectation file: declaring the assertion requires the file, and not declaring it forbids naming one. Kept as four parallel entries rather than one parameterised rule because JSON Schema has no way to express the parameter.",
+      "description": "One rule per assertion that reads an expectation file: declaring the assertion requires the file, and not declaring it forbids naming one. Kept as parallel entries rather than one parameterised rule because JSON Schema has no way to express the parameter.",
       "diagnostics": {
         "if": { "required": ["assertions"], "properties": { "assertions": { "contains": { "const": "diagnostics" } } } },
         "then": { "required": ["expected_diagnostics"] },
@@ -158,6 +164,11 @@
         "if": { "required": ["assertions"], "properties": { "assertions": { "contains": { "const": "docs-url" } } } },
         "then": { "required": ["expected_docs_url"] },
         "else": { "not": { "required": ["expected_docs_url"] } }
+      },
+      "typeLookup": {
+        "if": { "required": ["assertions"], "properties": { "assertions": { "contains": { "const": "type-lookup" } } } },
+        "then": { "required": ["expected_type_lookup"] },
+        "else": { "not": { "required": ["expected_type_lookup"] } }
       }
     },
     "oracleCase": {

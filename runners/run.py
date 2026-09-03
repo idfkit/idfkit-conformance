@@ -19,6 +19,9 @@ What it checks, per case, in this order:
 5. ``validation``     the library's validation findings equal ``expected.validation.json``.
 6. ``introspection``  the library's type descriptions equal ``expected.introspection.json``.
 7. ``docs-url``       the library's documentation addresses equal ``expected.docs-url.json``.
+8. ``type-lookup``   naming an object type through the library's own collection accessor returns
+                      what ``expected.type-lookup.json`` says, for canonical, mis-cased and unknown
+                      names alike, and leaves the document unchanged.
 
 Assertions 5 to 7 have no oracle behind them: ``ConvertInputFormat`` converts a file, and does not
 validate one, describe a type, or build a documentation address. What rules them is written down
@@ -105,6 +108,7 @@ from model import (  # noqa: E402
     EXPECTED_DOCS_URL,
     EXPECTED_EPJSON,
     EXPECTED_INTROSPECTION,
+    EXPECTED_TYPE_LOOKUP,
     EXPECTED_VALIDATION,
     MANIFEST_FILE,
     Assertion,
@@ -155,6 +159,7 @@ ASSERTION_ORDER: Final = (
     Assertion.VALIDATION,
     Assertion.INTROSPECTION,
     Assertion.DOCS_URL,
+    Assertion.TYPE_LOOKUP,
 )
 
 # The members of one field description, in the order ``compare.md`` writes them. Spelled out here
@@ -628,6 +633,8 @@ def _run_assertion(job: CaseJob, assertion: Assertion, parse: _Parse, limit: int
         return _assert_introspection(job, parse.document, limit)
     if assertion is Assertion.DOCS_URL:
         return _assert_docs_url(job, parse.document, limit)
+    if assertion is Assertion.TYPE_LOOKUP:
+        return _assert_type_lookup(job, parse.document, limit)
     # A further assertion added to model.py without a runner change lands here. Saying so beats
     # falling through to whichever branch happened to be last.
     return _errored(job.case_id, assertion, f"this runner has no implementation for {assertion.value!r}")
@@ -815,6 +822,31 @@ def _docs_url_snapshot(document: Any) -> dict[str, Any]:
     return {"object_types": addresses}
 
 
+def _type_lookup_snapshot(document: Any, queries: Mapping[str, Any]) -> dict[str, Any]:
+    """What the library returns when a caller names an object type, and what that read left behind.
+
+    The queried names are the keys of the expectation's ``lookups`` object, so the case file alone
+    decides which spellings are exercised and the runner never invents one. Each query records the
+    object names the collection accessor returned, in order, and what the membership test said, so
+    that a library whose ``in`` disagrees with its ``[]`` fails here rather than agreeing by
+    halves.
+
+    ``object_types_after`` is taken after every query has run, and it is what makes a read that
+    mutates the document a finding. Both libraries used to file an empty collection under whatever
+    name was asked for, so probing three misspellings left three keys behind, visible to every
+    later iteration over the document. It is sorted because the order of a document's type list is
+    already compared by assertions 2 and 3; what this assertion adds is the *set*.
+    """
+    lookups: dict[str, Any] = {}
+    for written in queries:
+        collection = document[written]
+        lookups[written] = {
+            "names": [obj.name for obj in collection],
+            "present": written in document,
+        }
+    return {"lookups": lookups, "object_types_after": sorted(document.collections)}
+
+
 def _assert_validation(job: CaseJob, document: Any, limit: int) -> AssertionOutcome:
     """Assertion 5: validation findings against ``expected.validation.json``, as a multiset."""
     path = job.case_dir / EXPECTED_VALIDATION
@@ -850,6 +882,18 @@ def _assert_docs_url(job: CaseJob, document: Any, limit: int) -> AssertionOutcom
     expected = json.loads(path.read_text(encoding="utf-8"))
     comparison = compare_values(_docs_url_snapshot(document), expected)
     return _from_comparison(job.case_id, Assertion.DOCS_URL, comparison, limit)
+
+
+def _assert_type_lookup(job: CaseJob, document: Any, limit: int) -> AssertionOutcome:
+    """Assertion 8: collection lookup by type name against ``expected.type-lookup.json``."""
+    path = job.case_dir / EXPECTED_TYPE_LOOKUP
+    missing = _missing_expectation(job, Assertion.TYPE_LOOKUP, path)
+    if missing is not None:
+        return missing
+
+    expected = json.loads(path.read_text(encoding="utf-8"))
+    comparison = compare_values(_type_lookup_snapshot(document, expected["lookups"]), expected)
+    return _from_comparison(job.case_id, Assertion.TYPE_LOOKUP, comparison, limit)
 
 
 def _from_comparison(

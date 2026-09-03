@@ -206,11 +206,13 @@ Every difference reports both values verbatim as parsed, never reformatted, so t
 | 5 | Validation findings match `expected.validation.json` as an unordered multiset, never on message text | now |
 | 6 | Type descriptions match `expected.introspection.json` | now |
 | 7 | Documentation addresses match `expected.docs-url.json` | now |
+| 8 | Collection lookups by object type name match `expected.type-lookup.json` | now |
 
 Rules 1, 2, 3, 5, 6, and 7 apply to assertions 2 and 3. Rule 4 applies to assertion 3 only.
 Assertion 1 compares an outcome, not a value, and uses no rule but rule 6 for reading the input.
 Assertions 5 to 7 are governed by [The Tier 1 assertions](#the-tier-1-assertions) below, and by
-every rule except rule 4: they compare values that have no IDF field order.
+every rule except rule 4: they compare values that have no IDF field order. Assertion 8 is
+governed by [Assertion 8: type lookup](#assertion-8-type-lookup) below.
 
 Assertions 1 to 3 need no changes inside either library, which is why they ship now. Assertion 4
 does need changes: `ParseDiagnostic` in JavaScript carries free-text `message`, `line`, and
@@ -327,6 +329,52 @@ type present in the parsed document, keyed by type name:
 
 `null` where the library builds no address. The document's own version supplies the version segment,
 never a constant. Compared under rule 5, so the label's dash and spacing are part of the contract.
+
+## Assertion 8: type lookup
+
+Assertion 8 asks a question the other seven do not. They ask what a library made of a file.
+This one asks what a library returns when a **caller** names an object type, which is the only
+place the two libraries disagreed silently and in opposite directions: `d["zone"]` was empty in
+Python while `doc.all('zone')` returned every zone in TypeScript, on the same parsed document.
+
+It has no oracle. `ConvertInputFormat` converts a file and has no collection accessor to rule on.
+What rules instead is EnergyPlus's own treatment of object type names, which is case-insensitive:
+`ZONE`, `zone` and `Zone` name one type, so they must reach one collection.
+
+**`expected.type-lookup.json`.** The keys of `lookups` are the spellings the case exercises, and
+the runner queries exactly those and invents none:
+
+```json
+{
+  "lookups": {
+    "Zone": { "names": ["Zone A", "Zone B"], "present": true },
+    "zone": { "names": ["Zone A", "Zone B"], "present": true },
+    "Zoen": { "names": [], "present": false }
+  },
+  "object_types_after": ["ScheduleTypeLimits", "Version", "Zone"]
+}
+```
+
+`names` is what the collection accessor returned, in order: `document[type]` in Python,
+`document.all(type)` in JavaScript. It is an array, so rule 7 compares it index by index, which
+makes the order part of the contract as well as the membership.
+
+`present` is the membership test, `type in document` and `document.has(type)`. It is recorded
+separately from `names` so that a library whose membership test disagrees with its accessor fails
+here rather than agreeing by halves.
+
+A name in no schema is empty and `false`, and never an error. That is a decision rather than a
+discovery, and the case that carries it records the reasoning: a membership test must answer
+rather than raise, a Python document may carry no schema and then nothing can tell a typo from a
+valid type, and callers already probe by testing for emptiness. The typo is caught on the paths
+that write, where both libraries reject a type in no schema, which is what assertion 1 pins in
+`types-unknown-object-type`.
+
+`object_types_after` is the document's type list, sorted, taken **after** every query has run. It
+is what makes a read that mutates the document a finding. Both libraries used to file an empty
+collection under whatever name was asked for, so probing three misspellings left three keys
+behind. It is sorted because assertions 2 and 3 already compare the order of a document's types;
+what this adds is the set.
 
 ### Seeding a Tier 1 expectation
 

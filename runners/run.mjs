@@ -20,6 +20,9 @@
  * 5. `validation`     the findings the library reports equal `expected.validation.json`.
  * 6. `introspection`  its type descriptions equal `expected.introspection.json`.
  * 7. `docs-url`       its documentation addresses equal `expected.docs-url.json`.
+ * 8. `type-lookup`   naming an object type through the library's own collection accessor returns
+ *                    what `expected.type-lookup.json` says, for canonical, mis-cased and unknown
+ *                    names alike, and leaves the document unchanged.
  *
  * This file is a section-by-section mirror of `run.py`: the same section headers, the same shapes,
  * the same statuses, the same reconciliation, and byte-for-byte the same report strings apart from
@@ -97,6 +100,7 @@ import {
   EXPECTED_DOCS_URL,
   EXPECTED_EPJSON,
   EXPECTED_INTROSPECTION,
+  EXPECTED_TYPE_LOOKUP,
   EXPECTED_VALIDATION,
   InputFile,
   Library,
@@ -130,6 +134,7 @@ const ASSERTION_ORDER = Object.freeze([
   Assertion.VALIDATION,
   Assertion.INTROSPECTION,
   Assertion.DOCS_URL,
+  Assertion.TYPE_LOOKUP,
 ]);
 
 const DEFAULT_DIFFERENCE_LIMIT = 20;
@@ -869,7 +874,10 @@ async function runAssertion(library, job, assertion, parse, limit) {
   if (assertion === Assertion.DOCS_URL) {
     return assertDocsUrl(library, job, parse.document, limit);
   }
-  // An eighth assertion added to model.mjs without a runner change lands here. Saying so beats
+  if (assertion === Assertion.TYPE_LOOKUP) {
+    return assertTypeLookup(library, job, parse.document, limit);
+  }
+  // A ninth assertion added to model.mjs without a runner change lands here. Saying so beats
   // falling through to whichever branch happened to be last.
   return errored(
     job.caseId,
@@ -1252,6 +1260,50 @@ function assertDocsUrl(library, job, document, limit) {
     job.caseId,
     Assertion.DOCS_URL,
     compareValues({ object_types: objectTypes }, expected),
+    limit
+  );
+}
+
+/**
+ * Assertion 8: what the library returns when a caller names an object type, and what that read
+ * left behind.
+ *
+ * The queried names are the keys of the expectation's `lookups` object, so the case file alone
+ * decides which spellings are exercised and the runner never invents one. Each query records the
+ * object names the collection accessor returned, in order, and what the membership test said, so
+ * that a library whose `has` disagrees with its `all` fails here rather than agreeing by halves.
+ *
+ * `object_types_after` is taken after every query has run, and it is what makes a read that
+ * mutates the document a finding. Both libraries used to file an empty collection under whatever
+ * name was asked for, so probing three misspellings left three keys behind, visible to every later
+ * iteration over the document and to `toJSON`. It is sorted because the order of a document's type
+ * list is already compared by assertions 2 and 3; what this assertion adds is the *set*.
+ *
+ * @param {LibraryUnderTest} library
+ * @param {CaseJob} job
+ * @param {*} document
+ * @param {number} limit
+ * @returns {AssertionOutcome}
+ */
+function assertTypeLookup(library, job, document, limit) {
+  const expected = expectation(job, EXPECTED_TYPE_LOOKUP);
+  if (expected === undefined) {
+    return missingExpectation(job.caseId, Assertion.TYPE_LOOKUP, EXPECTED_TYPE_LOOKUP);
+  }
+
+  /** @type {Record<string, unknown>} */
+  const lookups = {};
+  for (const written of Object.keys(expected.lookups ?? {})) {
+    const collection = document.all(written);
+    lookups[written] = {
+      names: [...collection].map((obj) => obj.name),
+      present: document.has(written),
+    };
+  }
+  return fromComparison(
+    job.caseId,
+    Assertion.TYPE_LOOKUP,
+    compareValues({ lookups, object_types_after: objectTypesOf(document) }, expected),
     limit
   );
 }

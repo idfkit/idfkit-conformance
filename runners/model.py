@@ -78,6 +78,7 @@ EXPECTED_DIAGNOSTICS: Final = "expected.diag.json"
 EXPECTED_VALIDATION: Final = "expected.validation.json"
 EXPECTED_INTROSPECTION: Final = "expected.introspection.json"
 EXPECTED_DOCS_URL: Final = "expected.docs-url.json"
+EXPECTED_TYPE_LOOKUP: Final = "expected.type-lookup.json"
 
 CASES_DIR: Final = "cases"
 MANIFEST_FILE: Final = "manifest.json"
@@ -114,6 +115,12 @@ class Assertion(str, Enum):
     ``VALIDATION``, ``INTROSPECTION`` and ``DOCS_URL`` are the Tier 1 assertions: they cover the
     three capabilities ported into the JavaScript library under this feature, and ``compare.md``
     states plainly that none of them has an oracle behind it.
+
+    ``TYPE_LOOKUP`` has no oracle either, and it differs from every other assertion in what it
+    asks about. The others ask what a library made of a file. This one asks what a library does
+    when a *caller* names an object type, which is the question the two libraries answered
+    differently for as long as nobody wrote it down: ``d["zone"]`` was empty in Python and six
+    zones in TypeScript on the same parsed document.
     """
 
     PARSE_OUTCOME = "parse-outcome"
@@ -123,6 +130,7 @@ class Assertion(str, Enum):
     VALIDATION = "validation"
     INTROSPECTION = "introspection"
     DOCS_URL = "docs-url"
+    TYPE_LOOKUP = "type-lookup"
 
 
 class Tag(str, Enum):
@@ -149,6 +157,7 @@ EXPECTATION_FILES: Final[dict[str, tuple[str, str]]] = {
     "validation": ("expected_validation", EXPECTED_VALIDATION),
     "introspection": ("expected_introspection", EXPECTED_INTROSPECTION),
     "docs-url": ("expected_docs_url", EXPECTED_DOCS_URL),
+    "type-lookup": ("expected_type_lookup", EXPECTED_TYPE_LOOKUP),
 }
 
 
@@ -257,6 +266,7 @@ class ManifestEntry:
     expected_validation: str | None = None
     expected_introspection: str | None = None
     expected_docs_url: str | None = None
+    expected_type_lookup: str | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "tags", tuple(self.tags))
@@ -589,6 +599,7 @@ _ENTRY_KEYS: Final = frozenset(
         "expected_validation",
         "expected_introspection",
         "expected_docs_url",
+        "expected_type_lookup",
     }
 )
 _MANIFEST_KEYS: Final = frozenset({"$schema", "schema_version", "corpus_level", "oracle", "convention"})
@@ -659,6 +670,9 @@ def _load_entry(raw_entry: object, truth: Truth, path: Path, index: int) -> Mani
             raw, "expected_introspection", path=path, where=where, error=ManifestError
         ),
         expected_docs_url=_read_optional_str(raw, "expected_docs_url", path=path, where=where, error=ManifestError),
+        expected_type_lookup=_read_optional_str(
+            raw, "expected_type_lookup", path=path, where=where, error=ManifestError
+        ),
     )
 
 

@@ -652,6 +652,21 @@
       "expected_diagnostics": "expected.diag.json"
     },
     {
+      "id": "types-collection-lookup-casing",
+      "title": "A mis-cased object type name reaches the same collection, and an unknown one stores nothing",
+      "tags": [
+        "types"
+      ],
+      "energyplus_version": "26.1.0",
+      "assertions": [
+        "parse-outcome",
+        "type-lookup"
+      ],
+      "input": "input.idf",
+      "parse_outcome": "success",
+      "expected_type_lookup": "expected.type-lookup.json"
+    },
+    {
       "id": "types-unknown-object-type",
       "title": "An object type in no schema is rejected, not passed through",
       "tags": [

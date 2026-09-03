@@ -1,0 +1,43 @@
+title = "A mis-cased object type name reaches the same collection, and an unknown one stores nothing"
+why = """
+Every other case in this corpus asks what a library made of a file. This one asks what a library
+returns when a CALLER names an object type, which is a different question and was answered
+differently by the two libraries for as long as nobody wrote it down.
+
+On EnergyPlus's own 5ZoneAirCooled.idf, d["zone"] returned an empty collection in Python while
+doc.all('zone') returned all six zones in TypeScript. Neither raised. Python's __getitem__ was a
+plain dict lookup against the stored collection keys; TypeScript resolved the name against the
+schema first. EnergyPlus matches object type names case-insensitively, so ZONE, zone and Zone are
+one type, and the Python answer was simply wrong. It was also inconsistent with the rest of the
+Python library, whose add() and parser both resolved casing: only the read path did not.
+
+A parse-level case cannot catch this. types-object-type-name-casing already proves that a file
+written as "ZONE" produces the epJSON key "Zone" in both libraries, and both libraries passed it
+throughout. The defect lived entirely on the accessor.
+
+The unknown-name half of the case pins a second decision, and it is a decision rather than a
+discovery, so the reasoning is recorded here as well as in both libraries' own documentation.
+Naming a type that is in no schema returns an empty collection; it does not raise. Raising would
+catch typos, and it was rejected for three reasons: a membership test must answer false rather
+than raise, and an accessor that raises where the membership test does not is two rules for one
+question; a Python document may carry no schema at all, and then nothing can distinguish a typo
+from a valid type, so raising would make the behaviour depend on whether a schema happened to be
+loaded; and callers already probe with an empty-collection check, so raising is a breaking change
+with no migration path. The typo is caught on the paths that write, which can afford to be strict:
+add() rejects a type in no schema in both libraries, and so does reading a file that names one,
+which is what types-unknown-object-type pins.
+
+What both libraries did get wrong, identically, is that the read STORED the empty collection it
+returned. Probing three misspelled names left three keys in the document, visible to every later
+iteration over it and, in TypeScript, to toJSON. A read that mutates the document is wrong
+regardless of the rest of the argument, and object_types_after in the expectation is what holds
+that closed: it is taken after every query in the case has run.
+
+Material is queried although the file contains none. It is a real type in the schema, so it
+separates "resolved and empty" from "unresolvable and empty": both must be empty, and neither may
+leave a key behind.
+"""
+tags = ["types"]
+energyplus_version = "26.1.0"
+truth = "convention"
+assertions = ["parse-outcome", "type-lookup"]

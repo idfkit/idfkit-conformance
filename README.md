@@ -131,14 +131,15 @@ Both runners implement the same exit contract.
 | An allowlisted case now passes | 1 | Case id, and the instruction to remove the stale entry |
 | A case's `expected.epJSON` is missing while `truth = "oracle"` | 1 | Case id |
 
-**Case count**: 41 cases, 117 assertions, at level `conformance-2026.3`.
+**Case count**: 48 cases, 132 assertions, at level `conformance-2026.7`.
 
-**Measured runtime** (SC-005), on a machine with no EnergyPlus installed, measured 2026-09-02:
+**Measured runtime** (SC-005), measured 2026-09-03. No runner invokes EnergyPlus: every assertion
+reads, writes, validates or introspects, so the corpus runs anywhere the libraries install.
 
 | Library | Wall clock | Result |
 | ------- | ---------- | ------ |
-| Python `idfkit` | 0.57 s | 97 passed, 17 failed and allowlisted, 3 skipped |
-| TypeScript `@idfkit/core` | 0.13 s | 106 passed, 8 failed and allowlisted, 3 skipped |
+| Python `idfkit` | 0.74 s | 116 passed, 13 failed and allowlisted, 3 skipped |
+| TypeScript `@idfkit/core` | 0.15 s | 122 passed, 7 failed and allowlisted, 3 skipped |
 
 The budget is under 5 minutes per library. Both runners are three orders of magnitude inside it, so
 the budget is not a constraint on how the corpus grows: at this rate the case set could grow past
@@ -160,6 +161,7 @@ cases/
     expected.validation.json    # expected validation findings; tier1 cases
     expected.introspection.json # expected type descriptions; tier1 cases
     expected.docs-url.json      # expected documentation addresses; tier1 cases
+    expected.type-lookup.json   # expected collection lookups by type name
 manifest.json            # index: every case, its tags, which assertions apply
 runners/
   run.py                 # Python runner
@@ -188,6 +190,14 @@ created when the first one is written, not before.
 | 5 | Validation findings match `expected.validation.json` as an unordered multiset, never on message text | now |
 | 6 | Type descriptions match `expected.introspection.json` | now |
 | 7 | Documentation addresses match `expected.docs-url.json` | now |
+| 8 | Collection lookups by object type name match `expected.type-lookup.json` | now |
+
+Assertion 8 is the one assertion that is not about a document at all. It asks what a library
+returns when a caller names an object type, which is where the two libraries disagreed most
+plainly: `d["zone"]` was empty in Python while `doc.all('zone')` returned every zone in
+TypeScript, on the same file, neither raising. No parse-level case can catch that, because the
+disagreement lives on the accessor rather than in what either library parsed. `runners/compare.md`
+holds its normative rule, including why an unknown type name is empty rather than an error.
 
 Each case declares which assertions apply to it. `runners/compare.md` holds the normative
 comparison rules, and it is the file to read before arguing about a result: values rather than text,
@@ -213,7 +223,7 @@ Cases are grouped by the hazard each one pins, not by feature area.
 | `naming` | Blank name against absent name, synthetic key generation, collision with a real name |
 | `extensible` | Empty groups, partial groups, wrapper keys, single against multiple |
 | `numeric` | autosize, autocalculate, scientific notation, integer-typed fields, zero |
-| `types` | Unknown object types, case-variant type names (`ZONE` against `Zone`) |
+| `types` | Unknown object types, case-variant type names (`ZONE` against `Zone`), and the collection a caller reaches when naming one |
 | `references` | Dangling, self-referential, case-insensitive name matching |
 | `versions` | At least one case per supported version, including `Version, 9.0` mapping to schema 9.0.1 |
 | `encoding` | latin-1 high bytes in names and comments |

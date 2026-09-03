@@ -1,0 +1,14 @@
+! Every object type name below is written in the schema's own casing, deliberately, so that a
+! failure here is unambiguously about the LOOKUP and never about parse-time canonicalisation.
+! That separate hazard is pinned by types-object-type-name-casing.
+
+Version, 26.1;
+
+Zone,
+  Zone A;
+
+Zone,
+  Zone B;
+
+ScheduleTypeLimits,
+  Any Number Limits;
