@@ -165,28 +165,6 @@ expected  = '''Re-parsing deep-equals the original document. The two spellings, 
 # ---------------------------------------------------------------------------
 
 [[divergence]]
-case      = "malformed-missing-semicolon"
-library   = "python"
-assertion = "diagnostics"
-issue     = "https://github.com/idfkit/idfkit/issues/191"
-observed  = '''No diagnostic at all. Building.maximum_number_of_warmup_days holds the string "Timestep", the Timestep object is gone from the document, and the returning path hands back an empty findings list.'''
-expected  = '''One finding, {"code": "InvalidField", "line": 11, "typeName": "Building"}, which is what ConvertInputFormat diagnoses: a string where the schema requires a number.
-
-BOTH libraries are silent here, so this is not a parity gap. It is a shared gap against the convention, and the pair of entries has to be removed together: fixing one side alone turns the other stale, which the runner reports as a failure. See idfkit-js issue 36.
-
-`_coerce_value_fast` at idf_parser.py:80-92 returns the raw string when coercion fails and reports nothing. It is called per field on the parse hot path with no diagnostic sink. Note that validate_document already catches this as E003, so the issue records a real decision to take rather than an obvious fix: the expectation may be what changes.'''
-
-[[divergence]]
-case      = "malformed-missing-semicolon"
-library   = "typescript"
-assertion = "diagnostics"
-issue     = "https://github.com/idfkit/idfkit-js/issues/36"
-observed  = '''No diagnostic at all, and the identical corrupted document Python produces: maximum_number_of_warmup_days holds "Timestep", the Timestep object is gone, and parseIdf with strict off returns an empty diagnostics array.'''
-expected  = '''The same finding Python's entry expects, {"code": "InvalidField", "line": 11, "typeName": "Building"}.
-
-The second half of a shared gap. Both libraries agree and both differ from the oracle, which is the shape FR-015 exists to catch: no comparison between the two libraries could have found this, because there is nothing between them to compare. Removed together with the Python entry. See idfkit issue 191.'''
-
-[[divergence]]
 case      = "malformed-stray-comment"
 library   = "python"
 assertion = "diagnostics"
