@@ -15,8 +15,8 @@
  * 1. `parse-outcome`  the input parses, or fails to parse, exactly as `case.toml` declares.
  * 2. `epjson`         the library's canonical epJSON equals the committed `expected.epJSON`.
  * 3. `round-trip`     re-parsing the library's own IDF output deep-equals the original document.
- * 4. `diagnostics`    accepted and reported as skipped. Assertion 4 is deferred to phase two, and a
- *                     case may declare it today so that landing it later changes no case file.
+ * 4. `diagnostics`    the parse findings the library reports equal `expected.diag.json`, compared as
+ *                     an unordered multiset of `(code, line, typeName)` and never on message text.
  * 5. `validation`     the findings the library reports equal `expected.validation.json`.
  * 6. `introspection`  its type descriptions equal `expected.introspection.json`.
  * 7. `docs-url`       its documentation addresses equal `expected.docs-url.json`.
@@ -79,6 +79,7 @@
 import { spawnSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { availableParallelism, tmpdir } from 'node:os';
+import { gunzipSync } from 'node:zlib';
 import { dirname, isAbsolute, join, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
@@ -90,6 +91,7 @@ import {
   compareOutcome,
   compareUnordered,
   compareValues,
+  Comparison,
 } from './compare.mjs';
 import {
   Assertion,
@@ -99,6 +101,7 @@ import {
   DIVERGENCE_FILE,
   EXPECTED_DOCS_URL,
   EXPECTED_EPJSON,
+  EXPECTED_DIAGNOSTICS,
   EXPECTED_INTROSPECTION,
   EXPECTED_TYPE_LOOKUP,
   EXPECTED_VALIDATION,
@@ -145,10 +148,6 @@ const EXIT_OK = 0;
 const EXIT_FAILED = 1;
 const EXIT_UNUSABLE = 2;
 
-const DIAGNOSTICS_DEFERRED =
-  'assertion 4 is deferred to phase two and is not compared yet. The case may declare it today ' +
-  'so that landing it later changes no case file';
-
 /** The run cannot start: a bad flag, or a `--library` path with nothing built in it. */
 export class RunnerError extends Error {
   /** @param {string} message */
@@ -186,9 +185,10 @@ export const Status = Object.freeze({
 export class LibraryUnderTest {
   /**
    * @param {{ root: string, packageRoot: string, moduleFile: string, version: string,
-   *           core: Record<string, *>, node: Record<string, *> }} fields
+   *           core: Record<string, *>, node: Record<string, *>,
+   *           prose: readonly string[] | undefined }} fields
    */
-  constructor({ root, packageRoot, moduleFile, version, core, node }) {
+  constructor({ root, packageRoot, moduleFile, version, core, node, prose }) {
     /** @type {string} */
     this.root = root;
     /** @type {string} */
@@ -201,6 +201,19 @@ export class LibraryUnderTest {
     this.core = core;
     /** The Node edge: schema resolution against the bundle this checkout ships. */
     this.node = node;
+    /**
+     * The schema's explanatory prose, or undefined when this checkout ships none.
+     *
+     * TypeScript keeps `describeObjectType` synchronous and takes the pool as an
+     * argument, so the prose is opt-in for the caller rather than always loaded.
+     * This runner is a caller that wants the whole description, so it opts in.
+     * Python needs no equivalent step: its schema object carries the prose already.
+     *
+     * Undefined here is not a skip. It means the checkout predates the pool, and
+     * the description is then compared without prose, which is what the corpus
+     * did before feature 002 and what the allowlist entry recorded.
+     */
+    this.prose = prose;
     Object.freeze(this);
   }
 
@@ -238,9 +251,17 @@ export class CaseJob {
   /**
    * @param {{ caseId: string, caseDir: string, inputFile: InputFile,
    *           expectedParseOutcome: ParseOutcome, truth: Truth,
-   *           assertions: readonly Assertion[] }} fields
+   *           assertions: readonly Assertion[], writerOptions?: * }} fields
    */
-  constructor({ caseId, caseDir, inputFile, expectedParseOutcome, truth, assertions }) {
+  constructor({
+    caseId,
+    caseDir,
+    inputFile,
+    expectedParseOutcome,
+    truth,
+    assertions,
+    writerOptions = null,
+  }) {
     /** @type {string} */
     this.caseId = caseId;
     /** @type {string} */
@@ -253,6 +274,12 @@ export class CaseJob {
     this.truth = truth;
     /** @type {readonly Assertion[]} */
     this.assertions = Object.freeze([...assertions]);
+    /**
+     * Writer controls this case applies before re-reading, or null for every writer default.
+     *
+     * @type {* | null}
+     */
+    this.writerOptions = writerOptions ?? null;
     Object.freeze(this);
   }
 
@@ -427,6 +454,39 @@ export class RunReport {
 // ---------------------------------------------------------------------------
 
 /**
+ * Load the schema's explanatory prose from the checkout under test.
+ *
+ * Returns undefined rather than throwing when the file is not there. A checkout
+ * from before feature 002 ships no pool, and the right behaviour then is to
+ * compare the description without prose and let the allowlist entry explain the
+ * difference, not to fail the whole run with an import error.
+ *
+ * @param {string} resolved  the checkout root
+ * @param {string} packageRoot  the `@idfkit/core` package root inside it
+ * @returns {Promise<readonly string[] | undefined>}
+ */
+async function importProse(resolved, packageRoot) {
+  // `@idfkit/schemas` sits beside `@idfkit/core` in the workspace, and its data
+  // directory is what ships in the published package too.
+  const candidates = [
+    join(resolved, 'packages', 'schemas', 'data', 'docs.json.gz'),
+    join(packageRoot, 'node_modules', '@idfkit', 'schemas', 'data', 'docs.json.gz'),
+    join(resolved, 'node_modules', '@idfkit', 'schemas', 'data', 'docs.json.gz'),
+  ];
+  const file = candidates.find((candidate) => isFile(candidate));
+  if (file === undefined) return undefined;
+
+  try {
+    const parsed = JSON.parse(gunzipSync(readFileSync(file)).toString('utf8'));
+    return Array.isArray(parsed) ? parsed : undefined;
+  } catch {
+    // A pool that will not parse is worse than none: it would produce prose for
+    // the wrong fields. Fall back to no prose and let the comparison say so.
+    return undefined;
+  }
+}
+
+/**
  * Import `@idfkit/core` out of the checkout at `root`, never from an installed copy elsewhere.
  *
  * The suite tests a checkout, so a package resolved from some ambient `node_modules` would silently
@@ -507,6 +567,7 @@ export async function importLibrary(root) {
     version: packageVersion(join(packageRoot, 'package.json')),
     core,
     node,
+    prose: await importProse(resolved, packageRoot),
   });
 }
 
@@ -629,6 +690,7 @@ export function buildJobs(corpus, caseIds, tags) {
         expectedParseOutcome: entry.parseOutcome,
         truth: entry.truth,
         assertions: ASSERTION_ORDER.filter((assertion) => entry.assertions.includes(assertion)),
+        writerOptions: entry.writerOptions,
       })
     );
   }
@@ -662,14 +724,24 @@ class Parse {
    * @param {ParseOutcome} outcome
    * @param {* | null} [document]
    * @param {string} [error]
+   * @param {readonly *[]} [diagnostics]
    */
-  constructor(outcome, document = null, error = '') {
+  constructor(outcome, document = null, error = '', diagnostics = []) {
     /** @type {ParseOutcome} */
     this.outcome = outcome;
     /** @type {* | null} */
     this.document = document;
     /** @type {string} */
     this.error = error;
+    /**
+     * The findings that STOPPED the read, from the error that reported them.
+     *
+     * Empty on success, because a read that succeeded had none by definition. The recoverable
+     * findings are a separate question and are read from the returning path by assertion 4.
+     *
+     * @type {readonly *[]}
+     */
+    this.diagnostics = Object.freeze([...diagnostics]);
     Object.freeze(this);
   }
 }
@@ -697,7 +769,13 @@ async function parseInput(library, job) {
     return new Parse(ParseOutcome.SUCCESS, library.core.parseEpJson(text, schema).document);
   } catch (error) {
     // Any failure to read is the observed outcome, not a crash.
-    return new Parse(ParseOutcome.FAILURE, null, describeError(error));
+    //
+    // `IdfParseError` carries every finding that stopped the parse. Any other error carries none,
+    // and an empty list is the honest answer rather than one synthesised from the message text.
+    const carried = Array.isArray(/** @type {*} */ (error)?.diagnostics)
+      ? /** @type {*} */ (error).diagnostics
+      : [];
+    return new Parse(ParseOutcome.FAILURE, null, describeError(error), carried);
   }
 }
 
@@ -786,8 +864,25 @@ function jsonable(value) {
  * @param {*} document
  * @returns {Promise<Record<string, unknown>>}
  */
-async function roundTripSnapshot(library, document) {
-  const text = library.core.writeIdf(document);
+function writerOptionsFor(options) {
+  // Mapped control by control rather than passed through, because the two writers spell the same
+  // thing differently and a pass-through would silently accept a name only one of them has. A
+  // control the case does not set is not passed at all, so the writer's own default applies.
+  if (options === null || options.isDefault) return {};
+
+  /** @type {Record<string, unknown>} */
+  const mapped = {};
+  if (options.compressed !== null) mapped['compressed'] = options.compressed;
+  if (options.comments !== null) mapped['comments'] = options.comments;
+  // The corpus counts indent in spaces; this writer takes the string itself.
+  if (options.indent !== null) mapped['indent'] = ' '.repeat(options.indent);
+  if (options.commentColumn !== null) mapped['commentColumn'] = options.commentColumn;
+  if (options.ordering !== null) mapped['ordering'] = options.ordering;
+  return mapped;
+}
+
+async function roundTripSnapshot(library, document, writerOptions = null) {
+  const text = library.core.writeIdf(document, writerOptionsFor(writerOptions));
   const scratch = mkdtempSync(join(tmpdir(), 'idfkit-conformance-'));
   try {
     const path = join(scratch, 'round-trip.idf');
@@ -846,12 +941,7 @@ export async function runCase(library, job, limit) {
  */
 async function runAssertion(library, job, assertion, parse, limit) {
   if (assertion === Assertion.DIAGNOSTICS) {
-    return new AssertionOutcome({
-      caseId: job.caseId,
-      assertion,
-      status: Status.SKIPPED,
-      reason: DIAGNOSTICS_DEFERRED,
-    });
+    return await assertDiagnostics(library, job, parse, limit);
   }
   if (assertion === Assertion.PARSE_OUTCOME) {
     return assertParseOutcome(job, parse, limit);
@@ -1025,7 +1115,7 @@ function assertEpjson(library, job, document, limit) {
  */
 async function assertRoundTrip(library, job, document, limit) {
   const original = documentSnapshot(document);
-  const reparsed = await roundTripSnapshot(library, document);
+  const reparsed = await roundTripSnapshot(library, document, job.writerOptions);
   return fromComparison(
     job.caseId,
     Assertion.ROUND_TRIP,
@@ -1101,6 +1191,100 @@ function objectTypesOf(document) {
 }
 
 /**
+ * One finding in the corpus vocabulary: what kind, where, and in which type.
+ *
+ * `message` is never included, and that is the whole design of this assertion. Wording is a
+ * presentation choice each library should stay free to improve; pinning it would turn every
+ * improvement into a conformance failure, and the suite would be edited to match rather than
+ * believed. `code` carries the meaning instead, from a table both libraries derive mechanically
+ * from Python's exception hierarchy.
+ *
+ * @param {*} diagnostic
+ * @returns {Record<string, unknown>}
+ */
+function diagnosticEntry(diagnostic) {
+  return {
+    code: diagnostic?.code ?? null,
+    line: diagnostic?.line ?? null,
+    typeName: diagnostic?.typeName ?? null,
+  };
+}
+
+/**
+ * Assertion 4: parse findings against `expected.diag.json`, as an unordered multiset.
+ *
+ * Two paths, one expectation. A read that FAILED reports the findings its error carried; a read
+ * that SUCCEEDED reports the recoverable findings the returning path hands back. Which path a case
+ * exercises is a property of its input, not something it declares, so the assertion reads whichever
+ * one applies and compares the same shape either way.
+ *
+ * Unordered, because the order findings are noticed in is an implementation detail of the scan and
+ * not something either library promises. A multiset rather than a set, because two skips of the
+ * same type at different lines are two findings, and collapsing them would hide exactly the bug
+ * this assertion was built to catch.
+ *
+ * @param {LibraryUnderTest} library
+ * @param {CaseJob} job
+ * @param {Parse} parse
+ * @param {number} limit
+ * @returns {Promise<AssertionOutcome>}
+ */
+async function assertDiagnostics(library, job, parse, limit) {
+  const expected = expectation(job, EXPECTED_DIAGNOSTICS);
+  if (expected === undefined) {
+    return missingExpectation(job.caseId, Assertion.DIAGNOSTICS, EXPECTED_DIAGNOSTICS);
+  }
+
+  /** @type {*[]} */
+  const differences = [];
+
+  // `diagnostics`: the findings from whichever path this input actually takes. A read that FAILED
+  // reports what its error carried; a read that SUCCEEDED reports what the returning path gave.
+  if (expected.diagnostics !== undefined) {
+    const found =
+      parse.outcome === ParseOutcome.FAILURE
+        ? parse.diagnostics.map(diagnosticEntry)
+        : await recoverableFindings(library, job);
+    differences.push(
+      ...compareUnordered(found, expected.diagnostics, { path: '/diagnostics' }).differences
+    );
+  }
+
+  // `recoverable`: the returning path, asked for explicitly.
+  //
+  // Needed because an input whose strict parse fails never reaches the returning path above, and
+  // the returning path is half of what this feature closed. A case that wants to compare it says
+  // so, and gets it whatever strict mode did.
+  if (expected.recoverable !== undefined) {
+    differences.push(
+      ...compareUnordered(await recoverableFindings(library, job), expected.recoverable, {
+        path: '/recoverable',
+      }).differences
+    );
+  }
+
+  return fromComparison(job.caseId, Assertion.DIAGNOSTICS, new Comparison(differences), limit);
+}
+
+/**
+ * The findings the returning path hands back for this input, in the corpus vocabulary.
+ *
+ * @param {LibraryUnderTest} library
+ * @param {CaseJob} job
+ * @returns {Promise<Record<string, unknown>[]>}
+ */
+async function recoverableFindings(library, job) {
+  if (job.inputFile === InputFile.IDF) {
+    const text = readFileSync(job.inputPath).toString(IDF_ENCODING);
+    const schema = await library.node.schemaFor(library.core.getIdfVersion(text));
+    return library.core.parseIdf(text, schema, { strict: false }).diagnostics.map(diagnosticEntry);
+  }
+  const text = readFileSync(job.inputPath, 'utf8');
+  const schema = await library.node.schemaFor(library.core.getEpJsonVersion(text));
+  return library.core.parseEpJson(text, schema, { strict: false }).diagnostics.map(diagnosticEntry);
+}
+
+/**
  * Assertion 5: the findings the library reports against `expected.validation.json`.
  *
  * The three severity arrays are concatenated because severity is one of the members a finding is
@@ -1171,7 +1355,7 @@ function assertIntrospection(library, job, document, limit) {
   /** @type {Record<string, unknown>} */
   const objectTypes = {};
   for (const objType of objectTypesOf(document)) {
-    const described = library.core.describeObjectType(document.schema, objType);
+    const described = library.core.describeObjectType(document.schema, objType, library.prose);
     objectTypes[objType] = {
       obj_type: described.objType,
       memo: orNull(described.memo),

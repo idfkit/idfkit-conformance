@@ -1,0 +1,31 @@
+title = "A parse that fails carries every finding that stopped it, in both languages"
+why = """
+The parity record said Python raises and TypeScript returns. Neither library ever did that: both
+default to strict and both raise. What actually differed was what the raise CARRIED. Python's
+IDFParseError has always held a collection of findings; TypeScript's IdfParseError held one
+finding flattened into `.line` and `.typeName`, and a caller who wanted the rest had nowhere to
+look.
+
+This case is that difference, made checkable. Two unknown object types, so a strict read stops at
+the first one, and both errors are asked what they carry.
+
+Only ONE finding is expected, not two. Both libraries stop at the first thing that stops them
+rather than collecting every problem in the file, and that is the behaviour being pinned: a fatal
+parse is not a validation pass. The second unknown type is in the file so that
+`malformed-unknown-type-recoverable`, which shares this input, has two findings to return.
+
+`AlsoNotReal` sits after `NotARealObjectType` and both are after a valid Building, so the finding's
+line number is a real position in the file rather than the first line of it. A finding with no
+position, or with a position that is always 1, would satisfy a comparison on code alone and prove
+nothing.
+
+truth = "convention" because there is no external authority here. ConvertInputFormat refuses the
+file and emits nothing to compare against, and it has no opinion about what a library's exception
+should carry. What is recorded is the shared vocabulary in runners/compare.md: the code is
+UnknownObjectType, taken from Python's exception hierarchy by dropping the suffix, and the position
+is read off the file by hand rather than copied from either library's output.
+"""
+tags = ["malformed", "tier1"]
+energyplus_version = "26.1.0"
+truth = "convention"
+assertions = ["parse-outcome", "diagnostics"]

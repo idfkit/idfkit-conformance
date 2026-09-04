@@ -333,6 +333,67 @@ export class Case {
  * `additionalProperties: false` in the schema rejects it, and duplicating it on disk would let the
  * two disagree.
  */
+export class WriterOptions {
+  /**
+   * Writer controls a case applies before re-reading its own output.
+   *
+   * Language-neutral. Each runner maps these onto its own writer's option names, because the two
+   * writers spell the same control differently and the corpus vocabulary belongs to neither.
+   *
+   * Every field defaults to `null`, meaning "leave the writer's default alone". That is what all
+   * 48 pre-existing cases mean, and adding this must not change a single one of their
+   * expectations. A case that sets a field is asserting FR-019: a document written under that
+   * control re-reads to the same structure it came from.
+   *
+   * @param {{ comments?: boolean | null, compressed?: boolean | null, indent?: number | null,
+   *           commentColumn?: number | null, ordering?: string | null }} fields
+   */
+  constructor({
+    comments = null,
+    compressed = null,
+    indent = null,
+    commentColumn = null,
+    ordering = null,
+  } = {}) {
+    /** @type {boolean | null} */
+    this.comments = comments ?? null;
+    /** @type {boolean | null} */
+    this.compressed = compressed ?? null;
+    /** @type {number | null} */
+    this.indent = indent ?? null;
+    /** @type {number | null} */
+    this.commentColumn = commentColumn ?? null;
+    /** @type {string | null} */
+    this.ordering = ordering ?? null;
+
+    if (this.ordering !== null && this.ordering !== 'sorted' && this.ordering !== 'source') {
+      throw new ManifestError(
+        `writer_options.ordering must be 'sorted' or 'source', got ${repr(this.ordering)}`
+      );
+    }
+    for (const [name, value] of [
+      ['indent', this.indent],
+      ['comment_column', this.commentColumn],
+    ]) {
+      if (value !== null && /** @type {number} */ (value) < 0) {
+        throw new ManifestError(`writer_options.${name} must not be negative, got ${repr(value)}`);
+      }
+    }
+    Object.freeze(this);
+  }
+
+  /** Whether this asks for anything at all. An absent block and an empty one are the same. */
+  get isDefault() {
+    return (
+      this.comments === null &&
+      this.compressed === null &&
+      this.indent === null &&
+      this.commentColumn === null &&
+      this.ordering === null
+    );
+  }
+}
+
 export class ManifestEntry {
   /** @param {ManifestEntryFields} fields */
   constructor({
@@ -350,6 +411,7 @@ export class ManifestEntry {
     expectedIntrospection = null,
     expectedDocsUrl = null,
     expectedTypeLookup = null,
+    writerOptions = null,
   }) {
     /** @type {string} */
     this.id = id;
@@ -379,6 +441,8 @@ export class ManifestEntry {
     this.expectedDocsUrl = expectedDocsUrl ?? null;
     /** @type {string | null} */
     this.expectedTypeLookup = expectedTypeLookup ?? null;
+    /** @type {WriterOptions | null} */
+    this.writerOptions = writerOptions ?? null;
 
     checkCaseId(this.id, ManifestError);
     checkNonEmpty(this.title, 'title', ManifestError);
@@ -1434,6 +1498,7 @@ const ENTRY_KEYS = new Set([
   'expected_introspection',
   'expected_docs_url',
   'expected_type_lookup',
+  'writer_options',
 ]);
 const MANIFEST_KEYS = new Set([
   '$schema',
@@ -1530,6 +1595,73 @@ function loadEntry(rawEntry, truth, path, index) {
     expectedIntrospection: readOptionalString(raw, 'expected_introspection', options),
     expectedDocsUrl: readOptionalString(raw, 'expected_docs_url', options),
     expectedTypeLookup: readOptionalString(raw, 'expected_type_lookup', options),
+    writerOptions: readWriterOptions(raw, options),
+  });
+}
+
+const WRITER_OPTION_KEYS = new Set([
+  'comments',
+  'compressed',
+  'indent',
+  'comment_column',
+  'ordering',
+]);
+
+/**
+ * Read the optional `writer_options` block, or `null` when the case declares none.
+ *
+ * An absent block and an empty one both mean every writer default, which is what every case
+ * written before feature 002 means and must keep meaning.
+ *
+ * @param {Record<string, unknown>} raw
+ * @param {{ path: string, where: string, error: * }} options
+ * @returns {WriterOptions | null}
+ */
+function readWriterOptions(raw, options) {
+  const value = raw['writer_options'];
+  if (value === undefined || value === null) return null;
+
+  const where = `${options.where}.writer_options`;
+  const block = readMapping(value, options.path, where, ManifestError);
+  rejectUnknownKeys(block, WRITER_OPTION_KEYS, { ...options, where });
+
+  /** @param {string} key */
+  const flag = (key) => {
+    const found = block[key];
+    if (found === undefined || found === null) return null;
+    if (typeof found !== 'boolean') {
+      throw new ManifestError(
+        `${options.path}: ${where}.${key} must be a boolean, got ${repr(found)}`
+      );
+    }
+    return found;
+  };
+
+  /** @param {string} key */
+  const count = (key) => {
+    const found = block[key];
+    if (found === undefined || found === null) return null;
+    if (typeof found !== 'number' || !Number.isInteger(found)) {
+      throw new ManifestError(
+        `${options.path}: ${where}.${key} must be an integer, got ${repr(found)}`
+      );
+    }
+    return found;
+  };
+
+  const ordering = block['ordering'];
+  if (ordering !== undefined && ordering !== null && typeof ordering !== 'string') {
+    throw new ManifestError(
+      `${options.path}: ${where}.ordering must be a string, got ${repr(ordering)}`
+    );
+  }
+
+  return new WriterOptions({
+    comments: flag('comments'),
+    compressed: flag('compressed'),
+    indent: count('indent'),
+    commentColumn: count('comment_column'),
+    ordering: ordering === undefined ? null : /** @type {string | null} */ (ordering),
   });
 }
 

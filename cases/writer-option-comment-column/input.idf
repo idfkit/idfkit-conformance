@@ -1,0 +1,21 @@
+! writer-option round trip
+Version,
+  26.1;
+
+Building,
+  Option Case,
+  30.0,
+  Suburbs,
+  0.04,
+  0.4,
+  FullExterior,
+  25,
+  6;
+
+Timestep,
+  4;
+
+GlobalGeometryRules,
+  UpperLeftCorner,
+  Counterclockwise,
+  Relative;

@@ -1,0 +1,5 @@
+{
+  "diagnostics": [
+    { "code": "UnknownObjectType", "line": 8, "typeName": "NotARealObjectType" }
+  ]
+}

@@ -10,7 +10,7 @@
 #
 # Three things consume it:
 #
-#   1. `idfkit/docs/explanation/parity.md` (T124) renders entirely from this file. Nothing on that
+#   1. `idfkit-developers/docs/explanation/parity.md` (T124) renders entirely from this file. Nothing on that
 #      page is hand-written, so a hand-edited page can never disagree with the source.
 #   2. The `parity(id)` documentation macro (T125, T126) resolves its argument against the `id`
 #      field below, renders an explicit statement of unavailability in the affected language and
@@ -33,7 +33,30 @@
 #   differences   non-empty string, required when either side is "partial"
 #   issue         tracking URL, required when absence_kind = "not-yet"
 #   note          string, required when absence_kind = "never"
+#   difference_kind    "not-yet" | "never", required when either side is "partial"
+#   difference_issue   tracking URL, required when difference_kind = "not-yet"
+#   difference_note    string, required when difference_kind = "never"
 #   names         list of naming-register concepts, required
+#
+# SAYING WHETHER A DIFFERENCE WILL CLOSE
+#
+# `differences` says WHAT differs. `difference_kind` says whether to wait for it. Without the
+# second, a reader meeting a `partial` capability cannot tell whether to write the difference into
+# their own code or leave a gap for it to be filled, and that is the question they actually have.
+#
+# The vocabulary is deliberately the same as `absence_kind`, and the pairing is the same:
+#
+#   "not-yet"   expected to close. Carries `difference_issue`, a real tracking item, on the same
+#               terms as `issue`: an entry with a fabricated URL is worse than one with none,
+#               because it passes the gate and dead-links the reader.
+#   "never"     will not close, by decision or because the two runtimes cannot meet.
+#               Carries `difference_note` saying why, and is TERMINAL: moving a capability off
+#               `never` needs a constitutional amendment, not an edit to this file, exactly as
+#               `absence_kind = "never"` does.
+#
+# The fields are separate from `issue` and `note` rather than reusing them, because a capability
+# can be `partial` on one side and `absent` on the other, and one pair of fields could not then
+# say which state it was describing.
 #
 # RULES THAT SHAPE THE ENTRIES BELOW
 #
@@ -81,59 +104,50 @@ names      = [
 
 # Python: write_idf, write_epjson (splitting into write_* and save_* in the rename batch)
 # TypeScript: writeIdf, writeEpJson, toEpJson, writeObject, saveIdf, saveEpJson
+# CLOSED 2026-09-04, feature 002.
+#
+# Five controls closed it: three into the first language (indent, comment column, ordering) and two
+# reckoned from the other direction (compressed output into the second, comment-free output already
+# on both). No writer default moved, and six of them are pinned by tests in each library
+# specifically so that a slipped default is a red test rather than a discovery.
+#
+# THE SEVEN DEFAULT-OUTPUT DIFFERENCES DID NOT GO AWAY. They moved, because the gate rejects a
+# `differences` field on a capability that is not partial, and a reader still meets them the first
+# time they diff two files. They now live at
+# `idfkit-developers/docs/explanation/two-writers-one-model.md`, which carries `parity("write")`,
+# states the measurement (5ZoneAirCooled.idf from EnergyPlus 26.1.0, 359 objects, 4,031 lines
+# against 4,125, re-measured on the day it closed), and says plainly that neither writer is more
+# correct, that both are published, and that byte-identical output is not promised and is not
+# coming.
+#
+# If that page is ever deleted, this information exists nowhere. That is the cost of closing an
+# entry whose `differences` field was doing real work, and it is recorded here so the next person
+# to tidy the documentation knows what they would be removing.
+#
+# The controls are proven by five corpus cases, one per control, under `writer-option-*`. One case
+# per control rather than one setting all five, so a failure names the control that broke. The
+# comparison is structural: each case writes its document under the control, re-reads it, and
+# compares parsed values, because comparing text would fail for the seven reasons above.
+#
+# Not in this entry: a lossless mode. `lossless-round-trip` is a separate Tier 2 entry, absent in
+# the second language and tracked as not yet ported.
+#
+# EVERY CONTROL NOW EXISTS ON BOTH SIDES. Two were still one-sided when this entry first moved to
+# complete: the first language's `ordering` and the second's `versionFirst`. The entry argued at the
+# time that neither gave a caller output the other writer could not produce, which was true and was
+# not what SC-007 asked for, and US4's second acceptance scenario named object ordering explicitly.
+# Both controls were added rather than the gap argued away, and all four option names are registered
+# as concepts in naming.toml.
+#
+# `writer-option-ordering` in the corpus checks something on both sides as a result. It did not
+# before: `source` was already the second writer's only behaviour, so the case would have passed
+# there even if the runner had dropped the option.
 [[capability]]
 id         = "write"
 title      = "Writing IDF and epJSON"
 tier       = "tier-1"
-python     = "partial"
-typescript = "partial"
-differences = """
-Both libraries write both formats, and every document either one writes is read back by the other
-and by EnergyPlus. What they do NOT do is produce the same bytes. One model written from Python and
-from JavaScript gives two files whose object headers match and whose every field line differs, and
-neither is more correct than the other, so the difference is recorded here rather than resolved by
-changing a writer both ecosystems have already published.
-
-Measured, not asserted. `5ZoneAirCooled.idf` from EnergyPlus 26.1.0, 359 objects, through
-`load_idf`/`save_idf` and through `loadIdf`/`saveIdf`, differs in seven ways:
-
-  1. Python opens the file with `!-Generator idfkit v<version>` and `!-Option SortedOrder`.
-     TypeScript writes no header.
-  2. Python orders objects by type name, alphabetically, with Version pinned first, which is what
-     its `SortedOrder` header declares. TypeScript groups objects by type in the order the types
-     first appeared in the source, with Version pinned first.
-  3. Python indents field lines two spaces. TypeScript indents four, and takes an `indent` option.
-  4. Both align the `!-` comment at column 30. They therefore overflow at different values, and on
-     overflow Python writes the comment flush against the comma while TypeScript keeps one space.
-  5. Python renders a float with `%g`, so an integral value loses its decimal point: `30.` in the
-     source comes back as `30`, and `0.0` as `0`. TypeScript consults the schema and writes `30.0`
-     and `0.0`, because JavaScript has one number type and a real-valued field would otherwise be
-     indistinguishable from an integer one on the way out.
-  6. Python title-cases every word of the field-name comment, `!- Number Of Vertices` and
-     `!- View Factor To Ground`. TypeScript keeps a list of minor words lowercase so the comment
-     reads as EnergyPlus writes it, `!- Number of Vertices` and `!- View Factor to Ground`. Both
-     drop the unit suffix the source carries, `{deg}` and the rest.
-  7. Python numbers the comment on each repeat of an extensible group, `!- Vertex X Coordinate 2`.
-     TypeScript repeats the unnumbered name on every repeat.
-
-Blank lines differ with them: Python puts one between every pair of objects, TypeScript one between
-objects of the same type and two at each type boundary. On this file that is 4031 lines against
-4125, for the same 359 objects.
-
-`partial` on BOTH sides, because neither writer's controls contain the other's. Python's `write_idf`
-takes `output_type`, so `"nocomment"` and `"compressed"`, and `preserve_formatting`; it offers no way
-to set the indent, the comment column, or the ordering. TypeScript's `writeIdf` takes `comments`,
-`commentColumn`, `indent`, and `versionFirst`; it has no compressed mode and no lossless mode, the
-second of which is `lossless-round-trip` rather than part of this entry.
-
-What is proven, and by what. The corpus asserts that a document survives its OWN writer without
-structural loss: assertion 3 re-parses each library's IDF output and compares object types, names,
-field names, field values, and field order against the document it started from. It does not compare
-the text, and `runners/compare.md` forbids any comparator from ever doing so, because one JSON value
-has many JSON texts. So the seven differences above are outside every assertion the corpus runs, and
-recording them here is the only place a reader meets them. A reader who needs byte-identical output
-from both languages does not have it and is not going to: pass EnergyPlus the model, not a diff.
-"""
+python     = "complete"
+typescript = "complete"
 names      = [
   "serialize IDF to a string",
   "serialize epJSON to a string",
@@ -225,28 +239,32 @@ names      = [
 # Python: describe_object_type, ObjectDescription, FieldDescription
 # TypeScript: describeObjectType, ObjectDescription, FieldDescription
 # Ported in this feature (research R15, introspection.py, 315 lines).
+#
+# CLOSED 2026-09-04, feature 002. The `differences` text is gone because the gate rejects one on a
+# capability that is not partial, and it is not moved to a page: nothing survives it. All three
+# families are closed rather than documented as permanent.
+#
+# What closed, and where: `@idfkit/schemas` now emits a deduplicated prose pool to
+# `data/docs.json.gz`, 4,878 distinct strings, referenced by one integer per record and per
+# property. `describeObjectType` takes it as an optional third argument and stays synchronous, so a
+# caller who passes nothing sees exactly what they saw before. The empty string is carried beside
+# the validated enum as `eb` and restored by the description path, so `validate()` is unmoved. The
+# sentinel branch `se` was already in the bundle and is now read. Declaration order is recorded as
+# `fo` for the three types that need it.
+#
+# Two claims in the removed text were false and are recorded here rather than silently dropped.
+# The `@idfkit/schemas/docs` subpath was said to be promised by a header comment; no header comment
+# promises it, and none was added, since the pool is reached through the ordinary bundle source.
+# Field order was said to differ for two types in 26.1.0 and six more in 8.9.0 through 9.2.0.
+# Measured across all seventeen bundled schemas it is three types, the same three every time, and
+# one of those three agreed with Python anyway because its two fields sort into declaration order.
+# So the count was wrong in both halves, and accidentally right about 26.1.0.
 [[capability]]
 id         = "introspection"
 title      = "Describing an object type from the schema"
 tier       = "tier-1"
 python     = "complete"
-typescript = "partial"
-differences = """
-TypeScript never populates `memo` or `note`. Both are members of the two types, so the field set
-matches, but they are always undefined. Python fills `memo` for 845 of 858 object types and `note`
-for 6,212 of 12,712 fields in 26.1.0, both from epJSON keys that `@idfkit/schemas` drops on purpose
-to keep the bundle off the parse critical path. The `@idfkit/schemas/docs` subpath its own header
-comment promises does not exist. Describing a type is what a REPL, a notebook, and an LSP hover are
-for, so the prose is most of the value; this is partial rather than complete.
-
-Two further differences, both small and both pinned by tests. `enumValues` omits the empty string
-that Python includes for 1,378 of its 2,293 enum-bearing fields, and omits the sentinel lists
-(`Autosize`, `Autocalculate`) Python recovers from an anyOf branch for 769 fields. Field ORDER
-differs for exactly two types in 26.1.0, `ZoneProperty:UserViewFactors:BySurfaceName` and
-`ZoneTerminalUnitList`, and for six more in 8.9.0 through 9.2.0, because the bundle sorts property
-keys for content-addressing and those types carry no positional field list to restore declaration
-order from.
-"""
+typescript = "complete"
 names      = [
   "describe an object type",
   "object description",
@@ -292,6 +310,21 @@ Application differs too. Python's stubs apply implicitly to every document. Type
 by construction: an unparameterised document stays untyped, which is what version-generic code
 needs.
 """
+difference_kind = "not-yet"
+difference_issue = "https://github.com/idfkit/idfkit/issues/194"
+difference_note = """
+The COVERAGE half is expected to close and is tracked. Research for feature 002's withdrawn User
+Story 7 established that per-version stubs cost roughly 8 to 9 percent on the shipped type
+information rather than seventeen copies, because every version range is contiguous and a pair of
+endpoints expresses it.
+
+The APPLICATION half is not a gap and is not closing: Python's stubs apply implicitly to every
+document, TypeScript's are opt-in because an unparameterised document stays untyped. That is each
+language's type system, not a difference in what the libraries offer.
+
+The entry is `not-yet` on the strength of the first, because that is the half a reader should wait
+for rather than write around.
+"""
 names      = [
   "generated object types",
   "a version type map",
@@ -299,26 +332,60 @@ names      = [
 
 # Python: IDFParseError carries ParseDiagnostic entries; non-fatal problems go to the logger
 # TypeScript: ParseResult.diagnostics, ParseDiagnostic, LexDiagnostic, loadIdfWithDiagnostics
+#
+# THIS ENTRY IS THE IDF PARSER, AND ONLY THE IDF PARSER.
+#
+# The title said "a parse" until 2026-09-04 and was narrowed, because the two formats are not in the
+# same state and one entry covering both cannot be marked complete without saying something false.
+#
+# The epJSON parsers do not agree, and feature 002 did not close it. TypeScript's builds diagnostics
+# the same way its IDF parser does (packages/core/src/parse/epjson.ts:25-30, :37, :83). Python's
+# builds none at all: `_parse_objects` drops a malformed object type at epjson_parser.py:226 and a
+# malformed object at :246, in both cases with a bare `continue`, so the caller cannot tell a file
+# that never held the object from one where it was discarded. No exception, no log line, no
+# diagnostic.
+#
+# This is recorded rather than closed, per Principle III, and it is why the entry's scope is narrow.
+# It is a real one-sided gap and it outlives this entry's move to complete: `differences` is deleted
+# when a capability stops being partial, so the note lives here, in a comment, where the closure
+# cannot take it away. Closing it means giving Python's epJSON parser the diagnostics its IDF parser
+# now has, and belongs to whichever feature takes it.
+# CLOSED 2026-09-04, feature 002.
+#
+# Four changes closed it, all additive. The second language's error carries the whole collection of
+# findings that stopped the parse rather than one flattened into `.line` and `.typeName`; both
+# diagnostics gained a `code` from the eight-value table in runners/compare.md; the second language's
+# findings gained a column, a file path and the object concerned, so both carry the same kinds of
+# location (FR-033); and the first language gained `load_idf_with_diagnostics`, which returns the
+# recoverable findings beside the document in one call.
+#
+# THE RECORD'S FRAMING WAS WRONG AND IS CORRECTED RATHER THAN CARRIED FORWARD. The removed text said
+# Python raises and TypeScript returns. Neither library ever did that: `parse_idf` defaults to
+# `strict_parsing=True` and raises, `parseIdf` defaults to `strict: true` and throws. The text
+# described the non-strict mode while reading as though it described the default. What actually
+# differed was narrower and is now closed, so the prose goes as history rather than being amended.
+#
+# Proven by corpus assertion 4, which was declared, deferred and skipped by both runners from the
+# day the corpus was written until this feature landed it. Two cases were added for the two paths,
+# sharing one input read both ways, so a difference between them is a difference between the paths.
+#
+# FOUR DIAGNOSTICS DIVERGENCES REMAIN ALLOWLISTED, and `complete` is recorded knowing it, on the
+# same footing as `parse` and `write`, which carry fifteen and four. This field records whether a
+# capability is implemented in both languages, not whether every bug in it is fixed; the corpus
+# records the bugs, each against a tracked issue. Three of the four are a shared silence where both
+# libraries agree and both differ from the oracle (idfkit 191, idfkit-js 36) plus one narrow
+# tokenizer difference in which type name is captured (idfkit 190).
 [[capability]]
 id         = "parse-diagnostics"
-title      = "Diagnostics from a parse"
+title      = "Diagnostics from an IDF parse"
 tier       = "tier-1"
-python     = "partial"
+python     = "complete"
 typescript = "complete"
-differences = """
-Both libraries produce diagnostics for a malformed input; only one hands them back. Python raises
-IDFParseError carrying the diagnostics that stopped the parse, and reports the recoverable ones
-(skipped malformed objects, discarded formatting trees, surplus fields on a non-extensible type)
-through the logging module, where a caller who wants them must install a handler. TypeScript
-returns them: parseIdf and loadIdfWithDiagnostics both yield a ParseResult whose `diagnostics`
-array holds the non-fatal findings alongside the document.
-
-This matters to the conformance corpus, whose `diagnostics` assertion compares what each side
-reports for a malformed case (contracts/conformance-corpus.md).
-"""
 names      = [
   "a parse diagnostic",
   "diagnostics from a parse",
+  "recoverable diagnostics from a parse",
+  "a document and its parse findings",
 ]
 
 # Python: idfkit.weather StationIndex (load, search, check_for_updates), WeatherStation,
@@ -360,6 +427,23 @@ they check for themselves.
 The installation difference above is the whole weather surface's, not the index's alone. It is
 stated here because the index is where a reader meets it first, and `weather-download` and
 `weather-file-cache` refer back to it rather than repeat it.
+"""
+difference_kind = "never"
+difference_note = """
+Both halves of this are decisions rather than gaps, and neither is going to close.
+
+The packaging is deliberate. Python extras gate dependencies rather than files, so `pip install
+idfkit` cannot avoid installing weather; npm can, and weather is an opt-in peer there. Making the
+two agree would mean either forcing weather into every npm install or removing it from every pip
+install, and each of those is a worse outcome than the difference.
+
+The freshness nudge is a platform consequence. Python's throttled probe is built on a writable
+cache directory to record when it last ran; a browser-targeted package has none, so a nudge there
+would either run on every load or not throttle at all. `checkForUpdates` and `refreshStationIndex`
+give a caller who asks the same answer.
+
+A reader should therefore write to the difference rather than wait for it: install
+`@idfkit/weather` explicitly, and call the freshness check rather than expecting one.
 """
 names      = [
   "the station index",
@@ -425,6 +509,23 @@ because the caller had to obtain an index already and the function has nowhere t
 typescript = "partial" records the missing selective extraction and nothing else. It is not a
 verdict on the on-disk cache: that is `weather-file-cache`, which is permanently absent by decision
 rather than missing.
+"""
+difference_kind = "never"
+difference_note = """
+The one thing `partial` records here is selective extraction, and it follows from a platform
+difference rather than from an omission.
+
+`only={".epw"}` is a property of writing into a cache: Python extracts a chosen subset because it
+is deciding what to put on disk. The JavaScript side has no disk, decodes the archive in memory,
+and therefore already holds every member; a parameter to extract fewer would save nothing and
+return less. Closing it would mean giving the browser side a cache it cannot have.
+
+The related asymmetries the prose describes are the same fact seen from other angles: paths against
+text, a required index argument against an optional one, retrieval split from writing. None of them
+is a gap and none is closing.
+
+`weather-file-cache` is where the on-disk cache itself is recorded, permanently absent by the same
+reasoning.
 """
 names      = [
   "download a weather file",

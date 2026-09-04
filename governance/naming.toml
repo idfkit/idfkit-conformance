@@ -14,7 +14,7 @@
 #
 # HOW THIS FILE IS RENDERED
 #
-# `idfkit/docs/explanation/naming-map.md` renders from this file at the same pinned tag. This file
+# `idfkit-developers/docs/explanation/naming-map.md` renders from this file at the same pinned tag. This file
 # is the source; that page is a view. Hand-editing the page so that it disagrees with this file is
 # the exact failure mode the split exists to prevent.
 #
@@ -32,7 +32,7 @@
 [register]
 schema_version = "1"
 governs = ["idfkit", "@idfkit/core", "@idfkit/weather"]
-renders_to = "idfkit/docs/explanation/naming-map.md"
+renders_to = "idfkit-developers/docs/explanation/naming-map.md"
 read_at = "a pinned governance-YYYY.N tag of idfkit-conformance, never the default branch"
 review = "a maintainer of the other language, enforced by CODEOWNERS in both repositories"
 
@@ -1033,25 +1033,95 @@ python     = "idfkit.exceptions.ParseDiagnostic"
 typescript = "ParseDiagnostic"
 kind       = "aligned"
 notes      = """
-One finding from a parse: a message, a location, and a severity. Python reaches it at
-`idfkit.exceptions.ParseDiagnostic` rather than through the top-level `__all__`.
+One finding from a parse: a message, a machine-readable `code`, and as much location as the parser
+had at the point it noticed. Python reaches it at `idfkit.exceptions.ParseDiagnostic` rather than
+through the top-level `__all__`.
+
+There is no severity. An earlier version of this note claimed one, and neither implementation has
+ever carried it: every diagnostic either stopped the parse or was recoverable, and which of those it
+was is told by the path it arrives on rather than by a field. The claim is corrected here rather than
+implemented, because adding a field to match a note nobody had checked is the wrong direction.
+
+`code` was added in feature 002 and is the field the corpus compares. It is derived from the
+exception hierarchy by dropping the suffix, so the same eight values exist in both languages; the
+message text is not compared and is free to differ.
+
+TypeScript gained the object concerned in feature 002, and declares a file path and a column beside
+it, so both sides name the same kinds of location (FR-033). Only Python fills all four today: the
+TypeScript lexer counts lines and not columns, and `parseIdf` is handed text rather than a path, so
+neither value exists where a finding is built. Both are optional and absent rather than invented.
+`obj_type` against `typeName` stays as it is: that is the casing rule this register already records,
+not a gap.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "a document and its parse findings"
+python     = "ParseResult"
+typescript = "ParseResult"
+kind       = "aligned"
+notes      = """
+What the returning path hands back: the document, and the recoverable findings that did not stop the
+parse. A frozen dataclass in Python and an interface in TypeScript, which is the house shape for a
+value object in each language.
+
+TypeScript has returned this since it was written. Python's is new in feature 002 and is reached
+through `load_idf_with_diagnostics`; the field names match, so a reader moving between the two reads
+the same two names in the same order.
+
+Registered in the same change as the path that returns it, and before either shipped.
 """
 rename_count = { python = 0, typescript = 0 }
 
 [[entry]]
 concept    = "diagnostics from a parse"
 python     = "IDFParseError.diagnostics"
-typescript = "ParseResult.diagnostics"
-kind       = "divergent"
-divergence_reason = """
-Python raises and TypeScript returns. `IDFParseError` carries the diagnostics that stopped the
-parse, which is how a Python caller expects to meet a failure it must handle, and the recoverable
-findings go to the logging module. TypeScript's `parseIdf` returns a `ParseResult` whose
-`diagnostics` array holds the non-fatal findings alongside the document, because a throwing parser
-in a browser costs the caller the partial document it could still show.
+typescript = "IdfParseError.diagnostics"
+kind       = "aligned"
+notes      = """
+The findings that stopped a parse, carried by the error that reports it. Both languages raise by
+default and both now carry the whole collection rather than one finding flattened into fields.
 
-Each is idiomatic where it lives. The difference is visible to a reader, so the parity ledger records
-it under `parse-diagnostics` and the corpus asserts what each side reports for a malformed case.
+This entry was recorded as divergent, on the grounds that Python raises and TypeScript returns. That
+was never what the two did: `parse_idf` defaults to `strict_parsing=True` and raises, `parseIdf`
+defaults to `strict: true` and throws. The recorded divergence described the non-strict mode while
+reading as though it described the default. What actually differed was narrower, and feature 002
+closed it: TypeScript's error carried `.line` and `.typeName` from a single finding and now carries
+the collection, with both accessors kept resolving to the first finding's values so no existing
+caller breaks (FR-014).
+
+THIS ENTRY IS THE ERROR'S COLLECTION. The result's is `recoverable diagnostics from a parse`, below.
+
+The registered pair was `IDFParseError.diagnostics` against `ParseResult.diagnostics` until
+2026-09-04. That crossed the two paths, and the crossing was the shape of the divergence. Splitting
+it into one concept per carrier is what makes both entries alignable, and it costs one TypeScript
+rename: this concept's TypeScript name moves from `ParseResult.diagnostics`, which has not gone
+anywhere and is registered below, to `IdfParseError.diagnostics`. Python's name does not move, so
+its budget is untouched.
+
+The rename is spent deliberately and is the cheaper of the two available. Mapping this concept to
+the result instead would have kept the TypeScript name and renamed Python, which is the same cost
+against a name that already exists rather than one that is landing in the same feature.
+
+Python's logging announcements are unchanged and are not a third name: they are the same findings
+reaching a caller who installed a handler.
+"""
+rename_count = { python = 0, typescript = 1 }
+
+[[entry]]
+concept    = "recoverable diagnostics from a parse"
+python     = "ParseResult.diagnostics"
+typescript = "ParseResult.diagnostics"
+kind       = "aligned"
+notes      = """
+The findings that did NOT stop the parse, carried alongside the document the parse still produced.
+Reached through `load_idf_with_diagnostics` and `loadIdfWithDiagnostics`, or by parsing with the
+strict flag off.
+
+TypeScript has carried these since it was written; this is the name it has always had, unmoved.
+Python's is new in feature 002 and is registered here before it ships. Splitting them from
+`diagnostics from a parse` above is what lets both concepts be aligned rather than one entry
+pretending an error member and a result member are the same name.
 """
 rename_count = { python = 0, typescript = 0 }
 
@@ -2911,6 +2981,70 @@ rename_count = { python = 0, typescript = 0 }
 # names are consequences of one language's type system rather than choices either language could
 # share. None of them is a gap in Python, and FR-068 and FR-078 forbid recording them as one.
 
+# ---------------------------------------------------------------------------
+# Entries: the writer's controls (FR-016)
+# ---------------------------------------------------------------------------
+#
+# The option CONTAINERS are excluded below, because an options object is a TypeScript necessity and
+# a Python redundancy. The option NAMES are not: they are concepts a reader meets in both languages,
+# and `preserve formatting on a round-trip` has been registered that way since the register was
+# written. These four join it, registered in the change that made all five writer controls exist on
+# both sides (feature 002, SC-007).
+
+[[entry]]
+concept    = "indent width"
+python     = "indent"
+typescript = "indent"
+kind       = "aligned"
+notes      = """
+How far each field line is indented. A count of spaces in Python, the string itself in TypeScript,
+which is the shape each language's callers expect and is recorded here rather than reconciled.
+
+The DEFAULTS differ and are not moving: two spaces in Python, four in TypeScript. Both are published
+and neither is more correct, which is the whole subject of the `two writers, one model` page.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "comment column"
+python     = "comment_column"
+typescript = "commentColumn"
+kind       = "aligned"
+notes      = """
+The column field-name comments are padded to. The one writer default of the six that already agreed:
+30 on both sides.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "object ordering"
+python     = "ordering"
+typescript = "ordering"
+kind       = "aligned"
+notes      = """
+How object types are ordered on the way out. Takes `sorted` or `source` rather than a boolean,
+because three behaviours exist across the two languages and two formats and a flag cannot say which
+of the three is wanted.
+
+The defaults differ and are not moving: `sorted` in Python, whose `!-Option SortedOrder` header
+announces it, and `source` in TypeScript, which is insertion order.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "pin the version object first"
+python     = "version_first"
+typescript = "versionFirst"
+kind       = "aligned"
+notes      = """
+Whether `Version` is written ahead of every other type, whatever the ordering. Defaults to true on
+both sides, which is what both writers did before the control existed.
+
+Composes with `object ordering` rather than overriding it: the ordering decides the sequence, this
+decides whether Version is lifted out of it.
+"""
+rename_count = { python = 0, typescript = 0 }
+
 [[entry]]
 concept    = "the options-object types"
 python     = ""
@@ -3087,18 +3221,23 @@ rename_count = { python = 0, typescript = 0 }
 
 [[entry]]
 concept    = "read IDF from disk, keeping diagnostics"
-python     = ""
+python     = "load_idf_with_diagnostics"
 typescript = "loadIdfWithDiagnostics"
-kind       = "divergent"
-divergence_reason = """
-TypeScript needs two loaders because it returns rather than raises: `loadIdf` hands back the document
-and drops the non-fatal findings, and this one hands back the `ParseResult` with both. A single
-loader would either force every caller to unwrap a result they usually do not want, or throw away
-findings a viewer wants to show.
+kind       = "aligned"
+notes      = """
+Both languages need two loaders because the recoverable findings are worth keeping and most callers
+do not want to unwrap a result to get the document. `load_idf` and `loadIdf` hand back the document
+and drop the non-fatal findings; these two hand back a document and its findings together.
 
-Python needs only `load_idf`, because the findings that stop a parse arrive on `IDFParseError` and
-the recoverable ones go to the logging module. That is the `diagnostics from a parse` divergence,
-seen from the disk-reading side.
+Python had no counterpart until feature 002. The recoverable findings went to the logging module and
+were reachable only by installing a handler before the parse, which is not one call and not the same
+findings the other language returns. The logging announcements still fire, unchanged, for callers who
+rely on them (FR-014); this entry adds a second way to reach the same findings, and removes none.
+
+Does the work `strict_parsing=False` does in Python and `strict: false` does in TypeScript, without
+asking for it: a strict parse has no recoverable findings, since the first one stops it, so the
+Python loader takes no `strict_parsing` argument at all. The fatal path is unchanged in both and is
+recorded under `diagnostics from a parse`.
 """
 rename_count = { python = 0, typescript = 0 }
 

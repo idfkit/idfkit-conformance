@@ -1,0 +1,20 @@
+! tier1-introspection-field-order
+Version,
+  9.4;                                    !- Version Identifier
+
+ZoneTerminalUnitList,
+  Ordered Terminal Unit List,             !- Zone Terminal Unit List Name
+  Ordered Terminal Unit;                  !- Zone Terminal Unit Name 1
+
+SolarCollector:UnglazedTranspired:Multisystem,
+  Ordered Multisystem Collector,          !- Solar Collector Name
+  Ordered Inlet Node,                     !- Outdoor Air System Collector Inlet Node 1
+  Ordered Outlet Node,                    !- Outdoor Air System Collector Outlet Node 1
+  Ordered Mixed Air Node,                 !- Outdoor Air System Mixed Air Node 1
+  Ordered Zone Node;                      !- Outdoor Air System Zone Node 1
+
+ZoneProperty:UserViewFactors:BySurfaceName,
+  Ordered View Factor Zone,               !- Zone or ZoneList Name
+  Ordered From Surface,                   !- From Surface 1
+  Ordered To Surface,                     !- To Surface 1
+  0.5;                                    !- View Factor 1

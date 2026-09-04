@@ -14,8 +14,8 @@ What it checks, per case, in this order:
 1. ``parse-outcome``  the input parses, or fails to parse, exactly as ``case.toml`` declares.
 2. ``epjson``         the library's canonical epJSON equals the committed ``expected.epJSON``.
 3. ``round-trip``     re-parsing the library's own IDF output deep-equals the original document.
-4. ``diagnostics``    accepted and reported as skipped. Assertion 4 is deferred to phase two, and a
-                      case may declare it today so that landing it later changes no case file.
+4. ``diagnostics``    the parse findings the library reports equal ``expected.diag.json``, compared
+                      as an unordered multiset of ``(code, line, typeName)`` and never on message text.
 5. ``validation``     the library's validation findings equal ``expected.validation.json``.
 6. ``introspection``  the library's type descriptions equal ``expected.introspection.json``.
 7. ``docs-url``       the library's documentation addresses equal ``expected.docs-url.json``.
@@ -107,6 +107,7 @@ from model import (  # noqa: E402
     DIVERGENCE_FILE,
     EXPECTED_DOCS_URL,
     EXPECTED_EPJSON,
+    EXPECTED_DIAGNOSTICS,
     EXPECTED_INTROSPECTION,
     EXPECTED_TYPE_LOOKUP,
     EXPECTED_VALIDATION,
@@ -121,6 +122,7 @@ from model import (  # noqa: E402
     ParseOutcome,
     Tag,
     Truth,
+    WriterOptions,
     load_corpus,
     load_manifest,
 )
@@ -194,11 +196,6 @@ EXIT_OK: Final = 0
 EXIT_FAILED: Final = 1
 EXIT_UNUSABLE: Final = 2
 
-DIAGNOSTICS_DEFERRED: Final = (
-    "assertion 4 is deferred to phase two and is not compared yet. The case may declare it today "
-    "so that landing it later changes no case file"
-)
-
 
 class RunnerError(Exception):
     """The run cannot start: a bad flag, or a ``--library`` path with nothing importable in it."""
@@ -264,6 +261,7 @@ class CaseJob:
     expected_parse_outcome: ParseOutcome
     truth: Truth
     assertions: tuple[Assertion, ...]
+    writer_options: WriterOptions | None = None
 
     @property
     def input_path(self) -> Path:
@@ -500,6 +498,7 @@ def build_jobs(corpus: Corpus, case_ids: Sequence[str], tags: Sequence[Tag]) -> 
                 expected_parse_outcome=entry.parse_outcome,
                 truth=entry.truth,
                 assertions=tuple(a for a in ASSERTION_ORDER if a in entry.assertions),
+                writer_options=entry.writer_options,
             )
         )
 
@@ -527,6 +526,9 @@ class _Parse:
     outcome: ParseOutcome
     document: Any = None
     error: str = ""
+    #: The findings that STOPPED the read, from the error that reported them. Empty on success,
+    #: because a read that succeeded had none by definition.
+    diagnostics: tuple[Any, ...] = ()
 
 
 def _parse_input(job: CaseJob) -> _Parse:
@@ -539,7 +541,10 @@ def _parse_input(job: CaseJob) -> _Parse:
         else:
             document = idfkit.parse_epjson(job.input_path)
     except Exception as error:  # any failure to read is the observed outcome, not a crash
-        return _Parse(ParseOutcome.FAILURE, None, f"{type(error).__name__}: {error}")
+        # `IDFParseError` carries every finding that stopped the parse. Any other exception carries
+        # none, and an empty tuple is the honest answer rather than one synthesised from the text.
+        carried = tuple(getattr(error, "diagnostics", ()) or ())
+        return _Parse(ParseOutcome.FAILURE, None, f"{type(error).__name__}: {error}", carried)
     return _Parse(ParseOutcome.SUCCESS, document)
 
 
@@ -579,16 +584,49 @@ def _jsonable(value: Any) -> Any:
     raise RunnerError(f"field value of type {type(value).__name__!r} is not a JSON value: {value!r}")
 
 
-def _round_trip_snapshot(document: Any) -> dict[str, Any]:
+def _writer_kwargs(options: WriterOptions | None) -> dict[str, Any]:
+    """Map the corpus's language-neutral controls onto this library's writer arguments.
+
+    Written out control by control rather than passed through, because the two writers spell the
+    same thing differently and a pass-through would silently accept a name only one of them has.
+    A control the case does not set is not passed at all, so the writer's own default applies.
+    """
+    if options is None or options.is_default:
+        return {}
+
+    kwargs: dict[str, Any] = {}
+    # `comments` and `compressed` are both `output_type` here, where the other language has two
+    # independent options. Compressed wins when both are asked for: it has no comments by
+    # definition, so the narrower request is unambiguous.
+    if options.compressed:
+        kwargs["output_type"] = "compressed"
+    elif options.comments is False:
+        kwargs["output_type"] = "nocomment"
+
+    if options.indent is not None:
+        kwargs["indent"] = options.indent
+    if options.comment_column is not None:
+        kwargs["comment_column"] = options.comment_column
+    if options.ordering is not None:
+        kwargs["ordering"] = options.ordering
+    return kwargs
+
+
+def _round_trip_snapshot(document: Any, options: WriterOptions | None = None) -> dict[str, Any]:
     """Write the document as IDF, read it back, and snapshot the result.
 
     Rule 6: the IDF is written and read as latin-1, never as UTF-8 and never at a platform default.
     ``preserve_formatting=False`` is explicit because the lossless path echoes the source text back,
     which would make the assertion trivially true and test nothing.
+
+    FR-019: when the case declares writer controls, the document is written UNDER them and read back
+    without them. What survives is compared over parsed values, never over text: the two writers
+    differ on defaults that no control removes, so a textual comparison would fail for reasons that
+    have nothing to do with the control being exercised.
     """
     import idfkit
 
-    text = idfkit.write_idf(document, preserve_formatting=False)
+    text = idfkit.write_idf(document, preserve_formatting=False, **_writer_kwargs(options))
     with tempfile.TemporaryDirectory(prefix="idfkit-conformance-") as scratch:
         path = Path(scratch) / "round-trip.idf"
         path.write_text(text, encoding=IDF_ENCODING)
@@ -616,9 +654,10 @@ def run_case(job: CaseJob, limit: int) -> CaseOutcome:
 
 
 def _run_assertion(job: CaseJob, assertion: Assertion, parse: _Parse, limit: int) -> AssertionOutcome:
-    """Dispatch one assertion. Assertion 4 is accepted and skipped."""
+    """Dispatch one assertion. Assertion 4 runs before the document guard: a read that failed still
+    has findings to compare, and they are the whole point of the case."""
     if assertion is Assertion.DIAGNOSTICS:
-        return AssertionOutcome(job.case_id, assertion, Status.SKIPPED, DIAGNOSTICS_DEFERRED)
+        return _assert_diagnostics(job, parse, limit)
     if assertion is Assertion.PARSE_OUTCOME:
         return _assert_parse_outcome(job, parse, limit)
     if parse.document is None:
@@ -720,7 +759,7 @@ def _assert_epjson(job: CaseJob, document: Any, limit: int) -> AssertionOutcome:
 def _assert_round_trip(job: CaseJob, document: Any, limit: int) -> AssertionOutcome:
     """Assertion 3: re-parsing the library's own IDF output against the original document."""
     original = document_snapshot(document)
-    reparsed = _round_trip_snapshot(document)
+    reparsed = _round_trip_snapshot(document, job.writer_options)
     return _from_comparison(job.case_id, Assertion.ROUND_TRIP, compare_documents(reparsed, original), limit)
 
 
@@ -845,6 +884,94 @@ def _type_lookup_snapshot(document: Any, queries: Mapping[str, Any]) -> dict[str
             "present": written in document,
         }
     return {"lookups": lookups, "object_types_after": sorted(document.collections)}
+
+
+def _diagnostic_entry(diagnostic: Any) -> dict[str, Any]:
+    """One finding in the corpus vocabulary: what kind, where, and in which type.
+
+    `message` is never included, and that is the whole design of this assertion. Wording is a
+    presentation choice each library should stay free to improve; pinning it would turn every
+    improvement into a conformance failure, and the suite would be edited to match rather than
+    believed. `code` carries the meaning instead, from a table both libraries derive mechanically
+    from Python's exception hierarchy.
+
+    `typeName` is the corpus spelling of Python's `obj_type`. The runner renames and never
+    reshapes: the casing difference between the two libraries is recorded in the naming register as
+    idiomatic, not as a gap, and it must not leak into what the corpus compares.
+    """
+    return {
+        "code": getattr(diagnostic, "code", None),
+        "line": getattr(diagnostic, "line", None),
+        "typeName": getattr(diagnostic, "obj_type", None),
+    }
+
+
+def _assert_diagnostics(job: CaseJob, parse: _Parse, limit: int) -> AssertionOutcome:
+    """Assertion 4: parse findings against ``expected.diag.json``, as an unordered multiset.
+
+    Two paths, one expectation. A read that FAILED reports the findings its error carried; a read
+    that SUCCEEDED reports the recoverable findings the returning path hands back. Which path a
+    case exercises is a property of its input, not something it declares, so the assertion reads
+    whichever one applies and compares the same shape either way.
+
+    Unordered, because the order findings are noticed in is an implementation detail of the scan
+    and not something either library promises. A multiset rather than a set, because two skips of
+    the same type at different lines are two findings and collapsing them would hide exactly the
+    bug this assertion was built to catch.
+    """
+    path = job.case_dir / EXPECTED_DIAGNOSTICS
+    missing = _missing_expectation(job, Assertion.DIAGNOSTICS, path)
+    if missing is not None:
+        return missing
+
+    expected = json.loads(path.read_text(encoding="utf-8"))
+    differences: list[Any] = []
+
+    # `diagnostics`: the findings from whichever path this input actually takes. A read that FAILED
+    # reports what its error carried; a read that SUCCEEDED reports what the returning path gave.
+    if "diagnostics" in expected:
+        found = (
+            [_diagnostic_entry(d) for d in parse.diagnostics]
+            if parse.outcome is ParseOutcome.FAILURE
+            else _recoverable_findings(job)
+        )
+        differences.extend(
+            compare_unordered(found, expected["diagnostics"], path=json_pointer("diagnostics")).differences
+        )
+
+    # `recoverable`: the returning path, asked for explicitly.
+    #
+    # Needed because an input whose strict parse fails never reaches the returning path above, and
+    # the returning path is half of what this feature closed. A case that wants to compare it says
+    # so, and gets it whatever strict mode did.
+    if "recoverable" in expected:
+        differences.extend(
+            compare_unordered(
+                _recoverable_findings(job),
+                expected["recoverable"],
+                path=json_pointer("recoverable"),
+            ).differences
+        )
+
+    return _from_comparison(job.case_id, Assertion.DIAGNOSTICS, Comparison(tuple(differences)), limit)
+
+
+def _recoverable_findings(job: CaseJob) -> list[dict[str, Any]]:
+    """The findings the returning path hands back for this input, in the corpus vocabulary.
+
+    One call, with no handler installed beforehand, which is what SC-006 asks for.
+    """
+    import idfkit
+
+    if job.input_file is not InputFile.IDF:
+        # epJSON has no returning path in this library, and its parser builds no diagnostics at
+        # all: `_parse_objects` drops a malformed object with a bare `continue`. Recorded in the
+        # parity ledger against `parse-diagnostics`, and reported here as no findings rather than
+        # as an error, so the comparison says plainly what is missing.
+        return []
+
+    result = idfkit.load_idf_with_diagnostics(str(job.input_path))
+    return [_diagnostic_entry(d) for d in result.diagnostics]
 
 
 def _assert_validation(job: CaseJob, document: Any, limit: int) -> AssertionOutcome:

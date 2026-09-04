@@ -202,7 +202,7 @@ Every difference reports both values verbatim as parsed, never reformatted, so t
 | 1 | Parse outcome matches the declared expectation, that is it succeeds, or fails with diagnostics | now |
 | 2 | Canonical epJSON of the parsed document equals `expected.epJSON` | now |
 | 3 | Round trip: re-parsing the library's own IDF output deep-equals the original document | now |
-| 4 | Diagnostics match `expected.diag.json` as an unordered set of `(code, line, typeName)`, never on message text | deferred |
+| 4 | Diagnostics match `expected.diag.json` as an unordered multiset of `(code, line, typeName)`, never on message text | now |
 | 5 | Validation findings match `expected.validation.json` as an unordered multiset, never on message text | now |
 | 6 | Type descriptions match `expected.introspection.json` | now |
 | 7 | Documentation addresses match `expected.docs-url.json` | now |
@@ -214,16 +214,17 @@ Assertions 5 to 7 are governed by [The Tier 1 assertions](#the-tier-1-assertions
 every rule except rule 4: they compare values that have no IDF field order. Assertion 8 is
 governed by [Assertion 8: type lookup](#assertion-8-type-lookup) below.
 
-Assertions 1 to 3 need no changes inside either library, which is why they ship now. Assertion 4
-does need changes: `ParseDiagnostic` in JavaScript carries free-text `message`, `line`, and
-`typeName` with no code, and Python raises typed exceptions instead. Deferring it costs nothing
-later, because adding `code` is additive on both sides.
+Assertions 1 to 3 needed no changes inside either library, which is why they shipped first.
+Assertion 4 did need changes, which is why it was deferred: `ParseDiagnostic` in JavaScript carried
+free-text `message`, `line` and `typeName` with no code, and Python raised typed exceptions
+instead. Feature 002 made both sides carry a `code` from the table below, additively, and the
+assertion now ships.
 
 Assertion 4 compares on `(code, line, typeName)` and never on message text, because message wording
 is a presentation choice each library is free to improve. Pinning it would turn every wording
 improvement into a conformance failure, and the suite would be edited to match rather than believed.
 
-### Shared code vocabulary, when assertion 4 lands
+### Shared code vocabulary
 
 Derived from Python's existing exception hierarchy by stripping the suffix, so neither language has
 to invent a vocabulary and the mapping stays mechanical:
@@ -241,6 +242,26 @@ to invent a vocabulary and the mapping stays mechanical:
 
 Codes are compared exactly, under rule 5. A diagnostic a library emits with no code, or with a code
 outside this table, is a difference and not a near match.
+
+### The two paths assertion 4 reads
+
+Both libraries raise by default and both return findings when asked not to, so a finding reaches a
+caller by one of two routes and the assertion reads whichever one the case is about.
+
+| Expectation key | What is compared |
+| --------------- | ---------------- |
+| `diagnostics` | The findings from whichever path this input takes: what the error carried if the read failed, what the returning path gave if it did not |
+| `recoverable` | The returning path, asked for explicitly, whatever a strict read of the input would have done |
+
+`recoverable` exists because an input whose strict read fails never reaches the returning path
+through `diagnostics`, and the returning path is half of what this assertion is for. A case that
+wants both states both.
+
+The multiset is unordered because the order findings are noticed in is an implementation detail of
+the scan and neither library promises it. It is a multiset rather than a set because two skips of
+the same type at different lines are two findings, and collapsing them would hide exactly the bug
+this assertion exists to catch: Python's aggregate site used to reduce its findings to a `set` of
+type names before reporting them, discarding every position it had.
 
 ## The Tier 1 assertions
 

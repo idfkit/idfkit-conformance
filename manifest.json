@@ -1,7 +1,7 @@
 {
   "$schema": "./manifest.schema.json",
   "schema_version": 1,
-  "corpus_level": null,
+  "corpus_level": "conformance-2026.8",
   "oracle": [
     {
       "id": "encoding-latin1-high-bytes",
@@ -760,6 +760,54 @@
       "expected_introspection": "expected.introspection.json"
     },
     {
+      "id": "malformed-unknown-type-fatal",
+      "title": "A parse that fails carries every finding that stopped it, in both languages",
+      "tags": [
+        "malformed",
+        "tier1"
+      ],
+      "energyplus_version": "26.1.0",
+      "assertions": [
+        "parse-outcome",
+        "diagnostics"
+      ],
+      "input": "input.idf",
+      "parse_outcome": "failure",
+      "expected_diagnostics": "expected.diag.json"
+    },
+    {
+      "id": "malformed-unknown-type-recoverable",
+      "title": "A parse that recovers returns its findings with the document, in both languages",
+      "tags": [
+        "malformed",
+        "tier1"
+      ],
+      "energyplus_version": "26.1.0",
+      "assertions": [
+        "parse-outcome",
+        "diagnostics"
+      ],
+      "input": "input.idf",
+      "parse_outcome": "failure",
+      "expected_diagnostics": "expected.diag.json"
+    },
+    {
+      "id": "tier1-introspection-field-order",
+      "title": "Field order in a type description agrees in both languages, in an older schema",
+      "tags": [
+        "tier1",
+        "types"
+      ],
+      "energyplus_version": "9.4.0",
+      "assertions": [
+        "parse-outcome",
+        "introspection"
+      ],
+      "input": "input.idf",
+      "parse_outcome": "success",
+      "expected_introspection": "expected.introspection.json"
+    },
+    {
       "id": "tier1-docs-url-object-address",
       "title": "A documentation address is built from the bundled mapping, or from the schema group when there is none",
       "tags": [
@@ -773,6 +821,91 @@
       "input": "input.idf",
       "parse_outcome": "success",
       "expected_docs_url": "expected.docs-url.json"
+    },
+    {
+      "id": "writer-option-comments-off",
+      "title": "Turning field comments off does not change what the document means",
+      "tags": [
+        "tier1"
+      ],
+      "energyplus_version": "26.1.0",
+      "assertions": [
+        "parse-outcome",
+        "round-trip"
+      ],
+      "input": "input.idf",
+      "parse_outcome": "success",
+      "writer_options": {
+        "comments": false
+      }
+    },
+    {
+      "id": "writer-option-compressed",
+      "title": "Compressed output re-reads to the same document it came from",
+      "tags": [
+        "tier1"
+      ],
+      "energyplus_version": "26.1.0",
+      "assertions": [
+        "parse-outcome",
+        "round-trip"
+      ],
+      "input": "input.idf",
+      "parse_outcome": "success",
+      "writer_options": {
+        "compressed": true
+      }
+    },
+    {
+      "id": "writer-option-indent",
+      "title": "Indent width does not change what the document means",
+      "tags": [
+        "tier1"
+      ],
+      "energyplus_version": "26.1.0",
+      "assertions": [
+        "parse-outcome",
+        "round-trip"
+      ],
+      "input": "input.idf",
+      "parse_outcome": "success",
+      "writer_options": {
+        "indent": 3
+      }
+    },
+    {
+      "id": "writer-option-comment-column",
+      "title": "Comment column does not change what the document means",
+      "tags": [
+        "tier1"
+      ],
+      "energyplus_version": "26.1.0",
+      "assertions": [
+        "parse-outcome",
+        "round-trip"
+      ],
+      "input": "input.idf",
+      "parse_outcome": "success",
+      "writer_options": {
+        "comment_column": 45
+      }
+    },
+    {
+      "id": "writer-option-ordering",
+      "title": "Object ordering does not change what the document means",
+      "tags": [
+        "tier1"
+      ],
+      "energyplus_version": "26.1.0",
+      "assertions": [
+        "parse-outcome",
+        "round-trip"
+      ],
+      "input": "input.idf",
+      "parse_outcome": "success",
+      "writer_options": {
+        "ordering": "source"
+      }
     }
   ]
 }

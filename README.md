@@ -25,15 +25,23 @@ that release. Bracketing the corpus with an older release, 9.2.0 for example, wo
 version-sensitive drift: schema changes, field renames, extensible-group reshaping. Nothing here
 catches that today. This is a known gap, not a closed question.
 
-### Diagnostics are not compared
+### Diagnostics are compared, since feature 002
 
-Assertion 4, matching parse diagnostics against `expected.diag.json`, is deferred to a second phase.
-Assertions 1 to 3 need no changes inside either library. Assertion 4 does: `ParseDiagnostic` in
-TypeScript carries free-text `message`, `line`, and `typeName` with no stable code, and Python
-raises typed exceptions instead. Until a shared code vocabulary exists on both sides, a case tagged
-`malformed` proves only that the parse failed, not that it failed for the stated reason.
+Assertion 4 matches parse findings against `expected.diag.json`. It was deferred through the first
+phase and both runners skipped it, because it was the one assertion that needed changes inside the
+libraries: `ParseDiagnostic` carried free-text `message`, `line` and `typeName` with no stable code,
+so a case tagged `malformed` proved only that the parse failed, not that it failed for the stated
+reason. Both sides now carry a `code` from the shared vocabulary, and the assertion runs.
 
-Deferring costs nothing later, because adding a `code` field is additive.
+It compares an unordered multiset of `(code, line, typeName)` and **never** message text. Wording is
+a presentation choice each library should stay free to improve, and pinning it would turn every
+improvement into a conformance failure. A multiset rather than a set, because two skips of the same
+type at different lines are two findings.
+
+Both paths are compared. `diagnostics` in the expectation is the findings from whichever path the
+input takes: what the error carried if the read failed, what the returning path gave if it did not.
+`recoverable` names the returning path explicitly, which a case needs when its input fails a strict
+read and the recoverable behaviour is still worth checking.
 
 ### Neither library's file reading is tested
 
@@ -152,15 +160,15 @@ Both runners implement the same exit contract.
 | An allowlisted case now passes | 1 | Case id, and the instruction to remove the stale entry |
 | A case's `expected.epJSON` is missing while `truth = "oracle"` | 1 | Case id |
 
-**Case count**: 48 cases, 132 assertions, at level `conformance-2026.7`.
+**Case count**: 56 cases, 148 assertions, at level `conformance-2026.7`.
 
 **Measured runtime** (SC-005), measured 2026-09-03. No runner invokes EnergyPlus: every assertion
 reads, writes, validates or introspects, so the corpus runs anywhere the libraries install.
 
 | Library | Wall clock | Result |
 | ------- | ---------- | ------ |
-| Python `idfkit` | 0.65 to 0.96 s | 116 passed, 13 failed and allowlisted, 3 skipped |
-| TypeScript `@idfkit/core` | 0.11 to 0.15 s | 122 passed, 7 failed and allowlisted, 3 skipped |
+| Python `idfkit` | 0.65 to 0.96 s | 132 passed, 16 failed, 0 skipped; 14 allowlisted |
+| TypeScript `@idfkit/core` | 0.11 to 0.20 s | 141 passed, 7 failed, 0 skipped; 6 allowlisted |
 
 A range rather than a figure, from repeated runs on one machine. A single number implies a
 precision that a warm cache and a busy laptop do not support, and the only question the budget
@@ -168,11 +176,14 @@ asks is which side of five minutes this falls on.
 
 The budget is under 5 minutes per library. Both runners are three orders of magnitude inside it, so
 the budget is not a constraint on how the corpus grows: at this rate the case set could grow past
-10,000 cases before the limit came into view. The 3 skipped assertions on each side are the deferred
-diagnostics assertion on the three malformed cases.
+10,000 cases before the limit came into view. Nothing is skipped: the diagnostics assertion was the
+last deferred one and feature 002 landed it, so every assertion every case declares is evaluated.
 
-Every failure above is a recorded entry in `known-divergence.toml`, which is why both runners exit 0.
-That is the corpus landing green on arrival with its disagreements visible, not hidden.
+Most failures above are recorded entries in `known-divergence.toml`, which is why the corpus lands
+with its disagreements visible rather than hidden. **Both runners currently exit 1**: landing
+assertion 4 found two divergences that are not yet in the allowlist, `malformed-stray-comment` on
+Python only and `malformed-missing-semicolon` on both, and neither can be recorded until it has a
+real tracking issue. Both runners return to 0 when those two are filed and entered.
 
 ## Layout
 
@@ -211,7 +222,7 @@ created when the first one is written, not before.
 | 1 | Parse outcome matches the declared expectation, succeeds or fails as stated | now |
 | 2 | Canonical epJSON of the parsed document equals `expected.epJSON` | now |
 | 3 | Round trip: re-parsing the library's own IDF output deep-equals the original document | now |
-| 4 | Diagnostics match `expected.diag.json` as an unordered set of `(code, line, typeName)`, never on message text | deferred |
+| 4 | Diagnostics match `expected.diag.json` as an unordered multiset of `(code, line, typeName)`, never on message text | now |
 | 5 | Validation findings match `expected.validation.json` as an unordered multiset, never on message text | now |
 | 6 | Type descriptions match `expected.introspection.json` | now |
 | 7 | Documentation addresses match `expected.docs-url.json` | now |

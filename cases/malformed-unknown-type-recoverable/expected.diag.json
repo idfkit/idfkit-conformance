@@ -1,0 +1,6 @@
+{
+  "recoverable": [
+    { "code": "UnknownObjectType", "line": 8, "typeName": "NotARealObjectType" },
+    { "code": "UnknownObjectType", "line": 11, "typeName": "AlsoNotReal" }
+  ]
+}

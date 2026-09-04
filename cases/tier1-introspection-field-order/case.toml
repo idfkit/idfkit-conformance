@@ -1,0 +1,47 @@
+title = "Field order in a type description agrees in both languages, in an older schema"
+why = """
+`tier1-introspection-field-shapes` compares two types in the newest schema. That is enough to catch
+a description that carries the wrong constraints and not enough to catch one that carries them in
+the wrong ORDER, because the two types it uses both have a positional field list to order by.
+
+Three types in every one of the seventeen bundled schemas do not. `legacy_idd.fields` holds only
+the name for them, so a description has to recover the order from somewhere else, and the two
+languages recovered it from different places until feature 002. Python falls back to the schema's
+property declaration order. The TypeScript bundle content-addresses each definition through a
+serializer that sorts object keys, so its property map arrived alphabetized and declaration order
+was gone. `@idfkit/schemas` now records the order explicitly for exactly these three.
+
+  ZoneTerminalUnitList                            Two fixed fields whose declaration order,
+                                                  name then `terminal_units`, is the reverse of
+                                                  their alphabetical order. This is the type that
+                                                  fails loudest if the recorded order is dropped.
+
+  ZoneProperty:UserViewFactors:BySurfaceName      The same inversion, and spelled `bySurfaceName`
+                                                  in 8.9.0 through 9.3.0, so the case also pins
+                                                  that the type is found under the spelling the
+                                                  version actually uses.
+
+  SolarCollector:UnglazedTranspired:Multisystem   The control. Its two fixed fields sort INTO
+                                                  declaration order, so it agreed across the two
+                                                  languages by luck rather than by design. It is
+                                                  here so that a change which fixes the other two
+                                                  by accident, rather than by recording the order,
+                                                  is still visible: a rule such as "the array key
+                                                  sorts last" would move this one and break it.
+
+9.4.0 rather than 26.1.0, deliberately. Field order is derived from per-version schema data, so a
+rule that holds in the newest release can still be wrong in an older one, and the fallback these
+three types take is exactly where that would show. Between them the two introspection cases now
+cover two schemas twelve releases apart.
+
+The expectation is Python's output, read against the schema before it was committed, which is the
+same standing `tier1-introspection-field-shapes` gives it. Nothing outside the two libraries can
+rule on what a type description should say: ConvertInputFormat does not describe a type. What rules
+is the schema, and the check made here is that each field list is the property declaration order of
+that version's schema, with the extensible group's fields appended in `legacy_idd.extensibles`
+order.
+"""
+tags = ["tier1", "types"]
+energyplus_version = "9.4.0"
+truth = "convention"
+assertions = ["parse-outcome", "introspection"]

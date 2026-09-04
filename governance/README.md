@@ -5,8 +5,8 @@ This directory holds the two files that fix the shared vocabulary of `idfkit` (P
 
 | File | What it records | Rendered at |
 | ---- | --------------- | ----------- |
-| `naming.toml` | The naming register: every concept shared across the two libraries, its spelling on each side, and every accepted difference | `idfkit/docs/explanation/naming-map.md` |
-| `parity.toml` | The parity ledger: every capability, its tier, and whether each language implements it completely, partially, or not at all | `idfkit/docs/explanation/parity.md` |
+| `naming.toml` | The naming register: every concept shared across the two libraries, its spelling on each side, and every accepted difference | `idfkit-developers/docs/explanation/naming-map.md` |
+| `parity.toml` | The parity ledger: every capability, its tier, and whether each language implements it completely, partially, or not at all | `idfkit-developers/docs/explanation/parity.md` |
 
 Neither file is written by hand in a library. Both are written here, released under a tag, and
 read from that tag by whatever needs them.
@@ -90,9 +90,19 @@ A tag is cut from `main` after the change has merged, never from a branch.
    `@idfkit/javascript-maintainers`. That review has no override (FR-091): if a maintainer of the
    other language is unavailable, the merge waits.
 2. **Check the validation rules still hold.** Concepts are unique, `divergent` entries carry a
-   `divergence_reason`, `partial` availabilities carry `differences`, `not-yet` absences carry a
-   tracking issue, and every `names` entry in `parity.toml` resolves to a concept in `naming.toml`.
-   The repository's own CI runs these checks on the pull request.
+   `divergence_reason`, `partial` availabilities carry `differences`, a capability that is no longer
+   `partial` carries none, `not-yet` absences carry a tracking issue, and every `names` entry in
+   `parity.toml` resolves to a concept in `naming.toml`. The repository's own CI runs these checks
+   on the pull request, in `.github/workflows/governance.yml`, which runs
+   `tools/validate_governance.py`. Run that script locally before opening the pull request:
+
+   ```bash
+   python tools/validate_governance.py
+   ```
+
+   It reads only these files and never imports either library, so it cannot go red because a
+   library drifted. Whether the code matches the record is the library's own gate, run there
+   against a pinned tag.
 3. **Choose the number.** `YYYY` is the current calendar year. `N` is the next integer in that year,
    starting at 1. The series does not reset on a library release, and it has no relationship to
    either library's version number.

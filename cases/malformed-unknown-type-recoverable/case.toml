@@ -1,0 +1,31 @@
+title = "A parse that recovers returns its findings with the document, in both languages"
+why = """
+The other half of `parse-diagnostics`, and the half that was genuinely one-sided.
+
+TypeScript has always returned recoverable findings: `parseIdf` with strict off hands back a
+ParseResult whose `diagnostics` array sits beside the document. Python produced the same findings
+and sent them to the logging module, where reaching them meant installing a handler before the
+parse. That is not one call, and a handler catches formatted text rather than structured findings.
+`load_idf_with_diagnostics` closes it.
+
+Same input as `malformed-unknown-type-fatal`, read the other way. That is deliberate: one file,
+two paths, so a difference between the two cases is a difference between the paths and not between
+two files that happen to be shaped differently.
+
+TWO findings, not one, and this is the point of the case. The recoverable path does not stop at the
+first problem, so both unknown types are reported, at their own line numbers. Python's aggregate
+site used to reduce exactly this to a `set` of type names before warning, which collapsed repeats
+and discarded every position it had; a set of names would satisfy a comparison that only counted
+distinct types, and would fail this one.
+
+The expectation uses `recoverable` rather than `diagnostics` because a STRICT read of this input
+fails, so the path being compared is not the one the input takes by default. The runner asks for
+the returning path explicitly when a case names it.
+
+truth = "convention", for the same reason as the fatal case: no external authority rules on what a
+library returns alongside a document it managed to build.
+"""
+tags = ["malformed", "tier1"]
+energyplus_version = "26.1.0"
+truth = "convention"
+assertions = ["parse-outcome", "diagnostics"]
