@@ -337,6 +337,7 @@ reports for a malformed case (contracts/conformance-corpus.md).
 names      = [
   "a parse diagnostic",
   "diagnostics from a parse",
+  "a document and its parse findings",
 ]
 
 # Python: idfkit.weather StationIndex (load, search, check_for_updates), WeatherStation,
