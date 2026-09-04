@@ -1,0 +1,12 @@
+Version,
+  26.1;
+
+Building,
+  Conformance,
+  0;
+
+NotARealObjectType,
+  Whatever;
+
+AlsoNotReal,
+  Thing;

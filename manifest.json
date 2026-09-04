@@ -760,6 +760,38 @@
       "expected_introspection": "expected.introspection.json"
     },
     {
+      "id": "malformed-unknown-type-fatal",
+      "title": "A parse that fails carries every finding that stopped it, in both languages",
+      "tags": [
+        "malformed",
+        "tier1"
+      ],
+      "energyplus_version": "26.1.0",
+      "assertions": [
+        "parse-outcome",
+        "diagnostics"
+      ],
+      "input": "input.idf",
+      "parse_outcome": "failure",
+      "expected_diagnostics": "expected.diag.json"
+    },
+    {
+      "id": "malformed-unknown-type-recoverable",
+      "title": "A parse that recovers returns its findings with the document, in both languages",
+      "tags": [
+        "malformed",
+        "tier1"
+      ],
+      "energyplus_version": "26.1.0",
+      "assertions": [
+        "parse-outcome",
+        "diagnostics"
+      ],
+      "input": "input.idf",
+      "parse_outcome": "failure",
+      "expected_diagnostics": "expected.diag.json"
+    },
+    {
       "id": "tier1-introspection-field-order",
       "title": "Field order in a type description agrees in both languages, in an older schema",
       "tags": [

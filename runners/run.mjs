@@ -15,8 +15,8 @@
  * 1. `parse-outcome`  the input parses, or fails to parse, exactly as `case.toml` declares.
  * 2. `epjson`         the library's canonical epJSON equals the committed `expected.epJSON`.
  * 3. `round-trip`     re-parsing the library's own IDF output deep-equals the original document.
- * 4. `diagnostics`    accepted and reported as skipped. Assertion 4 is deferred to phase two, and a
- *                     case may declare it today so that landing it later changes no case file.
+ * 4. `diagnostics`    the parse findings the library reports equal `expected.diag.json`, compared as
+ *                     an unordered multiset of `(code, line, typeName)` and never on message text.
  * 5. `validation`     the findings the library reports equal `expected.validation.json`.
  * 6. `introspection`  its type descriptions equal `expected.introspection.json`.
  * 7. `docs-url`       its documentation addresses equal `expected.docs-url.json`.
@@ -91,6 +91,7 @@ import {
   compareOutcome,
   compareUnordered,
   compareValues,
+  Comparison,
 } from './compare.mjs';
 import {
   Assertion,
@@ -100,6 +101,7 @@ import {
   DIVERGENCE_FILE,
   EXPECTED_DOCS_URL,
   EXPECTED_EPJSON,
+  EXPECTED_DIAGNOSTICS,
   EXPECTED_INTROSPECTION,
   EXPECTED_TYPE_LOOKUP,
   EXPECTED_VALIDATION,
@@ -145,10 +147,6 @@ const POOL_THRESHOLD = 8; // Below this many cases a pool costs more than it sav
 const EXIT_OK = 0;
 const EXIT_FAILED = 1;
 const EXIT_UNUSABLE = 2;
-
-const DIAGNOSTICS_DEFERRED =
-  'assertion 4 is deferred to phase two and is not compared yet. The case may declare it today ' +
-  'so that landing it later changes no case file';
 
 /** The run cannot start: a bad flag, or a `--library` path with nothing built in it. */
 export class RunnerError extends Error {
@@ -711,14 +709,24 @@ class Parse {
    * @param {ParseOutcome} outcome
    * @param {* | null} [document]
    * @param {string} [error]
+   * @param {readonly *[]} [diagnostics]
    */
-  constructor(outcome, document = null, error = '') {
+  constructor(outcome, document = null, error = '', diagnostics = []) {
     /** @type {ParseOutcome} */
     this.outcome = outcome;
     /** @type {* | null} */
     this.document = document;
     /** @type {string} */
     this.error = error;
+    /**
+     * The findings that STOPPED the read, from the error that reported them.
+     *
+     * Empty on success, because a read that succeeded had none by definition. The recoverable
+     * findings are a separate question and are read from the returning path by assertion 4.
+     *
+     * @type {readonly *[]}
+     */
+    this.diagnostics = Object.freeze([...diagnostics]);
     Object.freeze(this);
   }
 }
@@ -746,7 +754,13 @@ async function parseInput(library, job) {
     return new Parse(ParseOutcome.SUCCESS, library.core.parseEpJson(text, schema).document);
   } catch (error) {
     // Any failure to read is the observed outcome, not a crash.
-    return new Parse(ParseOutcome.FAILURE, null, describeError(error));
+    //
+    // `IdfParseError` carries every finding that stopped the parse. Any other error carries none,
+    // and an empty list is the honest answer rather than one synthesised from the message text.
+    const carried = Array.isArray(/** @type {*} */ (error)?.diagnostics)
+      ? /** @type {*} */ (error).diagnostics
+      : [];
+    return new Parse(ParseOutcome.FAILURE, null, describeError(error), carried);
   }
 }
 
@@ -895,12 +909,7 @@ export async function runCase(library, job, limit) {
  */
 async function runAssertion(library, job, assertion, parse, limit) {
   if (assertion === Assertion.DIAGNOSTICS) {
-    return new AssertionOutcome({
-      caseId: job.caseId,
-      assertion,
-      status: Status.SKIPPED,
-      reason: DIAGNOSTICS_DEFERRED,
-    });
+    return await assertDiagnostics(library, job, parse, limit);
   }
   if (assertion === Assertion.PARSE_OUTCOME) {
     return assertParseOutcome(job, parse, limit);
@@ -1147,6 +1156,100 @@ function orNull(value) {
  */
 function objectTypesOf(document) {
   return [...document.types()].sort();
+}
+
+/**
+ * One finding in the corpus vocabulary: what kind, where, and in which type.
+ *
+ * `message` is never included, and that is the whole design of this assertion. Wording is a
+ * presentation choice each library should stay free to improve; pinning it would turn every
+ * improvement into a conformance failure, and the suite would be edited to match rather than
+ * believed. `code` carries the meaning instead, from a table both libraries derive mechanically
+ * from Python's exception hierarchy.
+ *
+ * @param {*} diagnostic
+ * @returns {Record<string, unknown>}
+ */
+function diagnosticEntry(diagnostic) {
+  return {
+    code: diagnostic?.code ?? null,
+    line: diagnostic?.line ?? null,
+    typeName: diagnostic?.typeName ?? null,
+  };
+}
+
+/**
+ * Assertion 4: parse findings against `expected.diag.json`, as an unordered multiset.
+ *
+ * Two paths, one expectation. A read that FAILED reports the findings its error carried; a read
+ * that SUCCEEDED reports the recoverable findings the returning path hands back. Which path a case
+ * exercises is a property of its input, not something it declares, so the assertion reads whichever
+ * one applies and compares the same shape either way.
+ *
+ * Unordered, because the order findings are noticed in is an implementation detail of the scan and
+ * not something either library promises. A multiset rather than a set, because two skips of the
+ * same type at different lines are two findings, and collapsing them would hide exactly the bug
+ * this assertion was built to catch.
+ *
+ * @param {LibraryUnderTest} library
+ * @param {CaseJob} job
+ * @param {Parse} parse
+ * @param {number} limit
+ * @returns {Promise<AssertionOutcome>}
+ */
+async function assertDiagnostics(library, job, parse, limit) {
+  const expected = expectation(job, EXPECTED_DIAGNOSTICS);
+  if (expected === undefined) {
+    return missingExpectation(job.caseId, Assertion.DIAGNOSTICS, EXPECTED_DIAGNOSTICS);
+  }
+
+  /** @type {*[]} */
+  const differences = [];
+
+  // `diagnostics`: the findings from whichever path this input actually takes. A read that FAILED
+  // reports what its error carried; a read that SUCCEEDED reports what the returning path gave.
+  if (expected.diagnostics !== undefined) {
+    const found =
+      parse.outcome === ParseOutcome.FAILURE
+        ? parse.diagnostics.map(diagnosticEntry)
+        : await recoverableFindings(library, job);
+    differences.push(
+      ...compareUnordered(found, expected.diagnostics, { path: '/diagnostics' }).differences
+    );
+  }
+
+  // `recoverable`: the returning path, asked for explicitly.
+  //
+  // Needed because an input whose strict parse fails never reaches the returning path above, and
+  // the returning path is half of what this feature closed. A case that wants to compare it says
+  // so, and gets it whatever strict mode did.
+  if (expected.recoverable !== undefined) {
+    differences.push(
+      ...compareUnordered(await recoverableFindings(library, job), expected.recoverable, {
+        path: '/recoverable',
+      }).differences
+    );
+  }
+
+  return fromComparison(job.caseId, Assertion.DIAGNOSTICS, new Comparison(differences), limit);
+}
+
+/**
+ * The findings the returning path hands back for this input, in the corpus vocabulary.
+ *
+ * @param {LibraryUnderTest} library
+ * @param {CaseJob} job
+ * @returns {Promise<Record<string, unknown>[]>}
+ */
+async function recoverableFindings(library, job) {
+  if (job.inputFile === InputFile.IDF) {
+    const text = readFileSync(job.inputPath).toString(IDF_ENCODING);
+    const schema = await library.node.schemaFor(library.core.getIdfVersion(text));
+    return library.core.parseIdf(text, schema, { strict: false }).diagnostics.map(diagnosticEntry);
+  }
+  const text = readFileSync(job.inputPath, 'utf8');
+  const schema = await library.node.schemaFor(library.core.getEpJsonVersion(text));
+  return library.core.parseEpJson(text, schema, { strict: false }).diagnostics.map(diagnosticEntry);
 }
 
 /**

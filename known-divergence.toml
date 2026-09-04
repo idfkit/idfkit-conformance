@@ -15,8 +15,8 @@
 # either side alone turns its entries stale, which the runner reports as a failure, so those four
 # issues must land together.
 #
-# Counts, against idfkit 0.12.2 and @idfkit/core 0.0.0, EnergyPlus 26.1.0: 19 entries over 12
-# issues and 12 cases, 13 against python and 6 against typescript, on a corpus of 48 cases and 132
+# Counts, against idfkit 0.12.2 and @idfkit/core 0.0.0, EnergyPlus 26.1.0: 20 entries over 12
+# issues and 13 cases, 14 against python and 6 against typescript, on a corpus of 51 cases and 138
 # assertions. Four entries went away in e60b74d, when both libraries started agreeing about blank
 # names. This header stated 22 entries over 47 cases until 2026-09-04, having been written before
 # those four were removed and before the 48th case landed; it is recounted from the file rather
@@ -159,6 +159,20 @@ assertion = "round-trip"
 issue     = "https://github.com/idfkit/idfkit/issues/183"
 observed  = '''The Zone spelled out with eight explicit blank commas parses to 12 fields, the eight blanks held as the empty string including the numeric ones, then write_idf drops them and re-parsing yields 4: /Zone/1/fields is length 4 on the left and 12 on the right. The Zone truncated with an early semicolon holds 4 fields from the start and round-trips cleanly, so only the blank-comma spelling is lossy.'''
 expected  = '''Re-parsing deep-equals the original document. The two spellings, truncated at the semicolon and written out as blank commas, mean the same thing, converge on the same epJSON already, and must also converge after a write.'''
+
+# ---------------------------------------------------------------------------
+# malformed
+# ---------------------------------------------------------------------------
+
+[[divergence]]
+case      = "malformed-truncated-object"
+library   = "python"
+assertion = "diagnostics"
+issue     = "https://github.com/idfkit/idfkit/issues/187"
+observed  = '''No diagnostic at all. The returning path hands back a document of Version and Building and an empty findings list, so a caller cannot tell this file from one that never held a GlobalGeometryRules object.'''
+expected  = '''One finding, {"code": "ParseError", "line": 8, "typeName": "GlobalGeometryRules"}, which is what the TypeScript core reports for the same input.
+
+The same root cause as this case's accepted parse-outcome divergence, and the same issue: _OBJECT_PATTERN at idf_parser.py:43 matches only text that reaches a semicolon, so an unterminated tail matches nothing at all. A finding cannot be built for an object the scanner never saw. Fixing 187 fixes both halves, and both entries go together.'''
 
 # ---------------------------------------------------------------------------
 # types
