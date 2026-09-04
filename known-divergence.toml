@@ -15,10 +15,12 @@
 # either side alone turns its entries stale, which the runner reports as a failure, so those four
 # issues must land together.
 #
-# Counts, against idfkit 0.12.2 and @idfkit/core 0.0.0, EnergyPlus 26.1.0: 22 entries over 14
-# issues and 14 cases, 15 against python and 7 against typescript, on a corpus of 47 cases and 130
+# Counts, against idfkit 0.12.2 and @idfkit/core 0.0.0, EnergyPlus 26.1.0: 20 entries over 13
+# issues and 13 cases, 13 against python and 7 against typescript, on a corpus of 48 cases and 132
 # assertions. Four entries went away in e60b74d, when both libraries started agreeing about blank
-# names. The newest one, on tier1-introspection-field-shapes, is different in kind from the rest:
+# names. This header stated 22 entries over 47 cases until 2026-09-04, having been written before
+# those four were removed and before the 48th case landed; it is recounted from the file rather
+# than adjusted. The newest one, on tier1-introspection-field-shapes, is different in kind from the rest:
 # it does not record a bug the corpus found, it pins a divergence the parity ledger already
 # declares, so that the ledger's prose cannot quietly stop being true.
 

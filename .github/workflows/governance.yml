@@ -1,0 +1,60 @@
+# Validate the governance artifacts on every pull request.
+#
+# `governance/README.md` step 2 of "Cutting a governance tag" has always said the repository's own
+# CI runs these checks on the pull request. Until feature 002 it did not: `.github/` held only
+# CODEOWNERS. A malformed entry could therefore reach an immutable `governance-YYYY.N` tag with
+# nothing but review standing between it and both libraries, and a tag cannot be moved once cut.
+#
+# This job is deliberately narrow. It never installs either library and never imports one, so it
+# cannot be turned red by a library's own drift. It answers only whether the record is internally
+# well formed. Whether the code matches the record is each library's own gate, run in that
+# library's repository against a pinned tag.
+name: governance
+
+on:
+  pull_request:
+    paths:
+      - "governance/**"
+      - "known-divergence.toml"
+      - "manifest.json"
+      - "cases/**"
+      - "tools/validate_governance.py"
+      - ".github/workflows/governance.yml"
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: governance-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # tomllib is in the standard library from 3.11. The validator reads TOML and nothing else,
+      # so there is no dependency to install and no lock file to keep in step.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Validate the governance artifacts
+        run: python tools/validate_governance.py
+
+      # The case manifest is the corpus's own schema. A case that does not validate against it
+      # reaches a runner as an unexplained error rather than a failed assertion.
+      - name: Validate the case manifest schema is well formed
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          schema = json.loads(Path("manifest.schema.json").read_text())
+          manifest = json.loads(Path("manifest.json").read_text())
+          print(f"manifest.schema.json parses, {len(schema.get('properties', {}))} top-level properties")
+          print(f"manifest.json parses, corpus_level {manifest.get('corpus_level')!r}")
+          PY

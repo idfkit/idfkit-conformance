@@ -10,7 +10,7 @@
 #
 # Three things consume it:
 #
-#   1. `idfkit/docs/explanation/parity.md` (T124) renders entirely from this file. Nothing on that
+#   1. `idfkit-developers/docs/explanation/parity.md` (T124) renders entirely from this file. Nothing on that
 #      page is hand-written, so a hand-edited page can never disagree with the source.
 #   2. The `parity(id)` documentation macro (T125, T126) resolves its argument against the `id`
 #      field below, renders an explicit statement of unavailability in the affected language and
@@ -299,9 +299,27 @@ names      = [
 
 # Python: IDFParseError carries ParseDiagnostic entries; non-fatal problems go to the logger
 # TypeScript: ParseResult.diagnostics, ParseDiagnostic, LexDiagnostic, loadIdfWithDiagnostics
+#
+# THIS ENTRY IS THE IDF PARSER, AND ONLY THE IDF PARSER.
+#
+# The title said "a parse" until 2026-09-04 and was narrowed, because the two formats are not in the
+# same state and one entry covering both cannot be marked complete without saying something false.
+#
+# The epJSON parsers do not agree, and feature 002 did not close it. TypeScript's builds diagnostics
+# the same way its IDF parser does (packages/core/src/parse/epjson.ts:25-30, :37, :83). Python's
+# builds none at all: `_parse_objects` drops a malformed object type at epjson_parser.py:226 and a
+# malformed object at :246, in both cases with a bare `continue`, so the caller cannot tell a file
+# that never held the object from one where it was discarded. No exception, no log line, no
+# diagnostic.
+#
+# This is recorded rather than closed, per Principle III, and it is why the entry's scope is narrow.
+# It is a real one-sided gap and it outlives this entry's move to complete: `differences` is deleted
+# when a capability stops being partial, so the note lives here, in a comment, where the closure
+# cannot take it away. Closing it means giving Python's epJSON parser the diagnostics its IDF parser
+# now has, and belongs to whichever feature takes it.
 [[capability]]
 id         = "parse-diagnostics"
-title      = "Diagnostics from a parse"
+title      = "Diagnostics from an IDF parse"
 tier       = "tier-1"
 python     = "partial"
 typescript = "complete"
