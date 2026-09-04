@@ -1046,9 +1046,12 @@ implemented, because adding a field to match a note nobody had checked is the wr
 exception hierarchy by dropping the suffix, so the same eight values exist in both languages; the
 message text is not compared and is free to differ.
 
-TypeScript gained a file path, a column and the object concerned in feature 002, so both sides now
-carry the same kinds of location (FR-033). `obj_type` against `typeName` stays as it is: that is the
-casing rule this register already records, not a gap.
+TypeScript gained the object concerned in feature 002, and declares a file path and a column beside
+it, so both sides name the same kinds of location (FR-033). Only Python fills all four today: the
+TypeScript lexer counts lines and not columns, and `parseIdf` is handed text rather than a path, so
+neither value exists where a finding is built. Both are optional and absent rather than invented.
+`obj_type` against `typeName` stays as it is: that is the casing rule this register already records,
+not a gap.
 """
 rename_count = { python = 0, typescript = 0 }
 
@@ -3167,8 +3170,10 @@ were reachable only by installing a handler before the parse, which is not one c
 findings the other language returns. The logging announcements still fire, unchanged, for callers who
 rely on them (FR-014); this entry adds a second way to reach the same findings, and removes none.
 
-Pairs with `strict_parsing=False` in Python and `strict: false` in TypeScript. The fatal path is
-unchanged in both and is recorded under `diagnostics from a parse`.
+Does the work `strict_parsing=False` does in Python and `strict: false` does in TypeScript, without
+asking for it: a strict parse has no recoverable findings, since the first one stops it, so the
+Python loader takes no `strict_parsing` argument at all. The fatal path is unchanged in both and is
+recorded under `diagnostics from a parse`.
 """
 rename_count = { python = 0, typescript = 0 }
 

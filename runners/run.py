@@ -196,6 +196,7 @@ EXIT_OK: Final = 0
 EXIT_FAILED: Final = 1
 EXIT_UNUSABLE: Final = 2
 
+
 class RunnerError(Exception):
     """The run cannot start: a bad flag, or a ``--library`` path with nothing importable in it."""
 
@@ -653,7 +654,8 @@ def run_case(job: CaseJob, limit: int) -> CaseOutcome:
 
 
 def _run_assertion(job: CaseJob, assertion: Assertion, parse: _Parse, limit: int) -> AssertionOutcome:
-    """Dispatch one assertion. Assertion 4 is accepted and skipped."""
+    """Dispatch one assertion. Assertion 4 runs before the document guard: a read that failed still
+    has findings to compare, and they are the whole point of the case."""
     if assertion is Assertion.DIAGNOSTICS:
         return _assert_diagnostics(job, parse, limit)
     if assertion is Assertion.PARSE_OUTCOME:

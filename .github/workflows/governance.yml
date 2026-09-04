@@ -45,16 +45,27 @@ jobs:
       - name: Validate the governance artifacts
         run: python tools/validate_governance.py
 
-      # The case manifest is the corpus's own schema. A case that does not validate against it
-      # reaches a runner as an unexplained error rather than a failed assertion.
-      - name: Validate the case manifest schema is well formed
+      # The case manifest is the corpus's own index. A case that does not agree with it reaches a
+      # runner as an unexplained error rather than a failed assertion, so this loads the whole
+      # corpus the way the runners do: every entry resolves to a directory, every directory is
+      # indexed, every declared input and expectation file exists, every manifest entry agrees with
+      # its case.toml, and every accepted divergence names a case that is really there.
+      #
+      # `load_corpus` imports nothing from either library, so this stays the narrow check.
+      - name: Validate the case manifest against the cases
         run: |
           python - <<'PY'
           import json
+          import sys
           from pathlib import Path
 
-          schema = json.loads(Path("manifest.schema.json").read_text())
-          manifest = json.loads(Path("manifest.json").read_text())
-          print(f"manifest.schema.json parses, {len(schema.get('properties', {}))} top-level properties")
-          print(f"manifest.json parses, corpus_level {manifest.get('corpus_level')!r}")
+          sys.path.insert(0, "runners")
+          from model import load_corpus
+
+          corpus = load_corpus(Path("."))
+          cases = len(corpus.cases)
+          assertions = sum(len(entry.assertions) for entry in corpus.manifest.entries())
+          json.loads(Path("manifest.schema.json").read_text())
+          print(f"manifest.json agrees with cases/: {cases} cases, {assertions} assertions")
+          print(f"corpus_level {corpus.manifest.corpus_level!r}")
           PY

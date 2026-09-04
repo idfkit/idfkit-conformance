@@ -160,15 +160,15 @@ Both runners implement the same exit contract.
 | An allowlisted case now passes | 1 | Case id, and the instruction to remove the stale entry |
 | A case's `expected.epJSON` is missing while `truth = "oracle"` | 1 | Case id |
 
-**Case count**: 48 cases, 132 assertions, at level `conformance-2026.7`.
+**Case count**: 56 cases, 148 assertions, at level `conformance-2026.7`.
 
 **Measured runtime** (SC-005), measured 2026-09-03. No runner invokes EnergyPlus: every assertion
 reads, writes, validates or introspects, so the corpus runs anywhere the libraries install.
 
 | Library | Wall clock | Result |
 | ------- | ---------- | ------ |
-| Python `idfkit` | 0.65 to 0.96 s | 116 passed, 13 failed and allowlisted, 3 skipped |
-| TypeScript `@idfkit/core` | 0.11 to 0.15 s | 122 passed, 7 failed and allowlisted, 3 skipped |
+| Python `idfkit` | 0.65 to 0.96 s | 132 passed, 16 failed, 0 skipped; 14 allowlisted |
+| TypeScript `@idfkit/core` | 0.11 to 0.20 s | 141 passed, 7 failed, 0 skipped; 6 allowlisted |
 
 A range rather than a figure, from repeated runs on one machine. A single number implies a
 precision that a warm cache and a busy laptop do not support, and the only question the budget
@@ -179,8 +179,11 @@ the budget is not a constraint on how the corpus grows: at this rate the case se
 10,000 cases before the limit came into view. Nothing is skipped: the diagnostics assertion was the
 last deferred one and feature 002 landed it, so every assertion every case declares is evaluated.
 
-Every failure above is a recorded entry in `known-divergence.toml`, which is why both runners exit 0.
-That is the corpus landing green on arrival with its disagreements visible, not hidden.
+Most failures above are recorded entries in `known-divergence.toml`, which is why the corpus lands
+with its disagreements visible rather than hidden. **Both runners currently exit 1**: landing
+assertion 4 found two divergences that are not yet in the allowlist, `malformed-stray-comment` on
+Python only and `malformed-missing-semicolon` on both, and neither can be recorded until it has a
+real tracking issue. Both runners return to 0 when those two are filed and entered.
 
 ## Layout
 

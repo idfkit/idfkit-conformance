@@ -16,11 +16,11 @@
 # issues must land together.
 #
 # Counts, against idfkit 0.12.2 and @idfkit/core 0.0.0, EnergyPlus 26.1.0: 20 entries over 12
-# issues and 13 cases, 14 against python and 6 against typescript, on a corpus of 51 cases and 138
+# issues and 12 cases, 14 against python and 6 against typescript, on a corpus of 56 cases and 148
 # assertions. Four entries went away in e60b74d, when both libraries started agreeing about blank
 # names. This header stated 22 entries over 47 cases until 2026-09-04, having been written before
-# those four were removed and before the 48th case landed; it is recounted from the file rather
-# than adjusted.
+# those four were removed and before the 48th case landed; it is recounted from the file and from
+# the runner's own tally rather than adjusted, and it is recounted again whenever a case lands.
 #
 # The tier1-introspection-field-shapes entry was removed on 2026-09-04, in the change that closed
 # the introspection capability. It was the one entry that recorded no bug: it pinned a divergence
