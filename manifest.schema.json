@@ -133,6 +133,38 @@
           "description": "Expected collection lookups by object type name, relative to the case directory. Required when 'assertions' includes 'type-lookup', forbidden otherwise.",
           "type": "string",
           "const": "expected.type-lookup.json"
+        },
+        "writer_options": {
+          "description": "Writer controls to apply before re-reading, in the 'round-trip' assertion. Language-neutral names: each runner maps them onto its own writer's option. Absent means every writer default, which is what all 48 pre-existing cases mean and must keep meaning. A case that sets one is asserting FR-019: a document written under that control re-reads to the same structure.",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "comments": {
+              "description": "Emit field-name comments. Python 'output_type=nocomment' when false; TypeScript 'comments'.",
+              "type": "boolean"
+            },
+            "compressed": {
+              "description": "One object per line, no comments, no blank separators. Python 'output_type=compressed'; TypeScript 'compressed'.",
+              "type": "boolean"
+            },
+            "indent": {
+              "description": "Spaces before each field line. Python 'indent' (a count); TypeScript 'indent' (a string, which the runner builds from this count).",
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 16
+            },
+            "comment_column": {
+              "description": "Column the field-name comments are padded to. Python 'comment_column'; TypeScript 'commentColumn'.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200
+            },
+            "ordering": {
+              "description": "How objects are ordered. 'sorted' is by type name; 'source' is the document's own order. An enumeration rather than a boolean because three behaviours exist across the two languages and two formats.",
+              "type": "string",
+              "enum": ["sorted", "source"]
+            }
+          }
         }
       },
       "allOf": [

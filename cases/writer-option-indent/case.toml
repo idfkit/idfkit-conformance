@@ -1,0 +1,29 @@
+title = "Indent width does not change what the document means"
+why = """
+FR-019 asks that a document written under any offered control re-reads to the same structure as the
+document it came from. That is assertion 3's shape, and assertion 3 took no writer options until
+feature 002, so the guarantee had no expression in the corpus at all.
+
+One case per control rather than one case setting all five. A single case would report one failure
+for five possible causes, and the first thing a maintainer would have to do is take it apart again.
+Five cases name the control that broke.
+
+The comparison is STRUCTURAL, over parsed values, never over text. `runners/compare.md` forbids a
+textual comparator anywhere, and it has to: the two writers differ on defaults that no control
+removes, so comparing text would fail these cases for reasons that have nothing to do with the
+control being exercised.
+
+The input carries a Building with every field set, a Timestep, and a GlobalGeometryRules, so the
+round trip has numbers, choices and an anonymous type to lose.
+
+Two spaces on one side, four on the other, and neither moves: FR-017 keeps both defaults exactly
+where they are, so this control exists to let a caller ask, not to settle the difference.
+
+The case sets three, which is neither writer's default. A control that only ever gets set to the
+other language's value would pass while doing nothing, because the value would be indistinguishable
+from a writer that ignored the option.
+"""
+tags = ["tier1"]
+energyplus_version = "26.1.0"
+truth = "convention"
+assertions = ["parse-outcome", "round-trip"]

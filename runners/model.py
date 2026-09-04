@@ -58,6 +58,7 @@ __all__ = [
     "ParseOutcome",
     "Tag",
     "Truth",
+    "WriterOptions",
     "dump_manifest",
     "load_case",
     "load_corpus",
@@ -245,6 +246,41 @@ class Case:
 
 
 @dataclass(frozen=True, slots=True)
+class WriterOptions:
+    """Writer controls a case applies before re-reading its own output.
+
+    Language-neutral. Each runner maps these onto its own writer's option names, because the two
+    writers spell the same control differently and the corpus vocabulary belongs to neither.
+
+    Every field defaults to ``None``, meaning "leave the writer's default alone". That is what all
+    48 pre-existing cases mean, and adding this must not change a single one of their expectations.
+    A case that sets a field is asserting FR-019: a document written under that control re-reads to
+    the same structure it came from.
+    """
+
+    comments: bool | None = None
+    compressed: bool | None = None
+    indent: int | None = None
+    comment_column: int | None = None
+    ordering: str | None = None
+
+    def __post_init__(self) -> None:
+        if self.ordering is not None and self.ordering not in {"sorted", "source"}:
+            raise ManifestError(f"writer_options.ordering must be 'sorted' or 'source', got {self.ordering!r}")
+        for name, value in (("indent", self.indent), ("comment_column", self.comment_column)):
+            if value is not None and value < 0:
+                raise ManifestError(f"writer_options.{name} must not be negative, got {value!r}")
+
+    @property
+    def is_default(self) -> bool:
+        """Whether this asks for anything at all. An absent block and an empty one are the same."""
+        return all(
+            value is None
+            for value in (self.comments, self.compressed, self.indent, self.comment_column, self.ordering)
+        )
+
+
+@dataclass(frozen=True, slots=True)
 class ManifestEntry:
     """One entry in ``manifest.json``, in either section.
 
@@ -267,6 +303,7 @@ class ManifestEntry:
     expected_introspection: str | None = None
     expected_docs_url: str | None = None
     expected_type_lookup: str | None = None
+    writer_options: WriterOptions | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "tags", tuple(self.tags))
@@ -521,6 +558,50 @@ def _read_str(raw: Mapping[str, Any], key: str, *, path: Path, where: str, error
     return value
 
 
+_WRITER_OPTION_KEYS: Final = frozenset({"comments", "compressed", "indent", "comment_column", "ordering"})
+
+
+def _read_writer_options(raw: Mapping[str, Any], *, path: Path, where: str) -> WriterOptions | None:
+    """Read the optional ``writer_options`` block, or ``None`` when the case declares none.
+
+    An absent block and an empty one both mean every writer default, which is what every case
+    written before feature 002 means and must keep meaning.
+    """
+    value = raw.get("writer_options")
+    if value is None:
+        return None
+    block = _read_mapping(value, path, f"{where}.writer_options", ManifestError)
+    _reject_unknown_keys(block, _WRITER_OPTION_KEYS, path=path, where=f"{where}.writer_options", error=ManifestError)
+
+    def _flag(key: str) -> bool | None:
+        found = block.get(key)
+        if found is None:
+            return None
+        if not isinstance(found, bool):
+            raise ManifestError(f"{path}: {where}.writer_options.{key} must be a boolean, got {found!r}")
+        return found
+
+    def _count(key: str) -> int | None:
+        found = block.get(key)
+        if found is None:
+            return None
+        if not isinstance(found, int) or isinstance(found, bool):
+            raise ManifestError(f"{path}: {where}.writer_options.{key} must be an integer, got {found!r}")
+        return found
+
+    ordering = block.get("ordering")
+    if ordering is not None and not isinstance(ordering, str):
+        raise ManifestError(f"{path}: {where}.writer_options.ordering must be a string, got {ordering!r}")
+
+    return WriterOptions(
+        comments=_flag("comments"),
+        compressed=_flag("compressed"),
+        indent=_count("indent"),
+        comment_column=_count("comment_column"),
+        ordering=ordering,
+    )
+
+
 def _read_optional_str(
     raw: Mapping[str, Any], key: str, *, path: Path, where: str, error: type[CorpusError]
 ) -> str | None:
@@ -600,6 +681,7 @@ _ENTRY_KEYS: Final = frozenset(
         "expected_introspection",
         "expected_docs_url",
         "expected_type_lookup",
+        "writer_options",
     }
 )
 _MANIFEST_KEYS: Final = frozenset({"$schema", "schema_version", "corpus_level", "oracle", "convention"})
@@ -673,6 +755,7 @@ def _load_entry(raw_entry: object, truth: Truth, path: Path, index: int) -> Mani
         expected_type_lookup=_read_optional_str(
             raw, "expected_type_lookup", path=path, where=where, error=ManifestError
         ),
+        writer_options=_read_writer_options(raw, path=path, where=where),
     )
 
 

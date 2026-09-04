@@ -251,9 +251,17 @@ export class CaseJob {
   /**
    * @param {{ caseId: string, caseDir: string, inputFile: InputFile,
    *           expectedParseOutcome: ParseOutcome, truth: Truth,
-   *           assertions: readonly Assertion[] }} fields
+   *           assertions: readonly Assertion[], writerOptions?: * }} fields
    */
-  constructor({ caseId, caseDir, inputFile, expectedParseOutcome, truth, assertions }) {
+  constructor({
+    caseId,
+    caseDir,
+    inputFile,
+    expectedParseOutcome,
+    truth,
+    assertions,
+    writerOptions = null,
+  }) {
     /** @type {string} */
     this.caseId = caseId;
     /** @type {string} */
@@ -266,6 +274,12 @@ export class CaseJob {
     this.truth = truth;
     /** @type {readonly Assertion[]} */
     this.assertions = Object.freeze([...assertions]);
+    /**
+     * Writer controls this case applies before re-reading, or null for every writer default.
+     *
+     * @type {* | null}
+     */
+    this.writerOptions = writerOptions ?? null;
     Object.freeze(this);
   }
 
@@ -676,6 +690,7 @@ export function buildJobs(corpus, caseIds, tags) {
         expectedParseOutcome: entry.parseOutcome,
         truth: entry.truth,
         assertions: ASSERTION_ORDER.filter((assertion) => entry.assertions.includes(assertion)),
+        writerOptions: entry.writerOptions,
       })
     );
   }
@@ -849,8 +864,28 @@ function jsonable(value) {
  * @param {*} document
  * @returns {Promise<Record<string, unknown>>}
  */
-async function roundTripSnapshot(library, document) {
-  const text = library.core.writeIdf(document);
+function writerOptionsFor(options) {
+  // Mapped control by control rather than passed through, because the two writers spell the same
+  // thing differently and a pass-through would silently accept a name only one of them has. A
+  // control the case does not set is not passed at all, so the writer's own default applies.
+  if (options === null || options.isDefault) return {};
+
+  /** @type {Record<string, unknown>} */
+  const mapped = {};
+  if (options.compressed !== null) mapped['compressed'] = options.compressed;
+  if (options.comments !== null) mapped['comments'] = options.comments;
+  // The corpus counts indent in spaces; this writer takes the string itself.
+  if (options.indent !== null) mapped['indent'] = ' '.repeat(options.indent);
+  if (options.commentColumn !== null) mapped['commentColumn'] = options.commentColumn;
+  // `ordering` has no counterpart here: this writer keeps insertion order and offers no sort, which
+  // is `source` and is already its default. A case asking for `source` is satisfied by doing
+  // nothing; one asking for `sorted` is asking for something this writer does not do, and the
+  // round trip still holds because assertion 3 compares structure rather than order of appearance.
+  return mapped;
+}
+
+async function roundTripSnapshot(library, document, writerOptions = null) {
+  const text = library.core.writeIdf(document, writerOptionsFor(writerOptions));
   const scratch = mkdtempSync(join(tmpdir(), 'idfkit-conformance-'));
   try {
     const path = join(scratch, 'round-trip.idf');
@@ -1083,7 +1118,7 @@ function assertEpjson(library, job, document, limit) {
  */
 async function assertRoundTrip(library, job, document, limit) {
   const original = documentSnapshot(document);
-  const reparsed = await roundTripSnapshot(library, document);
+  const reparsed = await roundTripSnapshot(library, document, job.writerOptions);
   return fromComparison(
     job.caseId,
     Assertion.ROUND_TRIP,

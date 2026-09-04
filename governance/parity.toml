@@ -81,59 +81,39 @@ names      = [
 
 # Python: write_idf, write_epjson (splitting into write_* and save_* in the rename batch)
 # TypeScript: writeIdf, writeEpJson, toEpJson, writeObject, saveIdf, saveEpJson
+# CLOSED 2026-09-04, feature 002.
+#
+# Five controls closed it: three into the first language (indent, comment column, ordering) and two
+# reckoned from the other direction (compressed output into the second, comment-free output already
+# on both). No writer default moved, and six of them are pinned by tests in each library
+# specifically so that a slipped default is a red test rather than a discovery.
+#
+# THE SEVEN DEFAULT-OUTPUT DIFFERENCES DID NOT GO AWAY. They moved, because the gate rejects a
+# `differences` field on a capability that is not partial, and a reader still meets them the first
+# time they diff two files. They now live at
+# `idfkit-developers/docs/explanation/two-writers-one-model.md`, which carries `parity("write")`,
+# states the measurement (5ZoneAirCooled.idf from EnergyPlus 26.1.0, 359 objects, 4,031 lines
+# against 4,125, re-measured on the day it closed), and says plainly that neither writer is more
+# correct, that both are published, and that byte-identical output is not promised and is not
+# coming.
+#
+# If that page is ever deleted, this information exists nowhere. That is the cost of closing an
+# entry whose `differences` field was doing real work, and it is recorded here so the next person
+# to tidy the documentation knows what they would be removing.
+#
+# The controls are proven by five corpus cases, one per control, under `writer-option-*`. One case
+# per control rather than one setting all five, so a failure names the control that broke. The
+# comparison is structural: each case writes its document under the control, re-reads it, and
+# compares parsed values, because comparing text would fail for the seven reasons above.
+#
+# Not in this entry: a lossless mode. `lossless-round-trip` is a separate Tier 2 entry, absent in
+# the second language and tracked as not yet ported.
 [[capability]]
 id         = "write"
 title      = "Writing IDF and epJSON"
 tier       = "tier-1"
-python     = "partial"
-typescript = "partial"
-differences = """
-Both libraries write both formats, and every document either one writes is read back by the other
-and by EnergyPlus. What they do NOT do is produce the same bytes. One model written from Python and
-from JavaScript gives two files whose object headers match and whose every field line differs, and
-neither is more correct than the other, so the difference is recorded here rather than resolved by
-changing a writer both ecosystems have already published.
-
-Measured, not asserted. `5ZoneAirCooled.idf` from EnergyPlus 26.1.0, 359 objects, through
-`load_idf`/`save_idf` and through `loadIdf`/`saveIdf`, differs in seven ways:
-
-  1. Python opens the file with `!-Generator idfkit v<version>` and `!-Option SortedOrder`.
-     TypeScript writes no header.
-  2. Python orders objects by type name, alphabetically, with Version pinned first, which is what
-     its `SortedOrder` header declares. TypeScript groups objects by type in the order the types
-     first appeared in the source, with Version pinned first.
-  3. Python indents field lines two spaces. TypeScript indents four, and takes an `indent` option.
-  4. Both align the `!-` comment at column 30. They therefore overflow at different values, and on
-     overflow Python writes the comment flush against the comma while TypeScript keeps one space.
-  5. Python renders a float with `%g`, so an integral value loses its decimal point: `30.` in the
-     source comes back as `30`, and `0.0` as `0`. TypeScript consults the schema and writes `30.0`
-     and `0.0`, because JavaScript has one number type and a real-valued field would otherwise be
-     indistinguishable from an integer one on the way out.
-  6. Python title-cases every word of the field-name comment, `!- Number Of Vertices` and
-     `!- View Factor To Ground`. TypeScript keeps a list of minor words lowercase so the comment
-     reads as EnergyPlus writes it, `!- Number of Vertices` and `!- View Factor to Ground`. Both
-     drop the unit suffix the source carries, `{deg}` and the rest.
-  7. Python numbers the comment on each repeat of an extensible group, `!- Vertex X Coordinate 2`.
-     TypeScript repeats the unnumbered name on every repeat.
-
-Blank lines differ with them: Python puts one between every pair of objects, TypeScript one between
-objects of the same type and two at each type boundary. On this file that is 4031 lines against
-4125, for the same 359 objects.
-
-`partial` on BOTH sides, because neither writer's controls contain the other's. Python's `write_idf`
-takes `output_type`, so `"nocomment"` and `"compressed"`, and `preserve_formatting`; it offers no way
-to set the indent, the comment column, or the ordering. TypeScript's `writeIdf` takes `comments`,
-`commentColumn`, `indent`, and `versionFirst`; it has no compressed mode and no lossless mode, the
-second of which is `lossless-round-trip` rather than part of this entry.
-
-What is proven, and by what. The corpus asserts that a document survives its OWN writer without
-structural loss: assertion 3 re-parses each library's IDF output and compares object types, names,
-field names, field values, and field order against the document it started from. It does not compare
-the text, and `runners/compare.md` forbids any comparator from ever doing so, because one JSON value
-has many JSON texts. So the seven differences above are outside every assertion the corpus runs, and
-recording them here is the only place a reader meets them. A reader who needs byte-identical output
-from both languages does not have it and is not going to: pass EnergyPlus the model, not a diff.
-"""
+python     = "complete"
+typescript = "complete"
 names      = [
   "serialize IDF to a string",
   "serialize epJSON to a string",

@@ -821,6 +821,91 @@
       "input": "input.idf",
       "parse_outcome": "success",
       "expected_docs_url": "expected.docs-url.json"
+    },
+    {
+      "id": "writer-option-comments-off",
+      "title": "Turning field comments off does not change what the document means",
+      "tags": [
+        "tier1"
+      ],
+      "energyplus_version": "26.1.0",
+      "assertions": [
+        "parse-outcome",
+        "round-trip"
+      ],
+      "input": "input.idf",
+      "parse_outcome": "success",
+      "writer_options": {
+        "comments": false
+      }
+    },
+    {
+      "id": "writer-option-compressed",
+      "title": "Compressed output re-reads to the same document it came from",
+      "tags": [
+        "tier1"
+      ],
+      "energyplus_version": "26.1.0",
+      "assertions": [
+        "parse-outcome",
+        "round-trip"
+      ],
+      "input": "input.idf",
+      "parse_outcome": "success",
+      "writer_options": {
+        "compressed": true
+      }
+    },
+    {
+      "id": "writer-option-indent",
+      "title": "Indent width does not change what the document means",
+      "tags": [
+        "tier1"
+      ],
+      "energyplus_version": "26.1.0",
+      "assertions": [
+        "parse-outcome",
+        "round-trip"
+      ],
+      "input": "input.idf",
+      "parse_outcome": "success",
+      "writer_options": {
+        "indent": 3
+      }
+    },
+    {
+      "id": "writer-option-comment-column",
+      "title": "Comment column does not change what the document means",
+      "tags": [
+        "tier1"
+      ],
+      "energyplus_version": "26.1.0",
+      "assertions": [
+        "parse-outcome",
+        "round-trip"
+      ],
+      "input": "input.idf",
+      "parse_outcome": "success",
+      "writer_options": {
+        "comment_column": 45
+      }
+    },
+    {
+      "id": "writer-option-ordering",
+      "title": "Object ordering does not change what the document means",
+      "tags": [
+        "tier1"
+      ],
+      "energyplus_version": "26.1.0",
+      "assertions": [
+        "parse-outcome",
+        "round-trip"
+      ],
+      "input": "input.idf",
+      "parse_outcome": "success",
+      "writer_options": {
+        "ordering": "source"
+      }
     }
   ]
 }

@@ -1,0 +1,30 @@
+title = "Compressed output re-reads to the same document it came from"
+why = """
+FR-019 asks that a document written under any offered control re-reads to the same structure as the
+document it came from. That is assertion 3's shape, and assertion 3 took no writer options until
+feature 002, so the guarantee had no expression in the corpus at all.
+
+One case per control rather than one case setting all five. A single case would report one failure
+for five possible causes, and the first thing a maintainer would have to do is take it apart again.
+Five cases name the control that broke.
+
+The comparison is STRUCTURAL, over parsed values, never over text. `runners/compare.md` forbids a
+textual comparator anywhere, and it has to: the two writers differ on defaults that no control
+removes, so comparing text would fail these cases for reasons that have nothing to do with the
+control being exercised.
+
+The input carries a Building with every field set, a Timestep, and a GlobalGeometryRules, so the
+round trip has numbers, choices and an anonymous type to lose.
+
+The fifth and last control to close, and the only one that went from the first language to the
+second: `output_type="compressed"` has existed on one side since it was written, and the other had
+no compact path at all to extend.
+
+The most aggressive control of the five, so the most worth checking. Each object collapses to one
+line, comments go, blank separators go, and the generator header goes where there was one. A
+document that survives THIS survives the other four.
+"""
+tags = ["tier1"]
+energyplus_version = "26.1.0"
+truth = "convention"
+assertions = ["parse-outcome", "round-trip"]

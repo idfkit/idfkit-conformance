@@ -1,0 +1,41 @@
+title = "Object ordering does not change what the document means"
+why = """
+FR-019 asks that a document written under any offered control re-reads to the same structure as the
+document it came from. That is assertion 3's shape, and assertion 3 took no writer options until
+feature 002, so the guarantee had no expression in the corpus at all.
+
+One case per control rather than one case setting all five. A single case would report one failure
+for five possible causes, and the first thing a maintainer would have to do is take it apart again.
+Five cases name the control that broke.
+
+The comparison is STRUCTURAL, over parsed values, never over text. `runners/compare.md` forbids a
+textual comparator anywhere, and it has to: the two writers differ on defaults that no control
+removes, so comparing text would fail these cases for reasons that have nothing to do with the
+control being exercised.
+
+The input carries a Building with every field set, a Timestep, and a GlobalGeometryRules, so the
+round trip has numbers, choices and an anonymous type to lose.
+
+An enumeration rather than a boolean, because three behaviours exist across the two languages and
+two formats: sorted by type name with Version first, collection order with Version first, and
+insertion order. A flag cannot say which of the three is wanted.
+
+The case asks for `source`, the document's own order, which is the second language's default and the
+first language's new option. Assertion 3 compares structure rather than order of appearance, so a
+document reordered and read back is the same document, which is the whole claim.
+
+ONE-SIDED, and stated rather than hidden. Measured on this input, `source` changes the first
+language's output and changes nothing in the second, because insertion order is already what that
+writer does and it offers no sort to turn off. So this case exercises a real control on one side and
+a no-op on the other, and it would pass on the second side even if the runner dropped the option
+entirely. The other four controls change the output in both languages, verified by writing the same
+document with and without each one.
+
+Closing that asymmetry means giving the second language a `sorted` ordering, which no requirement
+asks for: FR-016 asks for the five controls that exist on one writer and not the other, and this is
+not one of them. Recorded here so the next reader does not mistake a no-op for a check.
+"""
+tags = ["tier1"]
+energyplus_version = "26.1.0"
+truth = "convention"
+assertions = ["parse-outcome", "round-trip"]

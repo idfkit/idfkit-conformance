@@ -122,6 +122,7 @@ from model import (  # noqa: E402
     ParseOutcome,
     Tag,
     Truth,
+    WriterOptions,
     load_corpus,
     load_manifest,
 )
@@ -259,6 +260,7 @@ class CaseJob:
     expected_parse_outcome: ParseOutcome
     truth: Truth
     assertions: tuple[Assertion, ...]
+    writer_options: WriterOptions | None = None
 
     @property
     def input_path(self) -> Path:
@@ -495,6 +497,7 @@ def build_jobs(corpus: Corpus, case_ids: Sequence[str], tags: Sequence[Tag]) -> 
                 expected_parse_outcome=entry.parse_outcome,
                 truth=entry.truth,
                 assertions=tuple(a for a in ASSERTION_ORDER if a in entry.assertions),
+                writer_options=entry.writer_options,
             )
         )
 
@@ -580,16 +583,49 @@ def _jsonable(value: Any) -> Any:
     raise RunnerError(f"field value of type {type(value).__name__!r} is not a JSON value: {value!r}")
 
 
-def _round_trip_snapshot(document: Any) -> dict[str, Any]:
+def _writer_kwargs(options: WriterOptions | None) -> dict[str, Any]:
+    """Map the corpus's language-neutral controls onto this library's writer arguments.
+
+    Written out control by control rather than passed through, because the two writers spell the
+    same thing differently and a pass-through would silently accept a name only one of them has.
+    A control the case does not set is not passed at all, so the writer's own default applies.
+    """
+    if options is None or options.is_default:
+        return {}
+
+    kwargs: dict[str, Any] = {}
+    # `comments` and `compressed` are both `output_type` here, where the other language has two
+    # independent options. Compressed wins when both are asked for: it has no comments by
+    # definition, so the narrower request is unambiguous.
+    if options.compressed:
+        kwargs["output_type"] = "compressed"
+    elif options.comments is False:
+        kwargs["output_type"] = "nocomment"
+
+    if options.indent is not None:
+        kwargs["indent"] = options.indent
+    if options.comment_column is not None:
+        kwargs["comment_column"] = options.comment_column
+    if options.ordering is not None:
+        kwargs["ordering"] = options.ordering
+    return kwargs
+
+
+def _round_trip_snapshot(document: Any, options: WriterOptions | None = None) -> dict[str, Any]:
     """Write the document as IDF, read it back, and snapshot the result.
 
     Rule 6: the IDF is written and read as latin-1, never as UTF-8 and never at a platform default.
     ``preserve_formatting=False`` is explicit because the lossless path echoes the source text back,
     which would make the assertion trivially true and test nothing.
+
+    FR-019: when the case declares writer controls, the document is written UNDER them and read back
+    without them. What survives is compared over parsed values, never over text: the two writers
+    differ on defaults that no control removes, so a textual comparison would fail for reasons that
+    have nothing to do with the control being exercised.
     """
     import idfkit
 
-    text = idfkit.write_idf(document, preserve_formatting=False)
+    text = idfkit.write_idf(document, preserve_formatting=False, **_writer_kwargs(options))
     with tempfile.TemporaryDirectory(prefix="idfkit-conformance-") as scratch:
         path = Path(scratch) / "round-trip.idf"
         path.write_text(text, encoding=IDF_ENCODING)
@@ -721,7 +757,7 @@ def _assert_epjson(job: CaseJob, document: Any, limit: int) -> AssertionOutcome:
 def _assert_round_trip(job: CaseJob, document: Any, limit: int) -> AssertionOutcome:
     """Assertion 3: re-parsing the library's own IDF output against the original document."""
     original = document_snapshot(document)
-    reparsed = _round_trip_snapshot(document)
+    reparsed = _round_trip_snapshot(document, job.writer_options)
     return _from_comparison(job.case_id, Assertion.ROUND_TRIP, compare_documents(reparsed, original), limit)
 
 
