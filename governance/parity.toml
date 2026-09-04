@@ -1004,3 +1004,65 @@ languages: that is `weather-download`.
 names      = [
   "the weather file cache",
 ]
+
+# TypeScript: @idfkit/core scanIdf, classify, lineColumnAt, offsetAt, Region, LineColumn, Token,
+#             TokenKind, SyntaxLayer, Statement; @idfkit/language contextAt, completionsAt,
+#             explainAt, declarationAt, findingsIn, and the result types those five return.
+#
+# ONE CAPABILITY ACROSS TWO PACKAGES. The syntax layer sits in @idfkit/core because a
+# source-preserving writer reads it as well as the service does, and the five answers sit in
+# @idfkit/language, an opt-in peer, so that a reader who only reads models is not charged for an
+# editor they do not have. That split is a distribution decision inside one language, not two
+# mechanisms, so it is one entry rather than two (FR-068).
+[[capability]]
+id         = "idf-language-service"
+title      = "Language service for IDF text"
+tier       = "never"
+python     = "absent"
+typescript = "complete"
+absence_kind = "never"
+note       = """
+Deliberately second-language-only. The answers are computed from byte offsets into the source text,
+and a second implementation of that arithmetic is the drift surface the corpus is least able to
+police: it compares findings on (code, line, typeName) and never on a column, so two implementations
+could disagree about a position for a long time without any gate noticing.
+
+The editor extension serves both file kinds without a port. Its existing server, written in Python,
+continues to serve Python source; a second server written in JavaScript serves IDF text and wraps
+this capability. One implementation, two servers.
+
+What this costs a reader: getting these answers requires a JavaScript runtime. `pip install idfkit`
+alone does not provide them.
+"""
+names = [
+  # In @idfkit/core, installed by everyone.
+  "scan IDF text",
+  "classify IDF text",
+  "line and column at an offset",
+  "offset at a line and column",
+  "a source region",
+  "a line and column",
+  "a syntax token",
+  "a syntax token kind",
+  "the syntax layer",
+  "a written statement",
+  # Declared in @idfkit/core today and reachable only through it. Listed here because this
+  # capability is what makes it a public name: `explainAt` cannot name its prose parameter without.
+  "schema prose pool",
+  # In @idfkit/language, the opt-in peer.
+  "cursor context",
+  "completions at an offset",
+  "explanation at an offset",
+  "declaration at an offset",
+  "position findings",
+  "position findings already in hand",
+  "the cursor context record",
+  "a positioned finding",
+  "a completion offer",
+  "an explanation",
+  "a declaration site",
+  "the completion options",
+  "a completion result",
+  "an explanation result",
+  "a declaration result",
+]
