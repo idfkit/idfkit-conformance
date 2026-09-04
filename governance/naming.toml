@@ -31,7 +31,7 @@
 
 [register]
 schema_version = "1"
-governs = ["idfkit", "@idfkit/core", "@idfkit/weather"]
+governs = ["idfkit", "@idfkit/core", "@idfkit/weather", "@idfkit/language"]
 renders_to = "idfkit-developers/docs/explanation/naming-map.md"
 read_at = "a pinned governance-YYYY.N tag of idfkit-conformance, never the default branch"
 review = "a maintainer of the other language, enforced by CODEOWNERS in both repositories"
@@ -3613,6 +3613,417 @@ python     = "create_schedule_type_limits"
 typescript = "createScheduleTypeLimits"
 kind       = "aligned"
 notes      = "Registered before it is written, with the schedule builders above."
+rename_count = { python = 0, typescript = 0 }
+
+# ---------------------------------------------------------------------------
+# Entries: the language service for IDF text (FR-006)
+# ---------------------------------------------------------------------------
+#
+# A second-language-only capability, recorded on the parity ledger as `idf-language-service` with
+# absence_kind = "never". The ledger's note says why, and says what a Python reader gets instead.
+#
+# Written out one name at a time rather than as one surface, which is where these differ from the
+# eppy and local-simulation exclusions above. Those are quotations from one ecosystem: an eppy alias
+# and a subprocess call are names the other language could not sensibly have. These are names either
+# language could have spelled, and the reason there is no Python counterpart is a decision about
+# where position arithmetic should live rather than anything about Python. A decision is exactly the
+# kind of thing a future contributor reads past when it is summarised as a category, so each name is
+# written down and each one blocks its own counterpart.
+#
+# The register does not record which package a name lives in, and does not need to. The split
+# between `@idfkit/core`, which carries the syntax layer because a source-preserving writer reads it
+# too, and `@idfkit/language`, which carries the five answers as an opt-in peer, is a distribution
+# decision inside one language.
+#
+# Registered before any of it is written (FR-007), so none of these is a rename when it lands.
+
+[[entry]]
+concept    = "scan IDF text"
+python     = ""
+typescript = "scanIdf"
+kind       = "excluded"
+divergence_reason = """
+Second-language-only by decision, recorded on the parity ledger as `idf-language-service`. Listed
+here so that a Python counterpart is never added without the ledger's `never` being amended first.
+"""
+notes      = "The one entry point to the syntax layer. Takes text and nothing else, and never throws."
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "classify IDF text"
+python     = ""
+typescript = "classify"
+kind       = "excluded"
+divergence_reason = """
+Part of `idf-language-service`, second-language-only by decision and recorded on the parity ledger
+with absence_kind = "never". The complete-coverage view over a scanned layer, yielding trivia as the
+complement of the stored tokens rather than storing it. Listed here so that a Python counterpart is
+never added without the ledger's `never` being amended first.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "line and column at an offset"
+python     = ""
+typescript = "lineColumnAt"
+kind       = "excluded"
+divergence_reason = """
+Part of `idf-language-service`, second-language-only by decision and recorded on the parity ledger
+with absence_kind = "never". Turns an offset into the 1-based line and column an editor draws with.
+Listed here so that a Python counterpart is never added without the ledger's `never` being amended
+first.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "offset at a line and column"
+python     = ""
+typescript = "offsetAt"
+kind       = "excluded"
+divergence_reason = """
+Part of `idf-language-service`, second-language-only by decision and recorded on the parity ledger
+with absence_kind = "never". The inverse of `lineColumnAt`, for a consumer whose editor speaks in
+line and column and whose service speaks in offsets. Listed here so that a Python counterpart is
+never added without the ledger's `never` being amended first.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "a source region"
+python     = ""
+typescript = "Region"
+kind       = "excluded"
+divergence_reason = """
+Part of `idf-language-service`, second-language-only by decision and recorded on the parity ledger
+with absence_kind = "never". A half-open span of the source text, and the unit of every position
+this capability reports. Listed here so that a Python counterpart is never added without the
+ledger's `never` being amended first.
+"""
+canonical_form = "half-open, offsets into the source text, an empty region where start equals end"
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "a line and column"
+python     = ""
+typescript = "LineColumn"
+kind       = "excluded"
+divergence_reason = """
+Part of `idf-language-service`, second-language-only by decision and recorded on the parity ledger
+with absence_kind = "never". Derived from a region rather than stored beside one, because storing it
+would double the size of every region to hold two numbers that are a function of one. Listed here so
+that a Python counterpart is never added without the ledger's `never` being amended first.
+"""
+canonical_form = "both counts 1-based; the column in the host language's own string index unit"
+notes      = "The unit divergence itself is registered separately, under `column in a finding`."
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "a syntax token"
+python     = ""
+typescript = "Token"
+kind       = "excluded"
+divergence_reason = """
+Part of `idf-language-service`, second-language-only by decision and recorded on the parity ledger
+with absence_kind = "never". One meaningful span of text with a grammatical kind, materialised on
+demand from the layer's packed arrays rather than stored as an object. Listed here so that a Python
+counterpart is never added without the ledger's `never` being amended first.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "a syntax token kind"
+python     = ""
+typescript = "TokenKind"
+kind       = "excluded"
+divergence_reason = """
+Part of `idf-language-service`, second-language-only by decision and recorded on the parity ledger
+with absence_kind = "never". The grammatical kinds a token can carry, `trivia` included even though
+trivia is never stored. Listed here so that a Python counterpart is never added without the ledger's
+`never` being amended first.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "the syntax layer"
+python     = ""
+typescript = "SyntaxLayer"
+kind       = "excluded"
+divergence_reason = """
+Part of `idf-language-service`, second-language-only by decision and recorded on the parity ledger
+with absence_kind = "never". The whole scan: the text it was built from, its statements, and its
+packed token store. Listed here so that a Python counterpart is never added without the ledger's
+`never` being amended first.
+"""
+notes      = """
+Python has a formatting-preserving concrete syntax tree already, under `lossless-round-trip`, and
+this is not it. That tree exists to be written back out; this layer exists to be positioned against,
+holds no schema meaning, and is built only when a caller names `scanIdf`.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "a written statement"
+python     = ""
+typescript = "Statement"
+kind       = "excluded"
+divergence_reason = """
+Part of `idf-language-service`, second-language-only by decision and recorded on the parity ledger
+with absence_kind = "never". One semicolon-terminated statement as it appears in the text, carrying
+regions and no schema meaning: it is not an object in the model, and a statement with the wrong
+number of fields is still a statement. Listed here so that a Python counterpart is never added
+without the ledger's `never` being amended first.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "schema prose pool"
+python     = ""
+typescript = "ProsePool"
+kind       = "excluded"
+divergence_reason = """
+Part of `idf-language-service`, second-language-only by decision and recorded on the parity ledger
+with absence_kind = "never". The deduplicated prose the schema bundle carries, which
+`describeObjectType` already takes as an optional argument. It becomes a public name here because
+`explainAt` cannot name its own optional prose parameter without it.
+
+Python has no counterpart because it needs none: its schema access reads prose directly rather than
+through a pool, so there is nothing for a Python name to refer to. Listed here so that a Python
+counterpart is never added without the ledger's `never` being amended first.
+"""
+notes      = """
+Declared today at `packages/core/src/introspect/describe.ts` and not re-exported from that package's
+root. Registering it is what lets the change that exports it pass the naming gate.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "cursor context"
+python     = ""
+typescript = "contextAt"
+kind       = "excluded"
+divergence_reason = """
+Part of `idf-language-service`, second-language-only by decision and recorded on the parity ledger
+with absence_kind = "never". Which statement an offset falls in, which field, and which part,
+computed by a bounded backward scan rather than by building a layer. Listed here so that a Python
+counterpart is never added without the ledger's `never` being amended first.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "the cursor context record"
+python     = ""
+typescript = "CursorContext"
+kind       = "excluded"
+divergence_reason = """
+Part of `idf-language-service`, second-language-only by decision and recorded on the parity ledger
+with absence_kind = "never". What `contextAt` returns. A concept of its own because the operation
+and its result are two public names, and FR-005 forbids one concept carrying both. Listed here so
+that a Python counterpart is never added without the ledger's `never` being amended first.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "completions at an offset"
+python     = ""
+typescript = "completionsAt"
+kind       = "excluded"
+divergence_reason = """
+Part of `idf-language-service`, second-language-only by decision and recorded on the parity ledger
+with absence_kind = "never". What the schema permits at an offset, taken from the schema itself and
+never from a second table. Listed here so that a Python counterpart is never added without the
+ledger's `never` being amended first.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "explanation at an offset"
+python     = ""
+typescript = "explainAt"
+kind       = "excluded"
+divergence_reason = """
+Part of `idf-language-service`, second-language-only by decision and recorded on the parity ledger
+with absence_kind = "never". The schema's own facts about whatever is under an offset, reported and
+never paraphrased. Listed here so that a Python counterpart is never added without the ledger's
+`never` being amended first.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "declaration at an offset"
+python     = ""
+typescript = "declarationAt"
+kind       = "excluded"
+divergence_reason = """
+Part of `idf-language-service`, second-language-only by decision and recorded on the parity ledger
+with absence_kind = "never". Where the name under an offset is declared, or nothing when it is
+declared nowhere, which is the dangling-reference finding's answer to give rather than this one's.
+Listed here so that a Python counterpart is never added without the ledger's `never` being amended
+first.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "position findings"
+python     = ""
+typescript = "findingsIn"
+kind       = "excluded"
+divergence_reason = """
+Part of `idf-language-service`, second-language-only by decision and recorded on the parity ledger
+with absence_kind = "never". Existing parse and validation findings with a region attached. It adds
+no findings of its own and holds no second opinion about the schema, which is what keeps this out of
+Python's way rather than duplicating it. Listed here so that a Python counterpart is never added
+without the ledger's `never` being amended first.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "position findings already in hand"
+python     = ""
+typescript = "position"
+kind       = "excluded"
+divergence_reason = """
+Part of `idf-language-service`, second-language-only by decision and recorded on the parity ledger
+with absence_kind = "never". The separately exposed half of `findingsIn`, for a consumer that already
+holds findings from its own run and wants regions attached without paying for a second parse. It is a
+distinct public name rather than an option on `findingsIn` because the two take different inputs: one
+takes text and reads it, the other takes findings and a layer the caller already built. Listed here so
+that a Python counterpart is never added without the ledger's `never` being amended first.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "a positioned finding"
+python     = ""
+typescript = "PositionedFinding"
+kind       = "excluded"
+divergence_reason = """
+Part of `idf-language-service`, second-language-only by decision and recorded on the parity ledger
+with absence_kind = "never". An existing finding with a region and a precision attached, generic
+over the finding type so that a parse diagnostic and a validation error travel one path without
+either being modified. Listed here so that a Python counterpart is never added without the ledger's
+`never` being amended first.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "a completion offer"
+python     = ""
+typescript = "Offer"
+kind       = "excluded"
+divergence_reason = """
+Part of `idf-language-service`, second-language-only by decision and recorded on the parity ledger
+with absence_kind = "never". One completion, carrying the region it would replace so that a consumer
+renders and applies a list without measuring anything itself. Listed here so that a Python
+counterpart is never added without the ledger's `never` being amended first.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "an explanation"
+python     = ""
+typescript = "Explanation"
+kind       = "excluded"
+divergence_reason = """
+Part of `idf-language-service`, second-language-only by decision and recorded on the parity ledger
+with absence_kind = "never". The region described, the schema's field facts, its prose when the
+caller supplied a pool, and the manual location. Listed here so that a Python counterpart is never
+added without the ledger's `never` being amended first.
+"""
+notes      = "Carries `FieldDescription` and `DocsUrl` unchanged; both are already registered above."
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "a declaration site"
+python     = ""
+typescript = "Declaration"
+kind       = "excluded"
+divergence_reason = """
+Part of `idf-language-service`, second-language-only by decision and recorded on the parity ledger
+with absence_kind = "never". Where a name is declared: the region of the declaring statement's name
+field, and that statement's canonical type. Listed here so that a Python counterpart is never added
+without the ledger's `never` being amended first.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "the completion options"
+python     = ""
+typescript = "CompletionOptions"
+kind       = "excluded"
+divergence_reason = """
+Part of `idf-language-service`, second-language-only by decision and recorded on the parity ledger
+with absence_kind = "never". The optional document and prose pool `completionsAt` takes, an
+options-object rather than two more positional arguments. Listed here so that a Python counterpart
+is never added without the ledger's `never` being amended first.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "a completion result"
+python     = ""
+typescript = "CompletionResult"
+kind       = "excluded"
+divergence_reason = """
+Part of `idf-language-service`, second-language-only by decision and recorded on the parity ledger
+with absence_kind = "never". A discriminated union rather than an array, so that "the schema
+constrains nothing here" and "I could not consult a schema" are different answers instead of the
+same empty list. Listed here so that a Python counterpart is never added without the ledger's
+`never` being amended first.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "an explanation result"
+python     = ""
+typescript = "ExplanationResult"
+kind       = "excluded"
+divergence_reason = """
+Part of `idf-language-service`, second-language-only by decision and recorded on the parity ledger
+with absence_kind = "never". The same discriminated shape as `CompletionResult`, for `explainAt`.
+Listed here so that a Python counterpart is never added without the ledger's `never` being amended
+first.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "a declaration result"
+python     = ""
+typescript = "DeclarationResult"
+kind       = "excluded"
+divergence_reason = """
+Part of `idf-language-service`, second-language-only by decision and recorded on the parity ledger
+with absence_kind = "never". The same discriminated shape again, for `declarationAt`. Listed here so
+that a Python counterpart is never added without the ledger's `never` being amended first.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+# ---------------------------------------------------------------------------
+# Entries: the column unit
+# ---------------------------------------------------------------------------
+#
+# Not a name this feature introduces. A real divergence between two names that already look
+# identical, met for the first time by a capability that reports positions on every answer, and an
+# unregistered divergence is indistinguishable from drift.
+
+[[entry]]
+concept    = "column in a finding"
+python     = "column"
+typescript = "column"
+kind       = "divergent"
+canonical_form = "1-based, counted in the host language's own string index unit"
+divergence_reason = """
+Python string indices are code points; JavaScript string indices are UTF-16 code units. The two
+agree for every character below the astral planes and differ for text containing anything above
+them, which in practice means an emoji in a comment.
+
+Each is correct in its own ecosystem, and converting either would make positions wrong for that
+language's own consumers: the Language Server Protocol's default position encoding is UTF-16, as
+are Monaco's columns and CodeMirror's offsets, so the JavaScript value is what every JavaScript
+consumer needs unconverted.
+
+Harmless in practice today: the corpus compares findings on (code, line, typeName) and never on a
+column. Registered because an unregistered divergence is indistinguishable from drift.
+"""
 rename_count = { python = 0, typescript = 0 }
 
 # ---------------------------------------------------------------------------
