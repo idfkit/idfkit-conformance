@@ -312,23 +312,37 @@ names      = [
 # when a capability stops being partial, so the note lives here, in a comment, where the closure
 # cannot take it away. Closing it means giving Python's epJSON parser the diagnostics its IDF parser
 # now has, and belongs to whichever feature takes it.
+# CLOSED 2026-09-04, feature 002.
+#
+# Four changes closed it, all additive. The second language's error carries the whole collection of
+# findings that stopped the parse rather than one flattened into `.line` and `.typeName`; both
+# diagnostics gained a `code` from the eight-value table in runners/compare.md; the second language's
+# findings gained a column, a file path and the object concerned, so both carry the same kinds of
+# location (FR-033); and the first language gained `load_idf_with_diagnostics`, which returns the
+# recoverable findings beside the document in one call.
+#
+# THE RECORD'S FRAMING WAS WRONG AND IS CORRECTED RATHER THAN CARRIED FORWARD. The removed text said
+# Python raises and TypeScript returns. Neither library ever did that: `parse_idf` defaults to
+# `strict_parsing=True` and raises, `parseIdf` defaults to `strict: true` and throws. The text
+# described the non-strict mode while reading as though it described the default. What actually
+# differed was narrower and is now closed, so the prose goes as history rather than being amended.
+#
+# Proven by corpus assertion 4, which was declared, deferred and skipped by both runners from the
+# day the corpus was written until this feature landed it. Two cases were added for the two paths,
+# sharing one input read both ways, so a difference between them is a difference between the paths.
+#
+# FOUR DIAGNOSTICS DIVERGENCES REMAIN ALLOWLISTED, and `complete` is recorded knowing it, on the
+# same footing as `parse` and `write`, which carry fifteen and four. This field records whether a
+# capability is implemented in both languages, not whether every bug in it is fixed; the corpus
+# records the bugs, each against a tracked issue. Three of the four are a shared silence where both
+# libraries agree and both differ from the oracle (idfkit 191, idfkit-js 36) plus one narrow
+# tokenizer difference in which type name is captured (idfkit 190).
 [[capability]]
 id         = "parse-diagnostics"
 title      = "Diagnostics from an IDF parse"
 tier       = "tier-1"
-python     = "partial"
+python     = "complete"
 typescript = "complete"
-differences = """
-Both libraries produce diagnostics for a malformed input; only one hands them back. Python raises
-IDFParseError carrying the diagnostics that stopped the parse, and reports the recoverable ones
-(skipped malformed objects, discarded formatting trees, surplus fields on a non-extensible type)
-through the logging module, where a caller who wants them must install a handler. TypeScript
-returns them: parseIdf and loadIdfWithDiagnostics both yield a ParseResult whose `diagnostics`
-array holds the non-fatal findings alongside the document.
-
-This matters to the conformance corpus, whose `diagnostics` assertion compares what each side
-reports for a malformed case (contracts/conformance-corpus.md).
-"""
 names      = [
   "a parse diagnostic",
   "diagnostics from a parse",
