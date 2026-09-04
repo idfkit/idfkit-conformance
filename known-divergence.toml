@@ -165,16 +165,6 @@ expected  = '''Re-parsing deep-equals the original document. The two spellings, 
 # ---------------------------------------------------------------------------
 
 [[divergence]]
-case      = "malformed-stray-comment"
-library   = "python"
-assertion = "diagnostics"
-issue     = "https://github.com/idfkit/idfkit/issues/190"
-observed  = '''The finding names the type as "a block comment", with the leading "/*" missing.'''
-expected  = '''"/* a block comment", the text as the file wrote it, which is what the TypeScript core reports.
-
-A one-sided gap, and a narrow one: the code and the line agree and only the captured text differs. _OBJECT_PATTERN at idf_parser.py:44 opens its type-name group with [A-Za-z], so the scan begins at the first letter and the "/*" is never part of what the scanner saw. Widening that class changes what the parser accepts as a type name in every file it reads, so this is not a local patch.'''
-
-[[divergence]]
 case      = "malformed-truncated-object"
 library   = "python"
 assertion = "diagnostics"
