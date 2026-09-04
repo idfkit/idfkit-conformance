@@ -225,28 +225,32 @@ names      = [
 # Python: describe_object_type, ObjectDescription, FieldDescription
 # TypeScript: describeObjectType, ObjectDescription, FieldDescription
 # Ported in this feature (research R15, introspection.py, 315 lines).
+#
+# CLOSED 2026-09-04, feature 002. The `differences` text is gone because the gate rejects one on a
+# capability that is not partial, and it is not moved to a page: nothing survives it. All three
+# families are closed rather than documented as permanent.
+#
+# What closed, and where: `@idfkit/schemas` now emits a deduplicated prose pool to
+# `data/docs.json.gz`, 4,878 distinct strings, referenced by one integer per record and per
+# property. `describeObjectType` takes it as an optional third argument and stays synchronous, so a
+# caller who passes nothing sees exactly what they saw before. The empty string is carried beside
+# the validated enum as `eb` and restored by the description path, so `validate()` is unmoved. The
+# sentinel branch `se` was already in the bundle and is now read. Declaration order is recorded as
+# `fo` for the three types that need it.
+#
+# Two claims in the removed text were false and are recorded here rather than silently dropped.
+# The `@idfkit/schemas/docs` subpath was said to be promised by a header comment; no header comment
+# promises it, and none was added, since the pool is reached through the ordinary bundle source.
+# Field order was said to differ for two types in 26.1.0 and six more in 8.9.0 through 9.2.0.
+# Measured across all seventeen bundled schemas it is three types, the same three every time, and
+# one of those three agreed with Python anyway because its two fields sort into declaration order.
+# So the count was wrong in both halves, and accidentally right about 26.1.0.
 [[capability]]
 id         = "introspection"
 title      = "Describing an object type from the schema"
 tier       = "tier-1"
 python     = "complete"
-typescript = "partial"
-differences = """
-TypeScript never populates `memo` or `note`. Both are members of the two types, so the field set
-matches, but they are always undefined. Python fills `memo` for 845 of 858 object types and `note`
-for 6,212 of 12,712 fields in 26.1.0, both from epJSON keys that `@idfkit/schemas` drops on purpose
-to keep the bundle off the parse critical path. The `@idfkit/schemas/docs` subpath its own header
-comment promises does not exist. Describing a type is what a REPL, a notebook, and an LSP hover are
-for, so the prose is most of the value; this is partial rather than complete.
-
-Two further differences, both small and both pinned by tests. `enumValues` omits the empty string
-that Python includes for 1,378 of its 2,293 enum-bearing fields, and omits the sentinel lists
-(`Autosize`, `Autocalculate`) Python recovers from an anyOf branch for 769 fields. Field ORDER
-differs for exactly two types in 26.1.0, `ZoneProperty:UserViewFactors:BySurfaceName` and
-`ZoneTerminalUnitList`, and for six more in 8.9.0 through 9.2.0, because the bundle sorts property
-keys for content-addressing and those types carry no positional field list to restore declaration
-order from.
-"""
+typescript = "complete"
 names      = [
   "describe an object type",
   "object description",

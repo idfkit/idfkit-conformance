@@ -15,14 +15,18 @@
 # either side alone turns its entries stale, which the runner reports as a failure, so those four
 # issues must land together.
 #
-# Counts, against idfkit 0.12.2 and @idfkit/core 0.0.0, EnergyPlus 26.1.0: 20 entries over 13
-# issues and 13 cases, 13 against python and 7 against typescript, on a corpus of 48 cases and 132
+# Counts, against idfkit 0.12.2 and @idfkit/core 0.0.0, EnergyPlus 26.1.0: 19 entries over 12
+# issues and 12 cases, 13 against python and 6 against typescript, on a corpus of 48 cases and 132
 # assertions. Four entries went away in e60b74d, when both libraries started agreeing about blank
 # names. This header stated 22 entries over 47 cases until 2026-09-04, having been written before
 # those four were removed and before the 48th case landed; it is recounted from the file rather
-# than adjusted. The newest one, on tier1-introspection-field-shapes, is different in kind from the rest:
-# it does not record a bug the corpus found, it pins a divergence the parity ledger already
-# declares, so that the ledger's prose cannot quietly stop being true.
+# than adjusted.
+#
+# The tier1-introspection-field-shapes entry was removed on 2026-09-04, in the change that closed
+# the introspection capability. It was the one entry that recorded no bug: it pinned a divergence
+# the parity ledger declared, so that the ledger's prose could not quietly stop being true. It did
+# its job. The library populated all three families, the entry went stale, the runner failed on the
+# stale entry, and the ledger moved to complete in the same change that removed it.
 
 # ---------------------------------------------------------------------------
 # encoding
@@ -155,24 +159,6 @@ assertion = "round-trip"
 issue     = "https://github.com/idfkit/idfkit/issues/183"
 observed  = '''The Zone spelled out with eight explicit blank commas parses to 12 fields, the eight blanks held as the empty string including the numeric ones, then write_idf drops them and re-parsing yields 4: /Zone/1/fields is length 4 on the left and 12 on the right. The Zone truncated with an early semicolon holds 4 fields from the start and round-trips cleanly, so only the blank-comma spelling is lossy.'''
 expected  = '''Re-parsing deep-equals the original document. The two spellings, truncated at the semicolon and written out as blank commas, mean the same thing, converge on the same epJSON already, and must also converge after a write.'''
-
-# ---------------------------------------------------------------------------
-# tier1
-# ---------------------------------------------------------------------------
-
-[[divergence]]
-case      = "tier1-introspection-field-shapes"
-library   = "typescript"
-assertion = "introspection"
-issue     = "https://github.com/idfkit/idfkit-js/issues/26"
-observed  = '''27 differences, in the three families the parity ledger already records for this capability, and no others. First, memo and note are null everywhere: 3 object memos and 5 field notes. Second, enum_values is null on the three anyOf fields, ceiling_height, volume and floor_area, where Python recovers ["", "Autocalculate"] from the string branch. Third, enum_values omits the leading empty string on the three plain enum fields, which shifts every remaining member one index early and accounts for 16 of the 27.
-
-All three come out of describeObjectType rather than out of the runner, and all three come out of the schema bundle rather than out of the introspection code. @idfkit/schemas drops memo and note deliberately to keep the bundle off the parse critical path, keeps the anyOf string branch enum under a separate key that describe.ts does not read, and filters the empty string out of the enum it does read.'''
-expected  = '''The description Python produces: memo on all three types, note on the five Zone fields that carry one, ["", "Autocalculate"] for the three anyOf fields, and the leading empty string present on every enum that declares it.
-
-This entry is the parity ledger made enforceable. governance/parity.toml records introspection as typescript = "partial" and names exactly these three differences in its prose; until now nothing checked that the prose was still true. The case was written to fail rather than written around: choosing a type whose memo happens to be absent would have hidden a difference the ledger already admits to. If TypeScript ever populates any of the three, this entry goes stale, the runner fails, and the ledger has to be corrected in the same change.
-
-The fix is not in describe.ts alone. Two of the three families need @idfkit/schemas to carry data it currently discards, which is a bundle-size decision rather than a port omission, and issue 26 is where that trade-off is tracked.'''
 
 # ---------------------------------------------------------------------------
 # types

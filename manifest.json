@@ -760,6 +760,22 @@
       "expected_introspection": "expected.introspection.json"
     },
     {
+      "id": "tier1-introspection-field-order",
+      "title": "Field order in a type description agrees in both languages, in an older schema",
+      "tags": [
+        "tier1",
+        "types"
+      ],
+      "energyplus_version": "9.4.0",
+      "assertions": [
+        "parse-outcome",
+        "introspection"
+      ],
+      "input": "input.idf",
+      "parse_outcome": "success",
+      "expected_introspection": "expected.introspection.json"
+    },
+    {
       "id": "tier1-docs-url-object-address",
       "title": "A documentation address is built from the bundled mapping, or from the schema group when there is none",
       "tags": [

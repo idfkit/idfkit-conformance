@@ -1,0 +1,284 @@
+{
+  "object_types": {
+    "SolarCollector:UnglazedTranspired:Multisystem": {
+      "obj_type": "SolarCollector:UnglazedTranspired:Multisystem",
+      "memo": "quad-tuples of inlet, outlet, control, and zone nodes for multiple different outdoor air systems attached to same collector",
+      "has_name": false,
+      "is_extensible": true,
+      "extensible_size": 4.0,
+      "required_fields": [
+        "solar_collector_name"
+      ],
+      "fields": [
+        {
+          "name": "solar_collector_name",
+          "field_type": "string",
+          "required": true,
+          "default": null,
+          "units": null,
+          "enum_values": null,
+          "minimum": null,
+          "maximum": null,
+          "exclusive_minimum": null,
+          "exclusive_maximum": null,
+          "note": "Enter the name of a SolarCollector:UnglazedTranspired object.",
+          "is_reference": true,
+          "object_list": [
+            "UTSCNames"
+          ]
+        },
+        {
+          "name": "systems",
+          "field_type": "array",
+          "required": false,
+          "default": null,
+          "units": null,
+          "enum_values": null,
+          "minimum": null,
+          "maximum": null,
+          "exclusive_minimum": null,
+          "exclusive_maximum": null,
+          "note": null,
+          "is_reference": false,
+          "object_list": null
+        },
+        {
+          "name": "outdoor_air_system_collector_inlet_node",
+          "field_type": "string",
+          "required": false,
+          "default": null,
+          "units": null,
+          "enum_values": null,
+          "minimum": null,
+          "maximum": null,
+          "exclusive_minimum": null,
+          "exclusive_maximum": null,
+          "note": null,
+          "is_reference": false,
+          "object_list": null
+        },
+        {
+          "name": "outdoor_air_system_collector_outlet_node",
+          "field_type": "string",
+          "required": false,
+          "default": null,
+          "units": null,
+          "enum_values": null,
+          "minimum": null,
+          "maximum": null,
+          "exclusive_minimum": null,
+          "exclusive_maximum": null,
+          "note": null,
+          "is_reference": false,
+          "object_list": null
+        },
+        {
+          "name": "outdoor_air_system_mixed_air_node",
+          "field_type": "string",
+          "required": false,
+          "default": null,
+          "units": null,
+          "enum_values": null,
+          "minimum": null,
+          "maximum": null,
+          "exclusive_minimum": null,
+          "exclusive_maximum": null,
+          "note": null,
+          "is_reference": false,
+          "object_list": null
+        },
+        {
+          "name": "outdoor_air_system_zone_node",
+          "field_type": "string",
+          "required": false,
+          "default": null,
+          "units": null,
+          "enum_values": null,
+          "minimum": null,
+          "maximum": null,
+          "exclusive_minimum": null,
+          "exclusive_maximum": null,
+          "note": null,
+          "is_reference": false,
+          "object_list": null
+        }
+      ]
+    },
+    "Version": {
+      "obj_type": "Version",
+      "memo": "Specifies the EnergyPlus version of the IDF file.",
+      "has_name": false,
+      "is_extensible": false,
+      "extensible_size": null,
+      "required_fields": [],
+      "fields": [
+        {
+          "name": "version_identifier",
+          "field_type": "string",
+          "required": false,
+          "default": "9.4",
+          "units": null,
+          "enum_values": null,
+          "minimum": null,
+          "maximum": null,
+          "exclusive_minimum": null,
+          "exclusive_maximum": null,
+          "note": null,
+          "is_reference": false,
+          "object_list": null
+        }
+      ]
+    },
+    "ZoneProperty:UserViewFactors:BySurfaceName": {
+      "obj_type": "ZoneProperty:UserViewFactors:BySurfaceName",
+      "memo": "View factors for Surface to Surface in a zone. (Number of Surfaces)**2 are expected. Any omitted surface pairs will be assumed to have a view factor of zero.",
+      "has_name": false,
+      "is_extensible": true,
+      "extensible_size": 3.0,
+      "required_fields": [],
+      "fields": [
+        {
+          "name": "zone_or_zonelist_name",
+          "field_type": "string",
+          "required": false,
+          "default": null,
+          "units": null,
+          "enum_values": null,
+          "minimum": null,
+          "maximum": null,
+          "exclusive_minimum": null,
+          "exclusive_maximum": null,
+          "note": "View factors may be entered for a single zone or for a group of zones connected by Construction:AirBoundary",
+          "is_reference": true,
+          "object_list": [
+            "ZoneListNames",
+            "ZoneNames"
+          ]
+        },
+        {
+          "name": "view_factors",
+          "field_type": "array",
+          "required": false,
+          "default": null,
+          "units": null,
+          "enum_values": null,
+          "minimum": null,
+          "maximum": null,
+          "exclusive_minimum": null,
+          "exclusive_maximum": null,
+          "note": null,
+          "is_reference": false,
+          "object_list": null
+        },
+        {
+          "name": "from_surface",
+          "field_type": "string",
+          "required": false,
+          "default": null,
+          "units": null,
+          "enum_values": null,
+          "minimum": null,
+          "maximum": null,
+          "exclusive_minimum": null,
+          "exclusive_maximum": null,
+          "note": null,
+          "is_reference": true,
+          "object_list": [
+            "AllHeatTranSurfNames"
+          ]
+        },
+        {
+          "name": "to_surface",
+          "field_type": "string",
+          "required": false,
+          "default": null,
+          "units": null,
+          "enum_values": null,
+          "minimum": null,
+          "maximum": null,
+          "exclusive_minimum": null,
+          "exclusive_maximum": null,
+          "note": null,
+          "is_reference": true,
+          "object_list": [
+            "AllHeatTranSurfNames"
+          ]
+        },
+        {
+          "name": "view_factor",
+          "field_type": "number",
+          "required": false,
+          "default": null,
+          "units": null,
+          "enum_values": null,
+          "minimum": null,
+          "maximum": 1.0,
+          "exclusive_minimum": null,
+          "exclusive_maximum": null,
+          "note": "This value is the view factor value From Surface => To Surface",
+          "is_reference": false,
+          "object_list": null
+        }
+      ]
+    },
+    "ZoneTerminalUnitList": {
+      "obj_type": "ZoneTerminalUnitList",
+      "memo": "List of variable refrigerant flow (VRF) terminal units served by a given VRF condensing unit. See ZoneHVAC:TerminalUnit:VariableRefrigerantFlow and AirConditioner:VariableRefrigerantFlow.",
+      "has_name": false,
+      "is_extensible": true,
+      "extensible_size": 1.0,
+      "required_fields": [
+        "zone_terminal_unit_list_name"
+      ],
+      "fields": [
+        {
+          "name": "zone_terminal_unit_list_name",
+          "field_type": "string",
+          "required": true,
+          "default": null,
+          "units": null,
+          "enum_values": null,
+          "minimum": null,
+          "maximum": null,
+          "exclusive_minimum": null,
+          "exclusive_maximum": null,
+          "note": null,
+          "is_reference": false,
+          "object_list": null
+        },
+        {
+          "name": "terminal_units",
+          "field_type": "array",
+          "required": false,
+          "default": null,
+          "units": null,
+          "enum_values": null,
+          "minimum": null,
+          "maximum": null,
+          "exclusive_minimum": null,
+          "exclusive_maximum": null,
+          "note": null,
+          "is_reference": false,
+          "object_list": null
+        },
+        {
+          "name": "zone_terminal_unit_name",
+          "field_type": "string",
+          "required": false,
+          "default": null,
+          "units": null,
+          "enum_values": null,
+          "minimum": null,
+          "maximum": null,
+          "exclusive_minimum": null,
+          "exclusive_maximum": null,
+          "note": null,
+          "is_reference": true,
+          "object_list": [
+            "ZoneTerminalUnitNames"
+          ]
+        }
+      ]
+    }
+  }
+}

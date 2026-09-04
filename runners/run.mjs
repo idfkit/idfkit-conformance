@@ -79,6 +79,7 @@
 import { spawnSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { availableParallelism, tmpdir } from 'node:os';
+import { gunzipSync } from 'node:zlib';
 import { dirname, isAbsolute, join, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
@@ -186,9 +187,10 @@ export const Status = Object.freeze({
 export class LibraryUnderTest {
   /**
    * @param {{ root: string, packageRoot: string, moduleFile: string, version: string,
-   *           core: Record<string, *>, node: Record<string, *> }} fields
+   *           core: Record<string, *>, node: Record<string, *>,
+   *           prose: readonly string[] | undefined }} fields
    */
-  constructor({ root, packageRoot, moduleFile, version, core, node }) {
+  constructor({ root, packageRoot, moduleFile, version, core, node, prose }) {
     /** @type {string} */
     this.root = root;
     /** @type {string} */
@@ -201,6 +203,19 @@ export class LibraryUnderTest {
     this.core = core;
     /** The Node edge: schema resolution against the bundle this checkout ships. */
     this.node = node;
+    /**
+     * The schema's explanatory prose, or undefined when this checkout ships none.
+     *
+     * TypeScript keeps `describeObjectType` synchronous and takes the pool as an
+     * argument, so the prose is opt-in for the caller rather than always loaded.
+     * This runner is a caller that wants the whole description, so it opts in.
+     * Python needs no equivalent step: its schema object carries the prose already.
+     *
+     * Undefined here is not a skip. It means the checkout predates the pool, and
+     * the description is then compared without prose, which is what the corpus
+     * did before feature 002 and what the allowlist entry recorded.
+     */
+    this.prose = prose;
     Object.freeze(this);
   }
 
@@ -427,6 +442,39 @@ export class RunReport {
 // ---------------------------------------------------------------------------
 
 /**
+ * Load the schema's explanatory prose from the checkout under test.
+ *
+ * Returns undefined rather than throwing when the file is not there. A checkout
+ * from before feature 002 ships no pool, and the right behaviour then is to
+ * compare the description without prose and let the allowlist entry explain the
+ * difference, not to fail the whole run with an import error.
+ *
+ * @param {string} resolved  the checkout root
+ * @param {string} packageRoot  the `@idfkit/core` package root inside it
+ * @returns {Promise<readonly string[] | undefined>}
+ */
+async function importProse(resolved, packageRoot) {
+  // `@idfkit/schemas` sits beside `@idfkit/core` in the workspace, and its data
+  // directory is what ships in the published package too.
+  const candidates = [
+    join(resolved, 'packages', 'schemas', 'data', 'docs.json.gz'),
+    join(packageRoot, 'node_modules', '@idfkit', 'schemas', 'data', 'docs.json.gz'),
+    join(resolved, 'node_modules', '@idfkit', 'schemas', 'data', 'docs.json.gz'),
+  ];
+  const file = candidates.find((candidate) => isFile(candidate));
+  if (file === undefined) return undefined;
+
+  try {
+    const parsed = JSON.parse(gunzipSync(readFileSync(file)).toString('utf8'));
+    return Array.isArray(parsed) ? parsed : undefined;
+  } catch {
+    // A pool that will not parse is worse than none: it would produce prose for
+    // the wrong fields. Fall back to no prose and let the comparison say so.
+    return undefined;
+  }
+}
+
+/**
  * Import `@idfkit/core` out of the checkout at `root`, never from an installed copy elsewhere.
  *
  * The suite tests a checkout, so a package resolved from some ambient `node_modules` would silently
@@ -507,6 +555,7 @@ export async function importLibrary(root) {
     version: packageVersion(join(packageRoot, 'package.json')),
     core,
     node,
+    prose: await importProse(resolved, packageRoot),
   });
 }
 
@@ -1171,7 +1220,7 @@ function assertIntrospection(library, job, document, limit) {
   /** @type {Record<string, unknown>} */
   const objectTypes = {};
   for (const objType of objectTypesOf(document)) {
-    const described = library.core.describeObjectType(document.schema, objType);
+    const described = library.core.describeObjectType(document.schema, objType, library.prose);
     objectTypes[objType] = {
       obj_type: described.objType,
       memo: orNull(described.memo),
