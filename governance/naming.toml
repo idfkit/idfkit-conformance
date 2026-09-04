@@ -1072,8 +1072,8 @@ rename_count = { python = 0, typescript = 0 }
 
 [[entry]]
 concept    = "diagnostics from a parse"
-python     = "IDFParseError.diagnostics, ParseResult.diagnostics"
-typescript = "IdfParseError.diagnostics, ParseResult.diagnostics"
+python     = "IDFParseError.diagnostics"
+typescript = "IdfParseError.diagnostics"
 kind       = "aligned"
 notes      = """
 The findings that stopped a parse, carried by the error that reports it. Both languages raise by
@@ -1087,17 +1087,38 @@ closed it: TypeScript's error carried `.line` and `.typeName` from a single find
 the collection, with both accessors kept resolving to the first finding's values so no existing
 caller breaks (FR-014).
 
-Two names per side, because after feature 002 the concept is reachable at two places in both
-languages and dropping either would be false. `.diagnostics` on the error carries the findings that
-stopped the parse; `.diagnostics` on the result carries the recoverable ones. The registered pair was
-`IDFParseError.diagnostics` against `ParseResult.diagnostics` until 2026-09-04, which crossed the two
-paths and was the shape of the divergence this entry used to record.
+THIS ENTRY IS THE ERROR'S COLLECTION. The result's is `recoverable diagnostics from a parse`, below.
 
-`a document and its parse findings` registers the result TYPE, aligned above. This entry registers
-the member that carries the findings, on both of the places that carry them.
+The registered pair was `IDFParseError.diagnostics` against `ParseResult.diagnostics` until
+2026-09-04. That crossed the two paths, and the crossing was the shape of the divergence. Splitting
+it into one concept per carrier is what makes both entries alignable, and it costs one TypeScript
+rename: this concept's TypeScript name moves from `ParseResult.diagnostics`, which has not gone
+anywhere and is registered below, to `IdfParseError.diagnostics`. Python's name does not move, so
+its budget is untouched.
+
+The rename is spent deliberately and is the cheaper of the two available. Mapping this concept to
+the result instead would have kept the TypeScript name and renamed Python, which is the same cost
+against a name that already exists rather than one that is landing in the same feature.
 
 Python's logging announcements are unchanged and are not a third name: they are the same findings
 reaching a caller who installed a handler.
+"""
+rename_count = { python = 0, typescript = 1 }
+
+[[entry]]
+concept    = "recoverable diagnostics from a parse"
+python     = "ParseResult.diagnostics"
+typescript = "ParseResult.diagnostics"
+kind       = "aligned"
+notes      = """
+The findings that did NOT stop the parse, carried alongside the document the parse still produced.
+Reached through `load_idf_with_diagnostics` and `loadIdfWithDiagnostics`, or by parsing with the
+strict flag off.
+
+TypeScript has carried these since it was written; this is the name it has always had, unmoved.
+Python's is new in feature 002 and is registered here before it ships. Splitting them from
+`diagnostics from a parse` above is what lets both concepts be aligned rather than one entry
+pretending an error member and a result member are the same name.
 """
 rename_count = { python = 0, typescript = 0 }
 
