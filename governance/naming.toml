@@ -1072,8 +1072,8 @@ rename_count = { python = 0, typescript = 0 }
 
 [[entry]]
 concept    = "diagnostics from a parse"
-python     = "IDFParseError.diagnostics"
-typescript = "IdfParseError.diagnostics"
+python     = "IDFParseError.diagnostics, ParseResult.diagnostics"
+typescript = "IdfParseError.diagnostics, ParseResult.diagnostics"
 kind       = "aligned"
 notes      = """
 The findings that stopped a parse, carried by the error that reports it. Both languages raise by
@@ -1087,7 +1087,15 @@ closed it: TypeScript's error carried `.line` and `.typeName` from a single find
 the collection, with both accessors kept resolving to the first finding's values so no existing
 caller breaks (FR-014).
 
-The returning path is a separate concept, `a document and its parse findings`, aligned above.
+Two names per side, because after feature 002 the concept is reachable at two places in both
+languages and dropping either would be false. `.diagnostics` on the error carries the findings that
+stopped the parse; `.diagnostics` on the result carries the recoverable ones. The registered pair was
+`IDFParseError.diagnostics` against `ParseResult.diagnostics` until 2026-09-04, which crossed the two
+paths and was the shape of the divergence this entry used to record.
+
+`a document and its parse findings` registers the result TYPE, aligned above. This entry registers
+the member that carries the findings, on both of the places that carry them.
+
 Python's logging announcements are unchanged and are not a third name: they are the same findings
 reaching a caller who installed a handler.
 """
