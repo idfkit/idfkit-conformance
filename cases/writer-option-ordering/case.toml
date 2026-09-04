@@ -24,16 +24,14 @@ The case asks for `source`, the document's own order, which is the second langua
 first language's new option. Assertion 3 compares structure rather than order of appearance, so a
 document reordered and read back is the same document, which is the whole claim.
 
-ONE-SIDED, and stated rather than hidden. Measured on this input, `source` changes the first
-language's output and changes nothing in the second, because insertion order is already what that
-writer does and it offers no sort to turn off. So this case exercises a real control on one side and
-a no-op on the other, and it would pass on the second side even if the runner dropped the option
-entirely. The other four controls change the output in both languages, verified by writing the same
-document with and without each one.
+This case was one-sided until the second language gained `ordering`. `source` is that writer's
+default, so asking for it changed nothing there and the case would have passed even if the runner
+had dropped the option entirely. SC-007 asks for zero controls that exist on one writer and not the
+other, and US4's second acceptance scenario names object ordering explicitly, so the control was
+added rather than the gap argued away.
 
-Closing that asymmetry means giving the second language a `sorted` ordering, which no requirement
-asks for: FR-016 asks for the five controls that exist on one writer and not the other, and this is
-not one of them. Recorded here so the next reader does not mistake a no-op for a check.
+Both sides now change their output when the option is applied, verified by writing the same document
+with and without it, so the case checks something on both.
 """
 tags = ["tier1"]
 energyplus_version = "26.1.0"

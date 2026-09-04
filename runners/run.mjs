@@ -877,10 +877,7 @@ function writerOptionsFor(options) {
   // The corpus counts indent in spaces; this writer takes the string itself.
   if (options.indent !== null) mapped['indent'] = ' '.repeat(options.indent);
   if (options.commentColumn !== null) mapped['commentColumn'] = options.commentColumn;
-  // `ordering` has no counterpart here: this writer keeps insertion order and offers no sort, which
-  // is `source` and is already its default. A case asking for `source` is satisfied by doing
-  // nothing; one asking for `sorted` is asking for something this writer does not do, and the
-  // round trip still holds because assertion 3 compares structure rather than order of appearance.
+  if (options.ordering !== null) mapped['ordering'] = options.ordering;
   return mapped;
 }
 

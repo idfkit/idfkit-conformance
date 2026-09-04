@@ -2981,6 +2981,70 @@ rename_count = { python = 0, typescript = 0 }
 # names are consequences of one language's type system rather than choices either language could
 # share. None of them is a gap in Python, and FR-068 and FR-078 forbid recording them as one.
 
+# ---------------------------------------------------------------------------
+# Entries: the writer's controls (FR-016)
+# ---------------------------------------------------------------------------
+#
+# The option CONTAINERS are excluded below, because an options object is a TypeScript necessity and
+# a Python redundancy. The option NAMES are not: they are concepts a reader meets in both languages,
+# and `preserve formatting on a round-trip` has been registered that way since the register was
+# written. These four join it, registered in the change that made all five writer controls exist on
+# both sides (feature 002, SC-007).
+
+[[entry]]
+concept    = "indent width"
+python     = "indent"
+typescript = "indent"
+kind       = "aligned"
+notes      = """
+How far each field line is indented. A count of spaces in Python, the string itself in TypeScript,
+which is the shape each language's callers expect and is recorded here rather than reconciled.
+
+The DEFAULTS differ and are not moving: two spaces in Python, four in TypeScript. Both are published
+and neither is more correct, which is the whole subject of the `two writers, one model` page.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "comment column"
+python     = "comment_column"
+typescript = "commentColumn"
+kind       = "aligned"
+notes      = """
+The column field-name comments are padded to. The one writer default of the six that already agreed:
+30 on both sides.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "object ordering"
+python     = "ordering"
+typescript = "ordering"
+kind       = "aligned"
+notes      = """
+How object types are ordered on the way out. Takes `sorted` or `source` rather than a boolean,
+because three behaviours exist across the two languages and two formats and a flag cannot say which
+of the three is wanted.
+
+The defaults differ and are not moving: `sorted` in Python, whose `!-Option SortedOrder` header
+announces it, and `source` in TypeScript, which is insertion order.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "pin the version object first"
+python     = "version_first"
+typescript = "versionFirst"
+kind       = "aligned"
+notes      = """
+Whether `Version` is written ahead of every other type, whatever the ordering. Defaults to true on
+both sides, which is what both writers did before the control existed.
+
+Composes with `object ordering` rather than overriding it: the ordering decides the sequence, this
+decides whether Version is lifted out of it.
+"""
+rename_count = { python = 0, typescript = 0 }
+
 [[entry]]
 concept    = "the options-object types"
 python     = ""

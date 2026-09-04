@@ -109,14 +109,16 @@ names      = [
 # Not in this entry: a lossless mode. `lossless-round-trip` is a separate Tier 2 entry, absent in
 # the second language and tracked as not yet ported.
 #
-# TWO CONTROLS ARE STILL SPELLED ON ONE SIDE ONLY, and `complete` is recorded knowing it. The first
-# language's `ordering` has no counterpart in the second, whose writer keeps insertion order and
-# offers no sort to turn off, so `source` is already that writer's only behaviour; the second
-# language's `versionFirst` has no counterpart in the first, which always pins Version first. Neither
-# is a capability a caller cannot reach: each names a behaviour the other writer already has and
-# cannot vary. FR-016 asked for the five controls that gave one writer an output the other could not
-# produce, and these two are not among them. `writer-option-ordering` in the corpus says the same
-# thing in its own `why`, so a reader does not mistake a no-op for a check.
+# EVERY CONTROL NOW EXISTS ON BOTH SIDES. Two were still one-sided when this entry first moved to
+# complete: the first language's `ordering` and the second's `versionFirst`. The entry argued at the
+# time that neither gave a caller output the other writer could not produce, which was true and was
+# not what SC-007 asked for, and US4's second acceptance scenario named object ordering explicitly.
+# Both controls were added rather than the gap argued away, and all four option names are registered
+# as concepts in naming.toml.
+#
+# `writer-option-ordering` in the corpus checks something on both sides as a result. It did not
+# before: `source` was already the second writer's only behaviour, so the case would have passed
+# there even if the runner had dropped the option.
 [[capability]]
 id         = "write"
 title      = "Writing IDF and epJSON"
