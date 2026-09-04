@@ -33,7 +33,30 @@
 #   differences   non-empty string, required when either side is "partial"
 #   issue         tracking URL, required when absence_kind = "not-yet"
 #   note          string, required when absence_kind = "never"
+#   difference_kind    "not-yet" | "never", required when either side is "partial"
+#   difference_issue   tracking URL, required when difference_kind = "not-yet"
+#   difference_note    string, required when difference_kind = "never"
 #   names         list of naming-register concepts, required
+#
+# SAYING WHETHER A DIFFERENCE WILL CLOSE
+#
+# `differences` says WHAT differs. `difference_kind` says whether to wait for it. Without the
+# second, a reader meeting a `partial` capability cannot tell whether to write the difference into
+# their own code or leave a gap for it to be filled, and that is the question they actually have.
+#
+# The vocabulary is deliberately the same as `absence_kind`, and the pairing is the same:
+#
+#   "not-yet"   expected to close. Carries `difference_issue`, a real tracking item, on the same
+#               terms as `issue`: an entry with a fabricated URL is worse than one with none,
+#               because it passes the gate and dead-links the reader.
+#   "never"     will not close, by decision or because the two runtimes cannot meet.
+#               Carries `difference_note` saying why, and is TERMINAL: moving a capability off
+#               `never` needs a constitutional amendment, not an edit to this file, exactly as
+#               `absence_kind = "never"` does.
+#
+# The fields are separate from `issue` and `note` rather than reusing them, because a capability
+# can be `partial` on one side and `absent` on the other, and one pair of fields could not then
+# say which state it was describing.
 #
 # RULES THAT SHAPE THE ENTRIES BELOW
 #
@@ -287,6 +310,21 @@ Application differs too. Python's stubs apply implicitly to every document. Type
 by construction: an unparameterised document stays untyped, which is what version-generic code
 needs.
 """
+difference_kind = "not-yet"
+difference_issue = "https://github.com/idfkit/idfkit/issues/194"
+difference_note = """
+The COVERAGE half is expected to close and is tracked. Research for feature 002's withdrawn User
+Story 7 established that per-version stubs cost roughly 8 to 9 percent on the shipped type
+information rather than seventeen copies, because every version range is contiguous and a pair of
+endpoints expresses it.
+
+The APPLICATION half is not a gap and is not closing: Python's stubs apply implicitly to every
+document, TypeScript's are opt-in because an unparameterised document stays untyped. That is each
+language's type system, not a difference in what the libraries offer.
+
+The entry is `not-yet` on the strength of the first, because that is the half a reader should wait
+for rather than write around.
+"""
 names      = [
   "generated object types",
   "a version type map",
@@ -390,6 +428,23 @@ The installation difference above is the whole weather surface's, not the index'
 stated here because the index is where a reader meets it first, and `weather-download` and
 `weather-file-cache` refer back to it rather than repeat it.
 """
+difference_kind = "never"
+difference_note = """
+Both halves of this are decisions rather than gaps, and neither is going to close.
+
+The packaging is deliberate. Python extras gate dependencies rather than files, so `pip install
+idfkit` cannot avoid installing weather; npm can, and weather is an opt-in peer there. Making the
+two agree would mean either forcing weather into every npm install or removing it from every pip
+install, and each of those is a worse outcome than the difference.
+
+The freshness nudge is a platform consequence. Python's throttled probe is built on a writable
+cache directory to record when it last ran; a browser-targeted package has none, so a nudge there
+would either run on every load or not throttle at all. `checkForUpdates` and `refreshStationIndex`
+give a caller who asks the same answer.
+
+A reader should therefore write to the difference rather than wait for it: install
+`@idfkit/weather` explicitly, and call the freshness check rather than expecting one.
+"""
 names      = [
   "the station index",
   "search stations",
@@ -454,6 +509,23 @@ because the caller had to obtain an index already and the function has nowhere t
 typescript = "partial" records the missing selective extraction and nothing else. It is not a
 verdict on the on-disk cache: that is `weather-file-cache`, which is permanently absent by decision
 rather than missing.
+"""
+difference_kind = "never"
+difference_note = """
+The one thing `partial` records here is selective extraction, and it follows from a platform
+difference rather than from an omission.
+
+`only={".epw"}` is a property of writing into a cache: Python extracts a chosen subset because it
+is deciding what to put on disk. The JavaScript side has no disk, decodes the archive in memory,
+and therefore already holds every member; a parameter to extract fewer would save nothing and
+return less. Closing it would mean giving the browser side a cache it cannot have.
+
+The related asymmetries the prose describes are the same fact seen from other angles: paths against
+text, a required index argument against an optional one, retrieval split from writing. None of them
+is a gap and none is closing.
+
+`weather-file-cache` is where the on-disk cache itself is recorded, permanently absent by the same
+reasoning.
 """
 names      = [
   "download a weather file",

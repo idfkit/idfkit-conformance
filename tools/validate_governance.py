@@ -30,6 +30,10 @@ REASON_REQUIRED_KINDS = frozenset({"divergent", "excluded"})
 VALID_AVAILABILITY = frozenset({"complete", "partial", "absent"})
 VALID_TIERS = frozenset({"tier-1", "tier-2", "tier-3", "never"})
 VALID_ABSENCE_KINDS = frozenset({"not-yet", "never"})
+#: `difference_kind` deliberately shares its vocabulary with `absence_kind`. A reader who has
+#: learned that `never` is terminal for an absent capability should not have to learn a second word
+#: for the same idea about a partial one.
+VALID_DIFFERENCE_KINDS = frozenset({"not-yet", "never"})
 
 
 @dataclass(frozen=True, slots=True)
@@ -147,6 +151,47 @@ def check_parity(ledger: dict, concepts: set[str]) -> list[Finding]:
                 findings.append(Finding("never-note", where, "absence_kind is never, so note must say why."))
         elif entry.get("absence_kind"):
             findings.append(Finding("absence-kind", where, "absence_kind is set but neither side is absent."))
+
+        # A stated difference must say whether it will close.
+        #
+        # `differences` says WHAT differs; without a kind, a reader cannot tell whether to write
+        # the difference into their own code or leave a gap for it to be filled, which is the
+        # question they actually have. The pairing mirrors `absence_kind`: `not-yet` carries a real
+        # tracking item, `never` carries a reason and is terminal.
+        if is_partial:
+            kind = entry.get("difference_kind")
+            if kind not in VALID_DIFFERENCE_KINDS:
+                findings.append(
+                    Finding(
+                        "difference-kind",
+                        where,
+                        "a partial capability must say whether the difference is 'not-yet' or 'never'.",
+                    )
+                )
+            elif kind == "not-yet" and not str(entry.get("difference_issue", "")).startswith(("http://", "https://")):
+                findings.append(
+                    Finding(
+                        "difference-tracking-issue",
+                        where,
+                        "difference_kind is not-yet, so difference_issue must be a real URL. A "
+                        "fabricated one is worse than none: it passes this gate and dead-links the reader.",
+                    )
+                )
+            elif kind == "never" and not (entry.get("difference_note") or "").strip():
+                findings.append(
+                    Finding("difference-note", where, "difference_kind is never, so difference_note must say why.")
+                )
+        else:
+            for field in ("difference_kind", "difference_issue", "difference_note"):
+                if entry.get(field):
+                    findings.append(
+                        Finding(
+                            "difference-kind",
+                            where,
+                            f"{field} is set but neither side is partial. It goes in the same edit that "
+                            "removes `differences`, for the same reason.",
+                        )
+                    )
 
         names = entry.get("names")
         if not isinstance(names, list):
