@@ -954,7 +954,10 @@ def _written_spans(document: Any, written: str) -> tuple[tuple[int, tuple[int, i
         if node.obj.source_text is not None:
             emit(node.obj.source_text, None)
         else:
-            emit(f"{formatter.format_object(node.obj)}\n\n", key)
+            # The node's original text goes with it: the writer reuses that object's own field
+            # comments rather than generating new ones, so a reconstruction that omitted it would
+            # rebuild a different object and the self-check below would reject the run.
+            emit(f"{formatter.format_object(node.obj, node.text)}\n\n", key)
 
     added = [obj for obj in document.all_objects if id(obj) not in emitted]
     if added:
