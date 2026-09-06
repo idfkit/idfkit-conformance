@@ -579,16 +579,28 @@ names      = [
 #         write_idf; load_epjson(preserve_formatting=True) retaining the raw JSON text
 # TypeScript: none. packages/core/src/write/idf.ts states plainly that it does not round-trip
 #             formatting, and `3.0` comes back as `3`.
+# Both languages preserve the object notation on all-or-nothing terms: the retained text is
+# reproduced only while nothing has been touched, added or removed, and any change falls the whole
+# document back to the ordinary writer. The text format preserves per object. Stated here because a
+# reader who knows the text format's terms would otherwise assume them, and because that difference
+# is a property of the FORMAT rather than a difference between the libraries, which is why this
+# entry is complete on both sides rather than partial on either.
+#
+# One limit each side shares and neither closes: reproduction is defined against the text the read
+# was GIVEN, not against a file's bytes. Python's `save_idf` opens its destination without
+# `newline=""`, so the standard library translates line endings on the way out, and the TypeScript
+# reader refuses a file carrying a byte-order mark. Both live at the file boundary, both are
+# recorded in the corpus README's coverage-gaps section, and neither is reachable by a corpus case.
 [[capability]]
 id         = "lossless-round-trip"
 title      = "Formatting-preserving round-trip"
 tier       = "tier-2"
 python     = "complete"
-typescript = "absent"
-absence_kind = "not-yet"
-issue      = "https://github.com/idfkit/idfkit-js/issues/12"
+typescript = "complete"
 names      = [
   "preserve formatting on a round-trip",
+  "the original source text",
+  "the retained source structure",
 ]
 
 # Python: Vector3D, Polygon3D, calculate_surface_area, calculate_surface_azimuth,
