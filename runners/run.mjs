@@ -1261,22 +1261,59 @@ function reconcileSpans(job, source, written, sourceSpans, writtenSpans) {
 
   const sourceMiddle = sourceSpans.slice(head, sourceSpans.length - tail);
   const writtenMiddle = writtenSpans.slice(head, writtenSpans.length - tail);
-  if (sourceMiddle.length === 0 && writtenMiddle.length === 0 && job.operations.length > 0) {
-    throw new ExtentUnknown(
-      'the case declares operations and the written text reproduces every statement of the ' +
-        'source, so no statement can be identified as the one that changed'
-    );
-  }
 
+  // Nothing differs, so nothing is excluded and the whole text is compared. That is the right
+  // answer for `preserve-edit-no-op`, whose operation writes the value already held, and it is
+  // also what this assertion has to say about a library that discarded an edit: every byte outside
+  // the objects it touched equals the input, and it touched none. Whether an edit SURVIVED is a
+  // different claim, made over a re-read of the output, and it is not this one.
   // One span per side, from the first differing statement to the last, plus the separator that
   // follows it: the writer's own punctuation around a reformatted object is written for that
   // object and has no counterpart in the source.
   return {
     source,
     written,
-    sourceExcluded: sourceMiddle.length === 0 ? [] : [enclosing(source, sourceMiddle)],
-    writtenExcluded: writtenMiddle.length === 0 ? [] : [enclosing(written, writtenMiddle)],
+    // The source side excludes the statements themselves and nothing more. What follows a
+    // statement's terminator belongs to no object, and a preserving write copies it, so it is
+    // present on both sides and is compared.
+    sourceExcluded: sourceMiddle.length === 0 ? [] : [span(sourceMiddle)],
+    // The written side excludes what the WRITER produced for those objects, which runs past the
+    // terminator: `writeObject` puts its own `!- Field Name` comment after the semicolon and ends
+    // the line. The source's own trailing comment is then copied into the gap after it, which is
+    // why a reformatted object leaves the old comment below the new text, and why that copied gap
+    // is the same on both sides and stays compared.
+    writtenExcluded: writtenMiddle.length === 0 ? [] : [throughLine(written, span(writtenMiddle))],
   };
+}
+
+/**
+ * One span covering every statement given.
+ *
+ * @param {[number, number][]} spans
+ * @returns {[number, number]}
+ */
+function span(spans) {
+  return [spans[0][0], spans[spans.length - 1][1]];
+}
+
+/**
+ * A span extended to the end of the line its last character sits on, and over any blank lines
+ * after it.
+ *
+ * The line, because the writer's own field comment follows the terminator. The blank lines,
+ * because an object appended at the end of the file is followed by the separator the writer adds
+ * and by nothing in the source at all.
+ *
+ * @param {string} text
+ * @param {[number, number]} bounds
+ * @returns {[number, number]}
+ */
+function throughLine(text, bounds) {
+  let end = bounds[1];
+  while (end < text.length && text[end] !== '\n') end += 1;
+  if (end < text.length) end += 1;
+  while (end < text.length && (text[end] === '\n' || text[end] === '\r')) end += 1;
+  return [bounds[0], end];
 }
 
 /**
@@ -1301,19 +1338,6 @@ function gapBefore(text, spans, index) {
   return text.slice(from, spans[index][0]);
 }
 
-/**
- * One span covering every statement in `spans`, and the blank text that trails the last of them.
- *
- * @param {string} text
- * @param {[number, number][]} spans
- * @returns {[number, number]}
- */
-function enclosing(text, spans) {
-  const start = spans[0][0];
-  let end = spans[spans.length - 1][1];
-  while (end < text.length && (text[end] === '\n' || text[end] === '\r')) end += 1;
-  return [start, end];
-}
 
 /**
  * Apply a case's declared changes, in list order, through the library's own mutators.
