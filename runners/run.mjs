@@ -1270,20 +1270,57 @@ function reconcileSpans(job, source, written, sourceSpans, writtenSpans) {
   // One span per side, from the first differing statement to the last, plus the separator that
   // follows it: the writer's own punctuation around a reformatted object is written for that
   // object and has no counterpart in the source.
+  // When the changed region runs to the last statement on both sides, everything after the last
+  // statement the two still agree on belongs to it. That covers an object appended at the end, the
+  // last statement reformatted, and a removal that leaves a gap the appended object then follows,
+  // all without having to tell them apart — which a count cannot do, since removing one object and
+  // appending another leaves the same number of statements in the middle on each side.
+  //
+  // The boundary is the terminator of the last agreeing statement, the same offset on both sides,
+  // so the comparison loses only the trailing text of a statement it already matched.
+  if (tail === 0 && (sourceMiddle.length > 0 || writtenMiddle.length > 0)) {
+    const from = (spans) => (head === 0 ? 0 : spans[head - 1][1]);
+    return {
+      source,
+      written,
+      sourceExcluded: [[from(sourceSpans), source.length]],
+      writtenExcluded: [[from(writtenSpans), written.length]],
+    };
+  }
+
   return {
     source,
     written,
-    // The source side excludes the statements themselves and nothing more. What follows a
-    // statement's terminator belongs to no object, and a preserving write copies it, so it is
-    // present on both sides and is compared.
-    sourceExcluded: sourceMiddle.length === 0 ? [] : [span(sourceMiddle)],
-    // The written side excludes what the WRITER produced for those objects, which runs past the
-    // terminator: `writeObject` puts its own `!- Field Name` comment after the semicolon and ends
-    // the line. The source's own trailing comment is then copied into the gap after it, which is
-    // why a reformatted object leaves the old comment below the new text, and why that copied gap
-    // is the same on both sides and stays compared.
-    writtenExcluded: writtenMiddle.length === 0 ? [] : [throughLine(written, span(writtenMiddle))],
+    // Both sides exclude what belongs to the objects that changed, and "belongs" now includes a
+    // comment sitting after the terminator on the same line: both libraries absorb it into the
+    // statement rather than leaving it in the gap (idfkit-js#47). So the source side runs to the
+    // end of that comment, exactly as the writers do, and the newline after it is gap on both
+    // sides and stays compared.
+    sourceExcluded: sourceMiddle.length === 0 ? [] : [throughComment(source, span(sourceMiddle))],
+    // The written side by the same rule, not a wider one. A statement's extent ends at its
+    // terminator or at the comment on that line and never includes the line break, on either side:
+    // the break is the first character of the gap, and the gap is compared.
+    writtenExcluded:
+      writtenMiddle.length === 0 ? [] : [throughComment(written, span(writtenMiddle))],
   };
+}
+
+/**
+ * A span extended over a comment sitting after the terminator on the same line.
+ *
+ * Mirrors what both writers do: horizontal whitespace, then a comment, stopping before the line
+ * break. The break itself is gap.
+ *
+ * @param {string} text
+ * @param {[number, number]} bounds
+ * @returns {[number, number]}
+ */
+function throughComment(text, bounds) {
+  let at = bounds[1];
+  while (at < text.length && (text[at] === ' ' || text[at] === '\t')) at += 1;
+  if (at >= text.length || text[at] !== '!') return bounds;
+  while (at < text.length && text[at] !== '\n') at += 1;
+  return [bounds[0], at];
 }
 
 /**
@@ -1296,25 +1333,6 @@ function span(spans) {
   return [spans[0][0], spans[spans.length - 1][1]];
 }
 
-/**
- * A span extended to the end of the line its last character sits on, and over any blank lines
- * after it.
- *
- * The line, because the writer's own field comment follows the terminator. The blank lines,
- * because an object appended at the end of the file is followed by the separator the writer adds
- * and by nothing in the source at all.
- *
- * @param {string} text
- * @param {[number, number]} bounds
- * @returns {[number, number]}
- */
-function throughLine(text, bounds) {
-  let end = bounds[1];
-  while (end < text.length && text[end] !== '\n') end += 1;
-  if (end < text.length) end += 1;
-  while (end < text.length && (text[end] === '\n' || text[end] === '\r')) end += 1;
-  return [bounds[0], end];
-}
 
 /**
  * @param {string} text
