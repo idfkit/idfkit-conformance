@@ -3347,6 +3347,143 @@ name, same meaning, and the optionality difference follows from `create a new do
 rename_count = { python = 0, typescript = 0 }
 
 [[entry]]
+concept    = "label a field the author left without a comment"
+python     = "field_comments"
+typescript = "fieldComments"
+kind       = "aligned"
+notes      = """
+A writer control, `"preserve"` or `"generate"`, meaningful only on the preserving path because that
+is the only path that knows what the author wrote.
+
+`"preserve"` leaves a bare field bare. A field written without a comment was written that way on
+purpose, and absence is as much a thing the author wrote as the words are. `"generate"` labels it,
+for a caller who wants the file annotated.
+
+Neither setting touches the author's own comment LINES. A comment between two objects is carried by
+the text between them, and a comment on its own line inside an object is emitted with the field
+below it, so asking for labels adds them and never costs a line. That is the property this option
+exists to make safe: without it, wanting labels would mean taking the whole ordinary writer and
+losing everything it cannot regenerate.
+
+An enumeration rather than a boolean, on the same reasoning as `ordering`: a third behaviour is
+plausible, reusing the author's comment and appending the unit, and a flag could not say which.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "the objects a preserving write will rewrite"
+python     = "IDFDocument.changed_objects"
+typescript = "IdfDocument.changedObjects"
+kind       = "aligned"
+notes      = """
+Every object a preserving write will write afresh rather than reproduce from the characters it was
+read from. Empty for a document read with preservation and not edited since; every object for a
+document read without it, because there is nothing to reproduce.
+
+`the original source text` answers WHETHER a write will preserve. This answers HOW MUCH of the file
+it will change, which is the question a save button has to put to a user out loud, and it is the one
+a consumer cannot derive: a rename clears the record on every object that referred to the renamed
+one, so counting from an edit log reports one where the answer is nine. Deriving it means
+reimplementing the rule about what a change touches, which is a second opinion about the same
+question and drifts the day the rule moves.
+
+A generator beside `objects()` rather than a count, so a consumer that wants to LIST what it is
+about to reformat can, and a count is the length of what it yields.
+
+Python could already answer this per object: `IDFObject.source_text` is None for an object that has
+been changed, and the writer branches on exactly that. That is the retained TEXT, though, and its
+use as a flag is incidental to what it is; a consumer reading it has to know that having text means
+unchanged, which is a sentinel that reads backwards. This asks the question directly, in both
+languages, and leaves `source_text` as the text it is.
+
+The anchoring behind the record stays internal in both. A consumer wanting the layer calls `scanIdf`.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "where an object's characters sit in the retained source"
+python     = "IDFDocument.region_of"
+typescript = "IdfDocument.regionOf"
+kind       = "aligned"
+notes      = """
+The half-open offset range in `the original source text` that an object was read from, or nothing
+for an object added since the read.
+
+This exists because `the objects a preserving write will rewrite` is otherwise unusable by the
+consumer it was written for. An editor turning an edit into the smallest possible change needs
+three things: WHICH objects will be rewritten, WHAT text each becomes, and WHERE the old one was.
+The first two are public in both languages; the third was reachable only through the anchoring,
+which is internal in both on purpose. Without it a consumer writes the whole file and diffs it,
+which is the work the first name exists to avoid, so publishing that name and withholding this one
+left the capability half-built.
+
+Offsets into the retained text, not a line and column. A line and column is a rendering of the
+same fact and a consumer that wants one can compute it from text it already holds, while the
+reverse costs a scan. TypeScript's `Region` is already public and already means exactly this, and
+carries the line-and-column conversion beside it.
+
+The Python name for the range is `SourceSpan` rather than `Region`, which in a building energy
+library reads as a piece of a surface. TypeScript keeps `Region`, where it has meant a span of the
+syntax layer since feature 005 and where renaming it now would break a published surface to fix a
+collision that language does not have.
+
+Nothing here publishes the anchoring itself. Both languages answer the question and keep the
+structure that answers it internal, which is the same line `the retained source structure` draws.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "one object rendered as a preserving write would render it"
+python     = "IDFDocument.render_object"
+typescript = "IdfDocument.renderObject"
+kind       = "aligned"
+notes      = """
+The text a preserving write would put in the range `where an object's characters sit in the
+retained source` returns. The third leg, and without it the other two do not carry weight.
+
+Turning an edit into the smallest possible change to a file takes three things: WHICH objects will
+be rewritten, WHERE the old one was, and WHAT text each becomes. The first two were registered
+before this one and neither is usable alone. The ordinary per-object writer is not the third: a
+preserving write hands it the author's own per-field annotations, which are internal in both
+languages, so a consumer calling it with arguments built by hand gets the author's units and notes
+back as generated labels. Measured on one field of one object: `!- North Axis {deg}` came back
+`!- North Axis`. A unit lost from an engineering model by an editor asked to save a file.
+
+Registered because the alternative was a documented hazard. The accessor shipped with the gap
+stated on it, and a doc comment is not a load-bearing place for a correctness constraint; the same
+argument was accepted about what `the objects a preserving write will rewrite` does not answer.
+Both language service and web editor readers reached the same conclusion independently, that the
+range alone changes nothing they would build.
+
+Takes the same write options as the whole-document write and resolves them the same way, so the
+two agree by construction rather than by a consumer reproducing the defaulting. Answers nothing
+for an object the retained source does not hold, which is the same set the range accessor declines.
+
+No trailing line break. The range it fills ends at the terminator or at the comment on that line,
+and the break that follows is the first character of what separates one object from the next, which
+a preserving write leaves in place.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "a half-open range of the source text"
+python     = "SourceSpan"
+typescript = "Region"
+kind       = "aligned"
+notes      = """
+What `where an object's characters sit in the retained source` returns: `start` and `end` as
+offsets into the retained text, `end` exclusive.
+
+A frozen record in both languages rather than a tuple or a pair of arguments, so that a consumer
+reading `span.start` cannot transpose it, and so that a later addition beside the two offsets is
+not a breaking change.
+
+TypeScript's already existed and is already exported; this entry records it rather than introduces
+it. The differing spelling is argued under the accessor's entry.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
 concept    = "the retained source structure"
 python     = "IDFDocument.cst"
 typescript = ""
