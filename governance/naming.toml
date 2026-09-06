@@ -3401,6 +3401,56 @@ The anchoring behind the record stays internal in both. A consumer wanting the l
 rename_count = { python = 0, typescript = 0 }
 
 [[entry]]
+concept    = "where an object's characters sit in the retained source"
+python     = "IDFDocument.region_of"
+typescript = "IdfDocument.regionOf"
+kind       = "aligned"
+notes      = """
+The half-open offset range in `the original source text` that an object was read from, or nothing
+for an object added since the read.
+
+This exists because `the objects a preserving write will rewrite` is otherwise unusable by the
+consumer it was written for. An editor turning an edit into the smallest possible change needs
+three things: WHICH objects will be rewritten, WHAT text each becomes, and WHERE the old one was.
+The first two are public in both languages; the third was reachable only through the anchoring,
+which is internal in both on purpose. Without it a consumer writes the whole file and diffs it,
+which is the work the first name exists to avoid, so publishing that name and withholding this one
+left the capability half-built.
+
+Offsets into the retained text, not a line and column. A line and column is a rendering of the
+same fact and a consumer that wants one can compute it from text it already holds, while the
+reverse costs a scan. TypeScript's `Region` is already public and already means exactly this, and
+carries the line-and-column conversion beside it.
+
+The Python name for the range is `SourceSpan` rather than `Region`, which in a building energy
+library reads as a piece of a surface. TypeScript keeps `Region`, where it has meant a span of the
+syntax layer since feature 005 and where renaming it now would break a published surface to fix a
+collision that language does not have.
+
+Nothing here publishes the anchoring itself. Both languages answer the question and keep the
+structure that answers it internal, which is the same line `the retained source structure` draws.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "a half-open range of the source text"
+python     = "SourceSpan"
+typescript = "Region"
+kind       = "aligned"
+notes      = """
+What `where an object's characters sit in the retained source` returns: `start` and `end` as
+offsets into the retained text, `end` exclusive.
+
+A frozen record in both languages rather than a tuple or a pair of arguments, so that a consumer
+reading `span.start` cannot transpose it, and so that a later addition beside the two offsets is
+not a breaking change.
+
+TypeScript's already existed and is already exported; this entry records it rather than introduces
+it. The differing spelling is argued under the accessor's entry.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
 concept    = "the retained source structure"
 python     = "IDFDocument.cst"
 typescript = ""
