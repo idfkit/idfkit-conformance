@@ -3433,6 +3433,39 @@ structure that answers it internal, which is the same line `the retained source 
 rename_count = { python = 0, typescript = 0 }
 
 [[entry]]
+concept    = "one object rendered as a preserving write would render it"
+python     = "IDFDocument.render_object"
+typescript = "IdfDocument.renderObject"
+kind       = "aligned"
+notes      = """
+The text a preserving write would put in the range `where an object's characters sit in the
+retained source` returns. The third leg, and without it the other two do not carry weight.
+
+Turning an edit into the smallest possible change to a file takes three things: WHICH objects will
+be rewritten, WHERE the old one was, and WHAT text each becomes. The first two were registered
+before this one and neither is usable alone. The ordinary per-object writer is not the third: a
+preserving write hands it the author's own per-field annotations, which are internal in both
+languages, so a consumer calling it with arguments built by hand gets the author's units and notes
+back as generated labels. Measured on one field of one object: `!- North Axis {deg}` came back
+`!- North Axis`. A unit lost from an engineering model by an editor asked to save a file.
+
+Registered because the alternative was a documented hazard. The accessor shipped with the gap
+stated on it, and a doc comment is not a load-bearing place for a correctness constraint; the same
+argument was accepted about what `the objects a preserving write will rewrite` does not answer.
+Both language service and web editor readers reached the same conclusion independently, that the
+range alone changes nothing they would build.
+
+Takes the same write options as the whole-document write and resolves them the same way, so the
+two agree by construction rather than by a consumer reproducing the defaulting. Answers nothing
+for an object the retained source does not hold, which is the same set the range accessor declines.
+
+No trailing line break. The range it fills ends at the terminator or at the comment on that line,
+and the break that follows is the first character of what separates one object from the next, which
+a preserving write leaves in place.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
 concept    = "a half-open range of the source text"
 python     = "SourceSpan"
 typescript = "Region"
