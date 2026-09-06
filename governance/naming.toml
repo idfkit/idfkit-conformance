@@ -1787,9 +1787,13 @@ typescript = "preserveFormatting"
 kind       = "aligned"
 notes      = """
 An option, not a function: `load_idf(path, preserve_formatting=True)` builds a concrete syntax tree
-that `write_idf` reproduces, and `load_epjson` retains the raw JSON text the same way. Registered
-before the TypeScript side is written; the parity ledger records the absence as Tier 2 under
-`lossless-round-trip`. Registering the option name now costs nothing and is breaking later.
+that `write_idf` reproduces, and `load_epjson` retains the raw JSON text the same way. TypeScript
+retains the syntax layer and an index from statement to object instead, and `writeIdf` walks the two
+together; `parseEpJson` retains the text the same way Python does.
+
+Registered at `governance-2026.12`, before either side of the TypeScript half existed, on the
+reasoning that registering an option name costs nothing then and is breaking later. It cost nothing:
+this feature made the registered name true rather than choosing one.
 """
 rename_count = { python = 0, typescript = 0 }
 
@@ -3179,7 +3183,7 @@ whose version is not yet known.
 
 Python tokenises inside `IDFParser.parse` with a regex and exposes no lexer. Exporting one would be a
 second public parse path over the same text, which FR-005 prohibits, and it would publish an internal
-representation that the concrete syntax tree, registered above as `preserve formatting on a
+representation that the retained source structure, registered above as `preserve formatting on a
 round-trip`, already covers for the one case a caller has a reason to see.
 
 Excluded is terminal. A Python counterpart appearing later fails the gate.
@@ -3287,8 +3291,8 @@ rename_count = { python = 0, typescript = 0 }
 # `IDFDocument` in Python and `IdfDocument` in TypeScript are the same class under the acronym casing
 # rule recorded above. Their members are not all the same, and the ones that differ do so for reasons
 # already recorded elsewhere in this file: Python's document is dict-like and TypeScript's is not,
-# Python holds a concrete syntax tree and TypeScript does not, and Python's operations that touch a
-# disk are synchronous.
+# Python and TypeScript retain different material for a preserving write, and Python's operations
+# that touch a disk are synchronous.
 #
 # The per-object-type accessors the Python stub generates are NOT members for this purpose. They are
 # one entry, `generated object types`, and both gates recognise them through the machinery that emits
@@ -3343,31 +3347,44 @@ name, same meaning, and the optionality difference follows from `create a new do
 rename_count = { python = 0, typescript = 0 }
 
 [[entry]]
-concept    = "the concrete syntax tree"
+concept    = "the retained source structure"
 python     = "IDFDocument.cst"
 typescript = ""
 kind       = "divergent"
 divergence_reason = """
-Present only when the document was read with `preserve_formatting=True`, and it is what lets
-`write_idf` reproduce the original text byte for byte.
+Both languages retain the material a preserving write consumes, in different shapes. Python holds a
+concrete syntax tree, a flat list of text runs each optionally anchored to one object. TypeScript
+holds the syntax layer feature 005 built for this reader, plus an index from statement to object, and
+keeps it internal: `scanIdf` already exports the layer to a caller who wants one, so exposing a
+second path to it through the document would publish a structure nothing reads. The capability is
+complete in both under `lossless-round-trip`; only the internal representation differs.
 
-TypeScript has no counterpart because it has no lossless round-trip yet: `writeIdf`'s own doc comment
-states the caveat plainly, that `3.0` comes back as `3` because JavaScript has one number type and
-the distinction is lost at parse time. The parity ledger records the absence under
-`lossless-round-trip` as Tier 2, and `preserve formatting on a round-trip` above registers the option
-name ahead of it.
+The reason used to be that TypeScript had no lossless round-trip. That stopped being true when the
+preserving writer landed, and a divergence reason that describes an absence which has ended is worse
+than no reason at all: it reads as a gap nobody closed. This one states the difference that is
+actually there, which is a difference in representation behind an aligned capability.
+
+The concept was spelled "the concrete syntax tree" until `governance-2026.13`. It was renamed because
+the old spelling named Python's implementation of the idea rather than the idea, so the TypeScript
+column could only ever be empty: there is no TypeScript concrete syntax tree and there is not meant
+to be one.
 """
 rename_count = { python = 0, typescript = 0 }
 
 [[entry]]
 concept    = "the original source text"
 python     = "IDFDocument.raw_text"
-typescript = ""
-kind       = "divergent"
-divergence_reason = """
-The other half of the formatting-preserving round-trip, beside `cst`: the source as it was read, kept
-only when `preserve_formatting=True`. Absent from TypeScript for the same reason and recorded under
-the same parity entry.
+typescript = "IdfDocument.rawText"
+kind       = "aligned"
+notes      = """
+The text the document was read from, kept only when the read asked for it. Present in both formats:
+for the text format it is the syntax layer's own text, and for the object notation it is the whole of
+what preservation has to work with, which is why that format's terms are all-or-nothing.
+
+Divergent until `governance-2026.13`, and only because the second language had nothing to put in the
+column. It is the minimum a consumer needs to answer whether a write will preserve without reaching
+into the layer, which is why it is the one piece of the retained material that is public on both
+sides.
 """
 rename_count = { python = 0, typescript = 0 }
 
