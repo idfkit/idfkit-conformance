@@ -33,4 +33,4 @@ reason.
 tags = ["encoding"]
 energyplus_version = "26.1.0"
 truth = "oracle"
-assertions = ["parse-outcome", "epjson", "round-trip"]
+assertions = ["parse-outcome", "epjson", "round-trip", "preserved-text"]

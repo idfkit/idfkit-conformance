@@ -16,7 +16,7 @@ happened on the first fixture written.
 
 ## Read this first: the coverage this corpus does NOT have
 
-Partial coverage is easy to mistake for complete coverage. Five gaps are open.
+Partial coverage is easy to mistake for complete coverage. Six gaps are open.
 
 ### EnergyPlus 26.1.0 only
 
@@ -75,7 +75,19 @@ for. It has no members yet.
 
 A second consequence, worth stating separately: cases are curated from a sweep of the EnergyPlus
 example files, so the corpus only sees hazards that EnergyPlus's own files exhibit. Byte-order marks,
-CRLF line endings, and the other things real editors emit are not in that set.
+CRLF line endings, and the other things real editors emit are not in that set. Nine `preserve-*`
+cases were donated in `conformance-2026.9` to close part of that, and they close it for the parse
+and the write; they do not close it for the read from disk, which is this section's subject.
+
+**Assertion 9 lives on this side of the boundary too.** `preserved-text` proves that a library
+reproduces the text its read was GIVEN, not that it reproduces a file's bytes. The runners decode
+the input themselves, as above, so what the assertion holds each library to is a string in, the same
+string out. Two defects live on the other side of that line and neither is closed by it: the
+TypeScript reader refuses an IDF file carrying a byte-order mark, recorded above against
+idfkit-js#28, and Python's `save_idf` opens its destination without `newline=""`, so the standard
+library translates every line feed to the platform's own convention on the way out. On Windows a
+byte-identical write therefore becomes a byte-different file, and the first language's byte-identity
+claim is platform-dependent. Both need the reserved `checks/` directory to close.
 
 ### Weather retrieval is not covered, and `tier1` does not claim it
 
@@ -95,17 +107,21 @@ build-time warm-up and a run with the network switched off, which is where the s
 it. The `tier1` tag therefore means "the Tier 1 capabilities this corpus can express", not "every
 Tier 1 capability", and a green `--tag tier1` is not a statement about weather.
 
-### Writer output is not compared as text, and cannot be
+### The two writers' output is not compared against each other, and cannot be
 
 The naming register once said this corpus proves that both libraries render the same string for
 the same model. It does not, and it is not able to.
 
-`runners/compare.md` forbids textual comparison outright, for a good reason set out there: a
-formatting difference and a value difference are not the same finding, and a comparator that is
-textual anywhere is textual everywhere. The assertion enum has no writer kind. What assertion 3
-does instead is re-parse each library's own IDF output and compare the resulting *document* to the
-original, which catches a field that moved or a value that was lost and says nothing about the
-bytes in between.
+`runners/compare.md` forbids comparing the two libraries textually, for a good reason set out
+there: a formatting difference and a value difference are not the same finding, and a comparator
+that is textual anywhere is textual everywhere. What assertion 3 does instead is re-parse each
+library's own IDF output and compare the resulting *document* to the original, which catches a field
+that moved or a value that was lost and says nothing about the bytes in between.
+
+Assertion 9 is not an exception to this and must not be read as one. It compares a library's output
+to **that same library's own input**, never to the other library's output, and its whole content is
+that nothing was re-rendered. Rule 1 states the exception as a direction rather than as an assertion
+number precisely so the next byte comparison cannot be added by precedent.
 
 The bytes do differ, and the differences are real. Round-tripping one file through both writers
 gives 2-space indentation against 4, insertion order against sorted order, a `!-Generator idfkit`
@@ -115,6 +131,25 @@ records `write` as `partial` on both sides with the differences stated, which is
 about output belongs.
 
 So a green run is a statement about what each library understood, never about what it typed.
+
+### Three byte-hazard cases declare an assertion neither library can evaluate
+
+`preserve-empty`, `preserve-comments-only` and `preserve-duplicate-name` declare `preserved-text`
+and it is skipped in both languages, because both readers refuse their inputs and a refused read
+leaves nothing to write. `preserve-unterminated-final` is skipped on the TypeScript side alone, for
+the same reason.
+
+The first three fail for one cause between them: both libraries resolve their schema from a Version
+statement in the file, and an empty file, a file of comments and a file whose duplicate name stops
+the read have no readable model. The declared parse outcome is that refusal, which both libraries
+agree on exactly, so those cases still earn their keep on assertion 1.
+
+What they do not yet pin is the writer hazard they were donated for: that a file with nothing to
+anchor comes back whole, and that the characters of a statement the read REJECTED survive a write.
+The second needs a read that succeeds while rejecting a statement, which neither library offers
+today. The assertion is declared rather than dropped so that a library which later reads one of
+these files starts being held to the property with no corpus change, and so that the gap is visible
+as a skip in every run rather than as an absence nobody sees.
 
 ## Why `known-divergence.toml` ships populated
 

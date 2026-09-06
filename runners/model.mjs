@@ -102,6 +102,7 @@ export const Assertion = Object.freeze({
   INTROSPECTION: 'introspection',
   DOCS_URL: 'docs-url',
   TYPE_LOOKUP: 'type-lookup',
+  PRESERVED_TEXT: 'preserved-text',
 });
 
 /**
@@ -210,6 +211,23 @@ export const ParseOutcome = Object.freeze({
 export const Library = Object.freeze({
   PYTHON: 'python',
   TYPESCRIPT: 'typescript',
+});
+
+/**
+ * The four changes a case may declare between reading and writing.
+ *
+ * Four, and no more: they are the four the touched record has to get right, which is what the
+ * `preserved-text` assertion narrows to when a case declares them. A fifth is added when a claim
+ * needs it, not in advance.
+ *
+ * @readonly
+ * @enum {string}
+ */
+export const OperationKind = Object.freeze({
+  SET_FIELD: 'set-field',
+  RENAME: 'rename',
+  REMOVE: 'remove',
+  ADD: 'add',
 });
 
 // ---------------------------------------------------------------------------
@@ -333,6 +351,81 @@ export class Case {
  * `additionalProperties: false` in the schema rejects it, and duplicating it on disk would let the
  * two disagree.
  */
+export class Operation {
+  /**
+   * One change a case applies to its document between the read and the write.
+   *
+   * Language-neutral, exactly as `WriterOptions` is: `type` and `name` identify the object, and
+   * each runner maps the four kinds onto its own library's mutators. Parsed into this rather than
+   * left as a bare object so that a malformed operation is a load error naming the case, rather
+   * than a property access failing inside a run where it reads as a library failure.
+   *
+   * `value` and the members of `fields` are text, because a case says what a file would have said
+   * and each runner coerces it the way its own reader coerces a value read from a file.
+   *
+   * @param {{ op: OperationKind, type: string, name: string, field?: string | null,
+   *           value?: string | null, to?: string | null,
+   *           fields?: Readonly<Record<string, string>> | null }} fields
+   */
+  constructor({ op, type, name, field = null, value = null, to = null, fields = null }) {
+    /** @type {OperationKind} */
+    this.op = op;
+    /** @type {string} */
+    this.type = type;
+    /** @type {string} */
+    this.name = name;
+    /** @type {string | null} */
+    this.field = field ?? null;
+    /** @type {string | null} */
+    this.value = value ?? null;
+    /** @type {string | null} */
+    this.to = to ?? null;
+    /** @type {Readonly<Record<string, string>> | null} */
+    this.fields = fields === null ? null : Object.freeze({ ...fields });
+
+    checkNonEmpty(this.type, 'type', ManifestError);
+
+    if (this.op === OperationKind.SET_FIELD) {
+      if (this.field === null || this.field.trim() === '') {
+        throw new ManifestError("operation 'set-field' requires a non-empty 'field'");
+      }
+      if (this.value === null) {
+        throw new ManifestError("operation 'set-field' requires a 'value'");
+      }
+    } else if (this.field !== null || this.value !== null) {
+      throw new ManifestError(`operation ${repr(this.op)} takes neither 'field' nor 'value'`);
+    }
+
+    if (this.op === OperationKind.RENAME) {
+      if (this.to === null || this.to.trim() === '') {
+        throw new ManifestError("operation 'rename' requires a non-empty 'to'");
+      }
+    } else if (this.to !== null) {
+      throw new ManifestError(`operation ${repr(this.op)} takes no 'to'`);
+    }
+
+    if (this.op !== OperationKind.ADD && this.fields !== null) {
+      throw new ManifestError(`operation ${repr(this.op)} takes no 'fields'`);
+    }
+    Object.freeze(this);
+  }
+
+  /**
+   * The operation as it is written to `manifest.json`. The JSON boundary, not a model type.
+   *
+   * @returns {Record<string, unknown>}
+   */
+  toJsonObj() {
+    /** @type {Record<string, unknown>} */
+    const entry = { op: this.op, type: this.type, name: this.name };
+    if (this.field !== null) entry.field = this.field;
+    if (this.value !== null) entry.value = this.value;
+    if (this.to !== null) entry.to = this.to;
+    if (this.fields !== null) entry.fields = { ...this.fields };
+    return entry;
+  }
+}
+
 export class WriterOptions {
   /**
    * Writer controls a case applies before re-reading its own output.
@@ -412,6 +505,7 @@ export class ManifestEntry {
     expectedDocsUrl = null,
     expectedTypeLookup = null,
     writerOptions = null,
+    operations = [],
   }) {
     /** @type {string} */
     this.id = id;
@@ -443,6 +537,8 @@ export class ManifestEntry {
     this.expectedTypeLookup = expectedTypeLookup ?? null;
     /** @type {WriterOptions | null} */
     this.writerOptions = writerOptions ?? null;
+    /** @type {readonly Operation[]} */
+    this.operations = Object.freeze([...(operations ?? [])]);
 
     checkCaseId(this.id, ManifestError);
     checkNonEmpty(this.title, 'title', ManifestError);
@@ -511,6 +607,9 @@ export class ManifestEntry {
       if (named !== null) {
         entry[key] = named;
       }
+    }
+    if (this.operations.length > 0) {
+      entry.operations = this.operations.map((operation) => operation.toJsonObj());
     }
     return entry;
   }
@@ -1499,6 +1598,7 @@ const ENTRY_KEYS = new Set([
   'expected_docs_url',
   'expected_type_lookup',
   'writer_options',
+  'operations',
 ]);
 const MANIFEST_KEYS = new Set([
   '$schema',
@@ -1596,6 +1696,88 @@ function loadEntry(rawEntry, truth, path, index) {
     expectedDocsUrl: readOptionalString(raw, 'expected_docs_url', options),
     expectedTypeLookup: readOptionalString(raw, 'expected_type_lookup', options),
     writerOptions: readWriterOptions(raw, options),
+    operations: readOperations(raw, options),
+  });
+}
+
+const OPERATION_KEYS = new Set(['op', 'type', 'name', 'field', 'value', 'to', 'fields']);
+
+/**
+ * Read the optional `operations` list, or an empty array when the case declares none.
+ *
+ * An absent block means read only, which is what every case written before this assertion means
+ * and must keep meaning. A block that is present and empty is rejected rather than treated as
+ * absent, because writing one is a mistake rather than a way of saying nothing.
+ *
+ * @param {Record<string, unknown>} raw
+ * @param {{ path: string, where: string, error: * }} options
+ * @returns {Operation[]}
+ */
+function readOperations(raw, options) {
+  const value = raw['operations'];
+  if (value === undefined || value === null) return [];
+  const where = `${options.where}.operations`;
+  if (!Array.isArray(value)) {
+    throw new ManifestError(
+      `${options.path}: ${where}: expected a list, got ${typeof value}`
+    );
+  }
+  if (value.length === 0) {
+    throw new ManifestError(
+      `${options.path}: ${where}: is empty; omit the block to mean read only`
+    );
+  }
+
+  return value.map((rawOperation, index) => {
+    const at = `${where}[${index}]`;
+    const inner = { ...options, where: at };
+    const block = readMapping(rawOperation, options.path, at, ManifestError);
+    rejectUnknownKeys(block, OPERATION_KEYS, inner);
+
+    const rawFields = block['fields'];
+    /** @type {Record<string, string> | null} */
+    let fields = null;
+    if (rawFields !== undefined && rawFields !== null) {
+      const table = readMapping(rawFields, options.path, `${at}.fields`, ManifestError);
+      fields = {};
+      for (const [fieldName, fieldValue] of Object.entries(table)) {
+        if (typeof fieldValue !== 'string') {
+          throw new ManifestError(
+            `${options.path}: ${at}.fields.${fieldName}: must be a string, because a case says ` +
+              `what a file would have said, got ${repr(fieldValue)}`
+          );
+        }
+        fields[fieldName] = fieldValue;
+      }
+    }
+
+    // `name` may legitimately be blank, for a type that declares an optional name, so it is read
+    // as a plain string rather than through the non-empty helper.
+    const name = block['name'];
+    if (typeof name !== 'string') {
+      throw new ManifestError(
+        `${options.path}: ${at}: 'name' must be a string, got ${repr(name)}`
+      );
+    }
+
+    const rawValue = block['value'];
+    try {
+      return new Operation({
+        op: readEnum(block, 'op', OperationKind, inner),
+        type: readString(block, 'type', inner),
+        name,
+        field: readOptionalString(block, 'field', inner),
+        value: typeof rawValue === 'string' ? rawValue : null,
+        to: readOptionalString(block, 'to', inner),
+        fields,
+      });
+    } catch (error) {
+      // Re-thrown with the file and the case position, so a malformed operation names the case
+      // rather than surfacing as a bare rule violation with no address.
+      throw new ManifestError(
+        `${options.path}: ${at}: ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
   });
 }
 

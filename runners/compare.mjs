@@ -25,6 +25,10 @@
  *   Rule 5, strings: `compareScalar`, one `!==`, no normalisation of any kind.
  *   Rule 6, encoding: the runner's, not this module's. Values arrive already decoded.
  *   Rule 7, unordered collections: `compareUnordered`.
+ *   Rule 8, a byte comparison's report: `comparePreservedText` and `TextRegion`. The one
+ *     textual comparison in this module, permitted by rule 1's bounded exception and confined
+ *     to the direction that exception names: a library's own output against that library's
+ *     own input, never against the other library's output.
  *
  * Orientation, fixed and never swapped: `left` is the library under test, `right` is the
  * expectation. A `missing` therefore always means the library omitted something.
@@ -900,4 +904,363 @@ function renderJson(value) {
     return `{${entries.join(', ')}}`;
   }
   return String(value);
+}
+
+// ---------------------------------------------------------------------------
+// Rule 8: a byte comparison reports an offset and a window, never a whole file
+// ---------------------------------------------------------------------------
+
+/**
+ * How much of each side a region shows. Rule 8 caps the window; 80 characters is one terminal line
+ * and comfortably more than the damage this assertion produces, which is one character wide by
+ * nature.
+ */
+export const WINDOW = 80;
+
+/**
+ * How many characters must agree before a differing region is considered closed.
+ *
+ * Without it, `3.000` come back as `3.0` reports two regions rather than one, because the `0` in
+ * the middle happens to line up. A region is a place a maintainer looks at, not a character, and
+ * eight is comfortably longer than any coincidental agreement inside one damaged value while being
+ * far shorter than the shortest real run of untouched text between two edits.
+ */
+export const RESYNC = 8;
+
+/**
+ * One differing region between two texts, reported as rule 8 requires.
+ *
+ * `offset` is into the compared text as the case supplied it, not into the surviving text after
+ * the excluded extents were removed, so a reader can open the file and go to it.
+ */
+export class TextRegion {
+  /**
+   * @param {{ offset: number, line: number, column: number, rightOffset: number,
+   *           leftText: string, rightText: string }} fields
+   */
+  constructor({ offset, line, column, rightOffset, leftText, rightText }) {
+    /** @type {number} */
+    this.offset = offset;
+    /** @type {number} */
+    this.line = line;
+    /** @type {number} */
+    this.column = column;
+    /** @type {number} */
+    this.rightOffset = rightOffset;
+    /** @type {string} */
+    this.leftText = leftText;
+    /** @type {string} */
+    this.rightText = rightText;
+    Object.freeze(this);
+  }
+
+  /**
+   * One report line: where, and a bounded window of each side. Never a whole file.
+   *
+   * @param {{ window?: number }} [options]
+   * @returns {string}
+   */
+  render({ window = WINDOW } = {}) {
+    const left = renderWindow(this.leftText, window);
+    const right = renderWindow(this.rightText, window);
+    return (
+      `differs at offset ${this.offset} (line ${this.line}, column ${this.column}): ` +
+      `written ${left}, source ${right}`
+    );
+  }
+}
+
+/**
+ * Every differing region between two texts, in order of offset.
+ *
+ * Carries the same three members `Comparison` does, so `AssertionReport` reports a byte comparison
+ * through exactly the shape it reports every value comparison through.
+ */
+export class TextComparison {
+  /** @param {readonly TextRegion[]} [regions] */
+  constructor(regions = []) {
+    /** @type {readonly TextRegion[]} */
+    this.regions = Object.freeze([...regions]);
+    Object.freeze(this);
+  }
+
+  /** Whether the written text reproduced the source text. */
+  get equal() {
+    return this.regions.length === 0;
+  }
+
+  /** How many differing regions were found. Regions, not characters (rule 8). */
+  get count() {
+    return this.regions.length;
+  }
+
+  /** The first differing region, or `null` when the two texts agree. */
+  get first() {
+    return this.regions.length > 0 ? this.regions[0] : null;
+  }
+
+  /**
+   * Report lines, at most `limit` of them, with a total count appended when truncated.
+   *
+   * @param {{ limit?: number | null, maxValueLength?: number }} [options]
+   * @returns {readonly string[]}
+   */
+  render({ limit = null, maxValueLength = WINDOW } = {}) {
+    const shown = limit === null ? this.regions : this.regions.slice(0, limit);
+    const lines = shown.map((region) => region.render({ window: maxValueLength }));
+    if (shown.length < this.count) {
+      lines.push(
+        `... and ${this.count - shown.length} more differing region(s), ${this.count} in total`
+      );
+    }
+    return Object.freeze(lines);
+  }
+}
+
+/**
+ * Assertion 9: a library's preserving write against that library's own input, byte for byte.
+ *
+ * The one textual comparison in this file, permitted by rule 1's bounded exception and reporting
+ * under rule 8. `left` is what the library wrote and `right` is the text it was given, which keeps
+ * the orientation every other comparator uses: a difference is always something the library did.
+ *
+ * `leftExcluded` and `rightExcluded` are the extents of the objects a case's operations touched, in
+ * their own side's text. Their contents are never compared, because that text is the library's
+ * ordinary formatting and legitimately differs between the two libraries, which is the reason rule
+ * 1 bans textual comparison in the first place. Everything else is compared, and that is the
+ * property FR-023 states. Both default to empty, which is the read-only case: the whole text is
+ * compared.
+ *
+ * The regions are found by taking the common prefix and the common suffix first, so a single
+ * insertion or deletion reports as one region bounded by what agrees on either side of it rather
+ * than as everything after it. A lost trailing newline is therefore one region at the end of the
+ * file, which is what it is.
+ *
+ * @param {string} left
+ * @param {string} right
+ * @param {{ leftExcluded?: readonly (readonly [number, number])[],
+ *           rightExcluded?: readonly (readonly [number, number])[] }} [options]
+ * @returns {TextComparison}
+ */
+export function comparePreservedText(left, right, { leftExcluded = [], rightExcluded = [] } = {}) {
+  const [leftKept, leftMap] = surviving(left, leftExcluded);
+  const [rightKept, rightMap] = surviving(right, rightExcluded);
+
+  const prefix = commonPrefix(leftKept, rightKept);
+  if (prefix === leftKept.length && prefix === rightKept.length) {
+    return new TextComparison();
+  }
+
+  const suffix = commonSuffix(leftKept, rightKept, prefix);
+  const leftSpan = leftKept.slice(prefix, leftKept.length - suffix);
+  const rightSpan = rightKept.slice(prefix, rightKept.length - suffix);
+
+  if (leftSpan.length !== rightSpan.length) {
+    // The two sides no longer line up, so comparing index by index past this point compares
+    // unrelated characters. One region, bounded by what still agrees on either side of it.
+    return new TextComparison([
+      buildRegion(left, right, leftMap, rightMap, prefix, leftSpan, rightSpan),
+    ]);
+  }
+
+  /** @type {TextRegion[]} */
+  const regions = [];
+  let at = 0;
+  while (at < leftSpan.length) {
+    if (leftSpan[at] === rightSpan[at]) {
+      at += 1;
+      continue;
+    }
+    const start = at;
+    let agreed = 0;
+    let end = at;
+    while (at < leftSpan.length) {
+      if (leftSpan[at] === rightSpan[at]) {
+        agreed += 1;
+        if (agreed >= RESYNC) break;
+      } else {
+        agreed = 0;
+        end = at + 1;
+      }
+      at += 1;
+    }
+    regions.push(
+      buildRegion(
+        left,
+        right,
+        leftMap,
+        rightMap,
+        prefix + start,
+        leftSpan.slice(start, end),
+        rightSpan.slice(start, end)
+      )
+    );
+  }
+  return new TextComparison(regions);
+}
+
+/**
+ * One region, with its offsets mapped back into the texts the case supplied.
+ *
+ * @param {string} left
+ * @param {string} right
+ * @param {readonly number[] | null} leftMap
+ * @param {readonly number[] | null} rightMap
+ * @param {number} at
+ * @param {string} leftSpan
+ * @param {string} rightSpan
+ * @returns {TextRegion}
+ */
+function buildRegion(left, right, leftMap, rightMap, at, leftSpan, rightSpan) {
+  const offset = originalOffset(leftMap, at, left.length);
+  const rightOffset = originalOffset(rightMap, at, right.length);
+  const { line, column } = lineColumnAt(left, offset);
+  return new TextRegion({ offset, line, column, rightOffset, leftText: leftSpan, rightText: rightSpan });
+}
+
+/**
+ * The text outside `excluded`, and the original offset each surviving character came from.
+ *
+ * The map is what lets a region report an offset into the file rather than into a stitched-up
+ * string nobody has. It is `null` when nothing was excluded, in which case every surviving offset
+ * is its own: building the array would cost one number per character of a 600 KB file to answer a
+ * question the identity answers.
+ *
+ * @param {string} text
+ * @param {readonly (readonly [number, number])[]} excluded
+ * @returns {[string, readonly number[] | null]}
+ */
+function surviving(text, excluded) {
+  if (excluded.length === 0) return [text, null];
+  const spans = mergeSpans(excluded, text.length);
+  /** @type {string[]} */
+  const kept = [];
+  /** @type {number[]} */
+  const offsets = [];
+  let cursor = 0;
+  for (const [start, end] of spans) {
+    if (start > cursor) {
+      kept.push(text.slice(cursor, start));
+      for (let at = cursor; at < start; at += 1) offsets.push(at);
+    }
+    cursor = Math.max(cursor, end);
+  }
+  if (cursor < text.length) {
+    kept.push(text.slice(cursor));
+    for (let at = cursor; at < text.length; at += 1) offsets.push(at);
+  }
+  return [kept.join(''), offsets];
+}
+
+/**
+ * Clamped, sorted and merged, so overlapping extents cannot drop a character twice.
+ *
+ * @param {readonly (readonly [number, number])[]} spans
+ * @param {number} length
+ * @returns {[number, number][]}
+ */
+function mergeSpans(spans, length) {
+  const clamped = spans
+    .filter(([start, end]) => end > start)
+    .map(
+      ([start, end]) =>
+        /** @type {[number, number]} */ ([
+          Math.max(0, Math.min(start, length)),
+          Math.max(0, Math.min(end, length)),
+        ])
+    )
+    .sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  /** @type {[number, number][]} */
+  const merged = [];
+  for (const [start, end] of clamped) {
+    const last = merged[merged.length - 1];
+    if (last !== undefined && start <= last[1]) {
+      last[1] = Math.max(last[1], end);
+    } else {
+      merged.push([start, end]);
+    }
+  }
+  return merged;
+}
+
+/**
+ * Where the surviving character at `at` sat in the original text.
+ *
+ * Past the end of the surviving text the answer is the end of the original, which is what a
+ * difference that is purely a missing tail is about.
+ *
+ * @param {readonly number[] | null} offsets
+ * @param {number} at
+ * @param {number} length
+ * @returns {number}
+ */
+function originalOffset(offsets, at, length) {
+  if (offsets === null) return Math.min(at, length);
+  const found = offsets[at];
+  return found === undefined ? length : found;
+}
+
+/**
+ * How many characters the two texts agree on from the start.
+ *
+ * @param {string} left
+ * @param {string} right
+ * @returns {number}
+ */
+function commonPrefix(left, right) {
+  const limit = Math.min(left.length, right.length);
+  let at = 0;
+  while (at < limit && left[at] === right[at]) at += 1;
+  return at;
+}
+
+/**
+ * How many characters they agree on from the end, without crossing the common prefix.
+ *
+ * @param {string} left
+ * @param {string} right
+ * @param {number} prefix
+ * @returns {number}
+ */
+function commonSuffix(left, right, prefix) {
+  const limit = Math.min(left.length, right.length) - prefix;
+  let at = 0;
+  while (at < limit && left[left.length - 1 - at] === right[right.length - 1 - at]) at += 1;
+  return at;
+}
+
+/**
+ * The 1-based line and column an offset falls on.
+ *
+ * A line break is a line feed and nothing else, so a carriage return before it belongs to the line
+ * it ends. That is what every editor reports and what both libraries already count, and a third
+ * opinion here would put a finding one line away from where a maintainer looks for it.
+ *
+ * @param {string} text
+ * @param {number} offset
+ * @returns {{ line: number, column: number }}
+ */
+function lineColumnAt(text, offset) {
+  const at = Math.max(0, Math.min(offset, text.length));
+  const before = text.slice(0, at);
+  const lineStart = before.lastIndexOf('\n') + 1;
+  let line = 1;
+  for (let index = before.indexOf('\n'); index !== -1; index = before.indexOf('\n', index + 1)) {
+    line += 1;
+  }
+  return { line, column: at - lineStart + 1 };
+}
+
+/**
+ * A bounded, printable window of one side. Rule 8: never a whole file.
+ *
+ * @param {string} span
+ * @param {number} limit
+ * @returns {string}
+ */
+function renderWindow(span, limit) {
+  if (span === '') return 'nothing';
+  const shown = span.slice(0, limit);
+  const rendered = JSON.stringify(shown);
+  return shown.length === span.length ? rendered : `${rendered} (+${span.length - shown.length} more)`;
 }

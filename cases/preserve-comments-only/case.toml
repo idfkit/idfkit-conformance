@@ -1,0 +1,20 @@
+title = "A file of comments and nothing else, which neither reader will open"
+why = """
+Comments, no statements, and therefore no Version.
+
+For a preserving writer the property is that the output is the input: there is nothing to anchor,
+so every character is text that belongs to no object. Neither library can be asked, because both
+resolve their schema from a Version statement in the file and both refuse a file that has none. The
+declared outcome is that refusal, which the two agree on exactly.
+
+The preserved-text assertion is declared and is skipped in both languages today. It is declared
+rather than dropped so that a library which later reads a versionless file starts being held to the
+property without a corpus change, and so that the skip is visible in every run rather than being an
+absence nobody sees. The gap is recorded in the README.
+
+Donated from the syntax fixtures of the second language.
+"""
+tags = ["malformed"]
+energyplus_version = "26.1.0"
+truth = "convention"
+assertions = ["parse-outcome", "preserved-text"]

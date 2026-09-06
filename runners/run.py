@@ -94,9 +94,11 @@ if str(RUNNERS_DIR) not in sys.path:
 from compare import (  # noqa: E402
     AssertionReport,
     Comparison,
+    TextComparison,
     compare_documents,
     compare_epjson,
     compare_outcome,
+    compare_preserved_text,
     compare_unordered,
     compare_values,
     json_pointer,
@@ -119,6 +121,8 @@ from model import (  # noqa: E402
     InputFile,
     Library,
     Manifest,
+    Operation,
+    OperationKind,
     ParseOutcome,
     Tag,
     Truth,
@@ -162,6 +166,7 @@ ASSERTION_ORDER: Final = (
     Assertion.INTROSPECTION,
     Assertion.DOCS_URL,
     Assertion.TYPE_LOOKUP,
+    Assertion.PRESERVED_TEXT,
 )
 
 # The members of one field description, in the order ``compare.md`` writes them. Spelled out here
@@ -262,6 +267,7 @@ class CaseJob:
     truth: Truth
     assertions: tuple[Assertion, ...]
     writer_options: WriterOptions | None = None
+    operations: tuple[Operation, ...] = ()
 
     @property
     def input_path(self) -> Path:
@@ -499,6 +505,7 @@ def build_jobs(corpus: Corpus, case_ids: Sequence[str], tags: Sequence[Tag]) -> 
                 truth=entry.truth,
                 assertions=tuple(a for a in ASSERTION_ORDER if a in entry.assertions),
                 writer_options=entry.writer_options,
+                operations=entry.operations,
             )
         )
 
@@ -674,6 +681,8 @@ def _run_assertion(job: CaseJob, assertion: Assertion, parse: _Parse, limit: int
         return _assert_docs_url(job, parse.document, limit)
     if assertion is Assertion.TYPE_LOOKUP:
         return _assert_type_lookup(job, parse.document, limit)
+    if assertion is Assertion.PRESERVED_TEXT:
+        return _assert_preserved_text(job, limit)
     # A further assertion added to model.py without a runner change lands here. Saying so beats
     # falling through to whichever branch happened to be last.
     return _errored(job.case_id, assertion, f"this runner has no implementation for {assertion.value!r}")
@@ -761,6 +770,264 @@ def _assert_round_trip(job: CaseJob, document: Any, limit: int) -> AssertionOutc
     original = document_snapshot(document)
     reparsed = _round_trip_snapshot(document, job.writer_options)
     return _from_comparison(job.case_id, Assertion.ROUND_TRIP, compare_documents(reparsed, original), limit)
+
+
+@dataclass(frozen=True)
+class _Preserved:
+    """One preserving round trip: the text handed over, the text written back, and the extents.
+
+    The extents are the objects a case's operations touched, on their own side. They are empty for
+    a read-only case, which is every case that declares no operations, and is 46 of the 50 carrying
+    this assertion.
+    """
+
+    source: str
+    written: str
+    source_excluded: tuple[tuple[int, int], ...] = ()
+    written_excluded: tuple[tuple[int, int], ...] = ()
+
+
+def _assert_preserved_text(job: CaseJob, limit: int) -> AssertionOutcome:
+    """Assertion 9: the library's preserving write of a text against that same text, byte for byte.
+
+    Declaring this assertion asserts the property over EVERY source text the case supplies (FR-024),
+    which is the case input always and, for an oracle case, its committed ``expected.epJSON`` read
+    as an object-notation input as well. Those 37 files carry a third tool's formatting rather than
+    either library's, which is exactly the kind of sample this claim needs, and reading them here
+    does not change what they mean as the expectation for assertion 2.
+
+    This assertion does its own read, deliberately. Every other assertion shares the run's one parse,
+    which is a plain read; this one is about what a PRESERVING read retains, so a shared plain read
+    would test nothing.
+    """
+    texts: list[tuple[str, Path]] = [("input", job.input_path)]
+    if job.truth is Truth.ORACLE and job.expected_epjson_path.is_file():
+        texts.append(("expected.epJSON", job.expected_epjson_path))
+
+    for label, path in texts:
+        outcome = _preserved_text_of(job, label, path, limit)
+        if outcome.status is not Status.PASSED:
+            return outcome
+    return AssertionOutcome(job.case_id, Assertion.PRESERVED_TEXT, Status.PASSED)
+
+
+def _preserved_text_of(job: CaseJob, label: str, path: Path, limit: int) -> AssertionOutcome:
+    """One text: read it preserving, apply the case's operations, write, compare bytes."""
+    try:
+        preserved = _preserving_round_trip(job, path)
+    except _ExtentUnknown as error:
+        # Never a pass. A runner that cannot say where a touched object sits cannot say which bytes
+        # the assertion excludes, so it has no verdict to give.
+        return _errored(job.case_id, Assertion.PRESERVED_TEXT, f"{label}: {error}")
+    except Exception as error:
+        return _errored(
+            job.case_id,
+            Assertion.PRESERVED_TEXT,
+            f"{label}: the preserving round trip raised {type(error).__name__}: {error}",
+        )
+
+    comparison = compare_preserved_text(
+        preserved.written,
+        preserved.source,
+        left_excluded=preserved.written_excluded,
+        right_excluded=preserved.source_excluded,
+    )
+    extra = (f"comparing the write of {label} against {label} itself",)
+    return _from_comparison(job.case_id, Assertion.PRESERVED_TEXT, comparison, limit, extra)
+
+
+class _ExtentUnknown(RunnerError):
+    """The runner could not place a touched object's text on one side or the other."""
+
+
+def _preserving_round_trip(job: CaseJob, path: Path) -> _Preserved:
+    """Read ``path`` with preservation, apply the case's operations, and write it back.
+
+    The object notation preserves on all-or-nothing terms in both languages, so a case declaring
+    operations over one has no per-object extents to exclude and no meaningful narrowing. The
+    corpus has no such case, and one appearing is a corpus fault rather than something to guess at.
+    """
+    import idfkit
+
+    # `newline=""` is not optional. Text mode translates CRLF to LF on the way in, so a source read
+    # without it comes back as a file the case does not contain, and the three line-ending cases
+    # would report a difference in the runner's own reading rather than in the library's writing.
+    encoding = IDF_ENCODING if path.suffix == ".idf" else "utf-8"
+    with path.open("r", encoding=encoding, newline="") as handle:
+        source = handle.read()
+
+    if path.suffix != ".idf":
+        if job.operations:
+            raise _ExtentUnknown(
+                "the case declares operations over an object-notation text, which preserves on "
+                "all-or-nothing terms and has no per-object extent to exclude"
+            )
+        document = idfkit.parse_epjson(path, preserve_formatting=True)
+        return _Preserved(source=source, written=idfkit.write_epjson(document))
+
+    document = idfkit.parse_idf(path, encoding=IDF_ENCODING, preserve_formatting=True)
+    source_spans = _cst_spans(document)
+    _apply_operations(document, job.operations)
+    written = idfkit.write_idf(document)
+    if not job.operations:
+        return _Preserved(source=source, written=written)
+
+    written_spans = _written_spans(document, written)
+    # A removal takes the object's node out of the syntax tree altogether, so a removed object is
+    # not a node the written walk can report on. It is the difference between the objects the tree
+    # held when the read finished and the ones it holds now, and its extent is excluded on the
+    # source side alone: the write produced nothing for it, and there is no written extent to skip.
+    surviving = {key for key, _ in _cst_spans(document)}
+    touched = {key for key, _ in written_spans}
+    touched |= {key for key, _ in source_spans if key not in surviving}
+    return _Preserved(
+        source=source,
+        written=written,
+        source_excluded=tuple(span for key, span in source_spans if key in touched),
+        written_excluded=tuple(span for _, span in written_spans),
+    )
+
+
+def _cst_spans(document: Any) -> tuple[tuple[int, tuple[int, int]], ...]:
+    """Where each object's text sits in the text the read was given, keyed by object identity.
+
+    The concrete syntax tree reconstructs the input by concatenation, which is the property its own
+    test asserts, so accumulating node lengths gives every object's extent without a second scan.
+    """
+    cst = document.cst
+    if cst is None:
+        raise _ExtentUnknown("the preserving read produced no concrete syntax tree")
+    spans: list[tuple[int, tuple[int, int]]] = []
+    at = 0
+    for node in cst.nodes:
+        end = at + len(node.text)
+        if node.obj is not None:
+            spans.append((id(node.obj), (at, end)))
+        at = end
+    return tuple(spans)
+
+
+def _written_spans(document: Any, written: str) -> tuple[tuple[int, tuple[int, int]], ...]:
+    """Where each TOUCHED object's text sits in what the library wrote.
+
+    Rebuilt from the same two ingredients the preserving writer uses, the syntax tree and the
+    ordinary formatter, and then checked against what the writer actually produced. A mismatch
+    means this runner's idea of the output no longer matches the library's, so it raises rather
+    than excluding the wrong bytes: excluding the wrong bytes is how a broken writer passes.
+    """
+    from idfkit.writers import IDFWriter
+
+    cst = document.cst
+    if cst is None:
+        raise _ExtentUnknown("the preserving read produced no concrete syntax tree")
+
+    formatter = IDFWriter(document, output_type="standard")
+    live = {id(obj) for obj in document.all_objects}
+    pieces: list[str] = []
+    spans: list[tuple[int, tuple[int, int]]] = []
+    emitted: set[int] = set()
+    at = 0
+
+    def emit(text: str, key: int | None) -> None:
+        nonlocal at
+        pieces.append(text)
+        if key is not None:
+            spans.append((key, (at, at + len(text))))
+        at += len(text)
+
+    # A node's text runs to the end of the blank line that separates it from the next statement, so
+    # a touched object's WRITTEN extent is its formatted text plus the separator the writer emits
+    # after it. Excluding only the formatted text would leave that separator to be compared against
+    # the source's, where the two are different characters in different places, and every edited
+    # case would fail on the writer's own punctuation rather than on anything it got wrong.
+    for node in cst.nodes:
+        if node.obj is None:
+            emit(node.text, None)
+            continue
+        key = id(node.obj)
+        if key not in live:
+            # Detached from the document but still in the tree, which the writer skips. A removal
+            # through `removeidfobject` takes the node out as well, so this branch is the other
+            # way an object stops being written and it contributes nothing either way.
+            continue
+        emitted.add(key)
+        if node.obj.source_text is not None:
+            emit(node.obj.source_text, None)
+        else:
+            emit(f"{formatter.format_object(node.obj)}\n\n", key)
+
+    added = [obj for obj in document.all_objects if id(obj) not in emitted]
+    if added:
+        # The newline that keeps an appended object off the author's last line is written for that
+        # object and has no counterpart in the source, so it belongs inside its extent too.
+        tail = pieces[-1] if pieces else ""
+        lead = "\n" if tail and not tail.endswith("\n") else ""
+        for obj in added:
+            emit(f"{lead}{formatter.format_object(obj)}\n\n", id(obj))
+            lead = ""
+
+    rebuilt = "".join(pieces)
+    if rebuilt != written:
+        raise _ExtentUnknown(
+            "this runner's reconstruction of the written text does not match what the library "
+            "wrote, so it cannot say which bytes belong to a touched object. The reconstruction is "
+            f"{len(rebuilt)} characters and the write is {len(written)}"
+        )
+    return tuple(spans)
+
+
+def _apply_operations(document: Any, operations: Sequence[Operation]) -> None:
+    """Apply a case's declared changes, in list order, through the library's own mutators.
+
+    The corpus vocabulary is language-neutral and this is where it meets one library.
+    """
+    for operation in operations:
+        if operation.op is OperationKind.ADD:
+            fields = {
+                field: _coerced(document, operation.type, field, value)
+                for field, value in (operation.fields or {}).items()
+            }
+            document.add(operation.type, operation.name, **fields)
+            continue
+
+        obj = document[operation.type].get(operation.name)
+        if obj is None:
+            raise _ExtentUnknown(
+                f"operation {operation.op.value!r} names {operation.type} {operation.name!r}, "
+                f"which the document does not hold"
+            )
+        if operation.op is OperationKind.SET_FIELD:
+            field = operation.field or ""
+            setattr(obj, field, _coerced(document, operation.type, field, operation.value or ""))
+        elif operation.op is OperationKind.RENAME:
+            obj.name = operation.to
+        else:
+            document.removeidfobject(obj)
+
+
+def _coerced(document: Any, type_name: str, field: str, value: str) -> Any:
+    """A case's text turned into the value this library's own reader would have made of it.
+
+    A case says what a FILE would have said, so a numeric field written ``"3.0"`` has to arrive as
+    the number the reader would have produced. Handing the text straight over instead would make
+    every ``set-field`` on a numeric field a change even when the case wrote the value already
+    held, which is the one property ``preserve-edit-no-op`` exists to check.
+
+    The schema decides, not the text: a numeric-looking string in a string field stays a string,
+    and a sizing sentinel in a numeric field stays a string too, because that is what the reader
+    does with both.
+    """
+    description = next(
+        (item for item in document.describe(type_name).fields if item.name == field),
+        None,
+    )
+    if description is None or description.field_type not in {"number", "integer"}:
+        return value
+    try:
+        number = float(value)
+    except ValueError:
+        return value  # a sentinel such as Autosize, which the reader also leaves as text
+    return int(number) if description.field_type == "integer" else number
 
 
 def _missing_expectation(job: CaseJob, assertion: Assertion, path: Path) -> AssertionOutcome | None:

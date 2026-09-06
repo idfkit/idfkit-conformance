@@ -17,4 +17,4 @@ would turn every integer field in the corpus red without a single library changi
 tags = ["numeric", "types"]
 energyplus_version = "26.1.0"
 truth = "oracle"
-assertions = ["parse-outcome", "epjson", "round-trip"]
+assertions = ["parse-outcome", "epjson", "round-trip", "preserved-text"]

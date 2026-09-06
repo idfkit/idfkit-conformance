@@ -1,0 +1,24 @@
+title = "A file that ends inside its last object, which one parser drops in silence"
+why = """
+The last statement has no terminating semicolon and runs to end of input.
+
+The declared outcome is failure, on the same reasoning the corpus already settled in
+malformed-truncated-object: losing an object in silence is worse than refusing the file. The
+TypeScript core refuses it, reporting an unterminated object. Python accepts the file and discards
+the Zone without a word, which is carried in known-divergence.toml against the same issue as that
+case, idfkit 187, because it is the same root cause in the same pattern.
+
+The preserving half is what this case adds. Python's writer reproduces the file byte for byte
+anyway, because the text of the statement it dropped is still a text run in the syntax tree, so the
+assertion is evaluated and passes there. It is skipped in the second language, which never got a
+document. That leaves the writer hazard this fixture was donated for, that an untouched
+unterminated statement is copied and no terminator is invented, unpinned in the second language
+until its reader stops refusing the file. That gap is recorded in the README rather than left for a
+reader to infer from a skip.
+
+Donated from the syntax fixtures of the second language.
+"""
+tags = ["malformed"]
+energyplus_version = "26.1.0"
+truth = "convention"
+assertions = ["parse-outcome", "preserved-text"]

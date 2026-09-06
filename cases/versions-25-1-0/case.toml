@@ -20,4 +20,4 @@ purpose, so this case never fires on the separate choice canonicalisation hazard
 tags = ["versions"]
 energyplus_version = "25.1.0"
 truth = "oracle"
-assertions = ["parse-outcome", "epjson", "round-trip"]
+assertions = ["parse-outcome", "epjson", "round-trip", "preserved-text"]

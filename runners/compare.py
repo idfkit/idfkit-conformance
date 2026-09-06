@@ -18,6 +18,10 @@ Where each rule lives:
 * Rule 5, strings: :func:`_compare_scalar`, one ``!=``, no normalisation of any kind.
 * Rule 6, encoding: the runner's, not this module's. Values arrive already decoded.
 * Rule 7, unordered collections: :func:`compare_unordered`.
+* Rule 8, a byte comparison's report: :func:`compare_preserved_text` and :class:`TextRegion`. The
+  one textual comparison in this module, permitted by rule 1's bounded exception and confined to
+  the direction that exception names: a library's own output against that library's own input,
+  never against the other library's output.
 
 Orientation, fixed and never swapped: ``left`` is the library under test, ``right`` is the
 expectation. A ``missing`` therefore always means the library omitted something.
@@ -73,9 +77,12 @@ __all__ = [
     "Difference",
     "DifferenceKind",
     "JsonType",
+    "TextComparison",
+    "TextRegion",
     "compare_documents",
     "compare_epjson",
     "compare_outcome",
+    "compare_preserved_text",
     "compare_unordered",
     "compare_values",
     "escape_token",
@@ -257,7 +264,7 @@ class AssertionReport:
     case_id: str
     library: Library
     assertion: Assertion
-    comparison: Comparison
+    comparison: Comparison | TextComparison
 
     @property
     def passed(self) -> bool:
@@ -557,3 +564,260 @@ def _render_value(value: Any, limit: int) -> str:
     if 0 < limit < len(text):
         return f"{text[:limit]}... ({len(text)} characters)"
     return text
+
+
+# ---------------------------------------------------------------------------
+# Rule 8: a byte comparison reports an offset and a window, never a whole file
+# ---------------------------------------------------------------------------
+
+# How much of each side a region shows. Rule 8 caps the window; 80 characters is one terminal line
+# and comfortably more than the damage this assertion produces, which is one character wide by
+# nature.
+WINDOW: Final = 80
+
+# How many characters must agree before a differing region is considered closed.
+#
+# Without it, `3.000` come back as `3.0` reports two regions rather than one, because the `0` in
+# the middle happens to line up. A region is a place a maintainer looks at, not a character, and
+# eight is comfortably longer than any coincidental agreement inside one damaged value while being
+# far shorter than the shortest real run of untouched text between two edits.
+RESYNC: Final = 8
+
+
+@dataclass(frozen=True, slots=True)
+class TextRegion:
+    """One differing region between two texts, reported as rule 8 requires.
+
+    ``offset`` is into the compared text as the case supplied it, not into the surviving text after
+    the excluded extents were removed, so a reader can open the file and go to it.
+    """
+
+    offset: int
+    line: int
+    column: int
+    right_offset: int
+    left_text: str
+    right_text: str
+
+    def render(self, *, window: int = WINDOW) -> str:
+        """One report line: where, and a bounded window of each side. Never a whole file."""
+        left = _render_window(self.left_text, window)
+        right = _render_window(self.right_text, window)
+        return f"differs at offset {self.offset} (line {self.line}, column {self.column}): written {left}, source {right}"
+
+
+@dataclass(frozen=True, slots=True)
+class TextComparison:
+    """Every differing region between two texts, in order of offset.
+
+    Carries the same three members :class:`Comparison` does, so :class:`AssertionReport` reports a
+    byte comparison through exactly the shape it reports every value comparison through.
+    """
+
+    regions: tuple[TextRegion, ...] = ()
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "regions", tuple(self.regions))
+
+    @property
+    def equal(self) -> bool:
+        """Whether the written text reproduced the source text."""
+        return not self.regions
+
+    @property
+    def count(self) -> int:
+        """How many differing regions were found. Regions, not characters (rule 8)."""
+        return len(self.regions)
+
+    @property
+    def first(self) -> TextRegion | None:
+        """The first differing region, or ``None`` when the two texts agree."""
+        return self.regions[0] if self.regions else None
+
+    def render(self, *, limit: int | None = None, max_value_length: int = WINDOW) -> tuple[str, ...]:
+        """Report lines, at most ``limit`` of them, with a total count appended when truncated."""
+        shown = self.regions if limit is None else self.regions[:limit]
+        lines = [region.render(window=max_value_length) for region in shown]
+        if limit is not None and self.count > len(shown):
+            lines.append(f"... and {self.count - len(shown)} more differing region(s), {self.count} in total")
+        return tuple(lines)
+
+
+def compare_preserved_text(
+    left: str,
+    right: str,
+    *,
+    left_excluded: Sequence[tuple[int, int]] = (),
+    right_excluded: Sequence[tuple[int, int]] = (),
+) -> TextComparison:
+    """Assertion 9: a library's preserving write against that library's own input, byte for byte.
+
+    The one textual comparison in this file, permitted by rule 1's bounded exception and reporting
+    under rule 8. ``left`` is what the library wrote and ``right`` is the text it was given, which
+    keeps the orientation every other comparator uses: a difference is always something the library
+    did.
+
+    ``left_excluded`` and ``right_excluded`` are the extents of the objects a case's operations
+    touched, in their own side's text. Their contents are never compared, because that text is the
+    library's ordinary formatting and legitimately differs between the two libraries, which is the
+    reason rule 1 bans textual comparison in the first place. Everything else is compared, and that
+    is the property FR-023 states. Both default to empty, which is the read-only case: the whole
+    text is compared.
+
+    The regions are found by taking the common prefix and the common suffix first, so a single
+    insertion or deletion reports as one region bounded by what agrees on either side of it rather
+    than as everything after it. A lost trailing newline is therefore one region at the end of the
+    file, which is what it is.
+    """
+    left_kept, left_map = _surviving(left, left_excluded)
+    right_kept, right_map = _surviving(right, right_excluded)
+
+    prefix = _common_prefix(left_kept, right_kept)
+    if prefix == len(left_kept) == len(right_kept):
+        return TextComparison()
+
+    suffix = _common_suffix(left_kept, right_kept, prefix)
+    left_span = left_kept[prefix : len(left_kept) - suffix]
+    right_span = right_kept[prefix : len(right_kept) - suffix]
+
+    if len(left_span) != len(right_span):
+        # The two sides no longer line up, so comparing index by index past this point compares
+        # unrelated characters. One region, bounded by what still agrees on either side of it.
+        return TextComparison((_region(left, right, left_map, right_map, prefix, left_span, right_span),))
+
+    regions: list[TextRegion] = []
+    at = 0
+    while at < len(left_span):
+        if left_span[at] == right_span[at]:
+            at += 1
+            continue
+        start = at
+        agreed = 0
+        end = at
+        while at < len(left_span):
+            if left_span[at] == right_span[at]:
+                agreed += 1
+                if agreed >= RESYNC:
+                    break
+            else:
+                agreed = 0
+                end = at + 1
+            at += 1
+        regions.append(
+            _region(left, right, left_map, right_map, prefix + start, left_span[start:end], right_span[start:end])
+        )
+    return TextComparison(tuple(regions))
+
+
+def _region(
+    left: str,
+    right: str,
+    left_map: Sequence[int] | None,
+    right_map: Sequence[int] | None,
+    at: int,
+    left_span: str,
+    right_span: str,
+) -> TextRegion:
+    """One region, with its offsets mapped back into the texts the case supplied."""
+    left_offset = _original_offset(left_map, at, len(left))
+    right_offset = _original_offset(right_map, at, len(right))
+    line, column = _line_column_at(left, left_offset)
+    return TextRegion(
+        offset=left_offset,
+        line=line,
+        column=column,
+        right_offset=right_offset,
+        left_text=left_span,
+        right_text=right_span,
+    )
+
+
+def _surviving(text: str, excluded: Sequence[tuple[int, int]]) -> tuple[str, tuple[int, ...] | None]:
+    """The text outside ``excluded``, and the original offset each surviving character came from.
+
+    The map is what lets a region report an offset into the file rather than into a stitched-up
+    string nobody has. It is ``None`` when nothing was excluded, in which case every surviving
+    offset is its own: building the tuple would cost one integer per character of a 600 KB file to
+    answer a question the identity answers.
+    """
+    if not excluded:
+        return text, None
+    spans = _merge_spans(excluded, len(text))
+    kept: list[str] = []
+    offsets: list[int] = []
+    cursor = 0
+    for start, end in spans:
+        if start > cursor:
+            kept.append(text[cursor:start])
+            offsets.extend(range(cursor, start))
+        cursor = max(cursor, end)
+    if cursor < len(text):
+        kept.append(text[cursor:])
+        offsets.extend(range(cursor, len(text)))
+    return "".join(kept), tuple(offsets)
+
+
+def _merge_spans(spans: Sequence[tuple[int, int]], length: int) -> tuple[tuple[int, int], ...]:
+    """Clamped, sorted and merged, so overlapping extents cannot drop a character twice."""
+    clamped = sorted(
+        (max(0, min(start, length)), max(0, min(end, length))) for start, end in spans if end > start
+    )
+    merged: list[tuple[int, int]] = []
+    for start, end in clamped:
+        if merged and start <= merged[-1][1]:
+            merged[-1] = (merged[-1][0], max(merged[-1][1], end))
+        else:
+            merged.append((start, end))
+    return tuple(merged)
+
+
+def _original_offset(offsets: Sequence[int] | None, at: int, length: int) -> int:
+    """Where the surviving character at ``at`` sat in the original text.
+
+    Past the end of the surviving text the answer is the end of the original, which is what a
+    difference that is purely a missing tail is about.
+    """
+    if offsets is None:
+        return min(at, length)
+    if at < len(offsets):
+        return offsets[at]
+    return length
+
+
+def _common_prefix(left: str, right: str) -> int:
+    """How many characters the two texts agree on from the start."""
+    limit = min(len(left), len(right))
+    at = 0
+    while at < limit and left[at] == right[at]:
+        at += 1
+    return at
+
+
+def _common_suffix(left: str, right: str, prefix: int) -> int:
+    """How many characters they agree on from the end, without crossing the common prefix."""
+    limit = min(len(left), len(right)) - prefix
+    at = 0
+    while at < limit and left[len(left) - 1 - at] == right[len(right) - 1 - at]:
+        at += 1
+    return at
+
+
+def _line_column_at(text: str, offset: int) -> tuple[int, int]:
+    """The 1-based line and column an offset falls on.
+
+    A line break is a line feed and nothing else, so a carriage return before it belongs to the line
+    it ends. That is what every editor reports and what both libraries already count, and a third
+    opinion here would put a finding one line away from where a maintainer looks for it.
+    """
+    at = max(0, min(offset, len(text)))
+    line_start = text.rfind("\n", 0, at) + 1
+    return text.count("\n", 0, at) + 1, at - line_start + 1
+
+
+def _render_window(span: str, limit: int) -> str:
+    """A bounded, printable window of one side. Rule 8: never a whole file."""
+    if span == "":
+        return "nothing"
+    shown = span[:limit]
+    rendered = json.dumps(shown)
+    return rendered if len(shown) == len(span) else f"{rendered} (+{len(span) - len(shown)} more)"

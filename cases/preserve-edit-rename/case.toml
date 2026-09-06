@@ -1,0 +1,21 @@
+title = "A rename leaves no occurrence of the old name, including in the objects that pointed at it"
+why = """
+The input is the one from references-case-insensitive-match, unaltered, in which two Construction
+objects name one Material:NoMass, one in upper case and one in lower. The operation renames the
+material.
+
+Three objects are touched by one operation: the material and both constructions, because a rename
+rewrites every field that pointed at the old name. A library whose rename bypasses its own change
+listener, which is what a rename has to do to avoid recursion, reports only the material as
+changed and writes the two constructions from their original characters, producing a file that
+loads and names a construction layer that no longer exists.
+
+That is the only silent failure in this feature: the output is valid, the model is broken, and
+nothing in the write path says so. The assertion catches it because the two constructions' extents
+are excluded only if the library says they were touched, so a library that failed to say so is
+compared against the input over text it did change.
+"""
+tags = ["references", "naming"]
+energyplus_version = "26.1.0"
+truth = "convention"
+assertions = ["parse-outcome", "preserved-text"]

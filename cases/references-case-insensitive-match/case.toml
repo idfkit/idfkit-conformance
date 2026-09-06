@@ -42,4 +42,4 @@ the target's casing cannot be mistaken for the file having been written that way
 tags = ["references"]
 energyplus_version = "26.1.0"
 truth = "oracle"
-assertions = ["parse-outcome", "epjson", "round-trip"]
+assertions = ["parse-outcome", "epjson", "round-trip", "preserved-text"]

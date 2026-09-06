@@ -1,0 +1,18 @@
+title = "A file whose last line has no line feed does not gain one"
+why = """
+The last character of this file is the `n` of a trailing comment. There is no line feed after it,
+and a preserving write must not add one.
+
+The curated corpus holds no such file, and cannot: its inputs were swept from what one engine
+emits, and that engine ends every file with a line feed. So a writer that appends a newline
+"to be safe" passes every existing case and is wrong on every file a human editor produced with
+that setting off. Nothing but a fixture like this one notices, which is exactly what FR-021 asks
+for.
+
+Written for the preserving writer and donated the other way, into the second language's syntax
+fixtures, where it is also held to feature 005's reconstruction invariant.
+"""
+tags = ["encoding"]
+energyplus_version = "26.1.0"
+truth = "convention"
+assertions = ["parse-outcome", "preserved-text"]

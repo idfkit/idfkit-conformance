@@ -1,0 +1,16 @@
+title = "A comma and a semicolon inside a trailing comment, neither of which is a delimiter"
+why = """
+A comment trailing a value carries both delimiter characters. Neither is a delimiter, because a
+comment runs to the end of its line and there are no string literals in this grammar.
+
+A reader that took either for a delimiter would shift every field after it by one position, so this
+is a positional hazard reported as a comment one. For a preserving writer it is a second hazard on
+the same characters: the comment lives in the gap between two statements, belongs to no object, and
+is reproduced exactly or the file changes in a place no object was edited.
+
+Donated from the syntax fixtures of the second language.
+"""
+tags = ["positional"]
+energyplus_version = "26.1.0"
+truth = "convention"
+assertions = ["parse-outcome", "preserved-text"]

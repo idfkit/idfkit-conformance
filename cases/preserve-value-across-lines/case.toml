@@ -1,0 +1,19 @@
+title = "A field value written across two lines keeps both of them"
+why = """
+`My` on one line and `Zone,` on the next are one field value, because a line break is whitespace
+inside a field and closes nothing.
+
+A writer that reproduces this object from its parsed value writes `My Zone` on one line, which is
+the same model and a different file. Preservation is what keeps it, and the case is here because
+the shape is legal, occurs in hand-edited files, and is invisible to every assertion that compares
+values.
+
+Donated from the syntax fixtures of the second language, with a Version statement prepended and
+nothing else changed. Both libraries resolve their schema from the file, so the donor as it stands
+is refused by both readers before the hazard is ever reached; adding the statement is what makes
+the case evaluate, and it leaves the two-line value exactly as donated.
+"""
+tags = ["positional"]
+energyplus_version = "26.1.0"
+truth = "convention"
+assertions = ["parse-outcome", "preserved-text"]

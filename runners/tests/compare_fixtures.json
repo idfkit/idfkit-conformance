@@ -28,7 +28,15 @@
     "the right as int, JavaScript parses both as number, and both comparators must return no",
     "difference. Integer-like object keys are avoided throughout, because JavaScript visits those",
     "ahead of the rest and the two comparators would then disagree on difference order for a reason",
-    "that has nothing to do with the libraries under test."
+    "that has nothing to do with the libraries under test.",
+    "",
+    "Mode 'text' drives the byte comparator of rule 8, which is the one textual comparison in this",
+    "suite and is bounded to one direction by rule 1's exception: a library's own output against",
+    "that library's own input. Its rows carry strings rather than JSON values, optional",
+    "left_excluded and right_excluded spans naming the extents of the objects a case's operations",
+    "touched, and an expect list of REGIONS rather than differences: offset, line, column,",
+    "right_offset and a window of each side. Offsets are into the texts as written, never into the",
+    "surviving text after the exclusions, because a maintainer opens the file."
   ],
   "version": 1,
   "special_key": "$special",
@@ -972,6 +980,74 @@
           "left": { "$special": "absent" },
           "right": "InvalidField"
         }
+      ]
+    },
+    {
+      "id": "preserved-text-identical",
+      "rules": [8],
+      "mode": "text",
+      "why": "The whole point of the assertion. A preserving write that changed nothing reports nothing",
+      "left": "Version, 26.1;\n\nZone,\n  A;\n",
+      "right": "Version, 26.1;\n\nZone,\n  A;\n",
+      "expect": []
+    },
+    {
+      "id": "preserved-text-one-character-at-offset-zero",
+      "rules": [8],
+      "mode": "text",
+      "why": "Offset zero is where an off-by-one in the prefix walk hides: a region reported at 1 instead of 0 is still a failure and still points at the wrong character",
+      "left": "version, 26.1;\n",
+      "right": "Version, 26.1;\n",
+      "expect": [
+        { "offset": 0, "line": 1, "column": 1, "right_offset": 0, "left_text": "v", "right_text": "V" }
+      ]
+    },
+    {
+      "id": "preserved-text-lost-trailing-newline",
+      "rules": [8],
+      "mode": "text",
+      "why": "The hazard preserve-no-trailing-newline exists for, and the one an ordinary diff reports worst: the whole file agrees and one byte at the end does not",
+      "left": "Zone,\n  A;",
+      "right": "Zone,\n  A;\n",
+      "expect": [
+        { "offset": 10, "line": 2, "column": 5, "right_offset": 10, "left_text": "", "right_text": "\n" }
+      ]
+    },
+    {
+      "id": "preserved-text-three-regions",
+      "rules": [8],
+      "mode": "text",
+      "why": "Three separated differences are three regions and not one, and not forty-three: the resynchronisation rule decides that, and --max-differences counts what this returns",
+      "left": "AAAAAAAAAA1BBBBBBBBBB2CCCCCCCCCC3DDDDDDDDDD",
+      "right": "AAAAAAAAAAxBBBBBBBBBByCCCCCCCCCCzDDDDDDDDDD",
+      "expect": [
+        { "offset": 10, "line": 1, "column": 11, "right_offset": 10, "left_text": "1", "right_text": "x" },
+        { "offset": 21, "line": 1, "column": 22, "right_offset": 21, "left_text": "2", "right_text": "y" },
+        { "offset": 32, "line": 1, "column": 33, "right_offset": 32, "left_text": "3", "right_text": "z" }
+      ]
+    },
+    {
+      "id": "preserved-text-touched-extent-is-not-compared",
+      "rules": [8],
+      "mode": "text",
+      "why": "FR-023: an edited object's own text is each library's ordinary formatting and legitimately differs, so it is excluded and everything outside it still has to match",
+      "left": "Zone,\n    A,\n    4.5;\n\nZone,\n  B;\n",
+      "right": "Zone,\n  A,\n  3.0;\n\nZone,\n  B;\n",
+      "left_excluded": [[0, 21]],
+      "right_excluded": [[0, 17]],
+      "expect": []
+    },
+    {
+      "id": "preserved-text-offset-maps-past-an-excluded-extent",
+      "rules": [8],
+      "mode": "text",
+      "why": "A region found after an exclusion must report an offset into the file a maintainer can open, not into the stitched-up surviving text nobody has",
+      "left": "Zone,\n    A,\n    4.5;\n\nZone,\n  B;",
+      "right": "Zone,\n  A,\n  3.0;\n\nZone,\n  B;\n",
+      "left_excluded": [[0, 21]],
+      "right_excluded": [[0, 17]],
+      "expect": [
+        { "offset": 33, "line": 6, "column": 5, "right_offset": 29, "left_text": "", "right_text": "\n" }
       ]
     }
   ]
