@@ -1297,10 +1297,11 @@ function reconcileSpans(job, source, written, sourceSpans, writtenSpans) {
     // end of that comment, exactly as the writers do, and the newline after it is gap on both
     // sides and stays compared.
     sourceExcluded: sourceMiddle.length === 0 ? [] : [throughComment(source, span(sourceMiddle))],
-    // The written side runs one character further, to the end of the line: `writeObject` emits its
-    // own `!- Field Name` after the semicolon AND the newline that ends it, where the source's
-    // statement stops at the comment. Past that the two are the same gap again.
-    writtenExcluded: writtenMiddle.length === 0 ? [] : [throughLine(written, span(writtenMiddle))],
+    // The written side by the same rule, not a wider one. A statement's extent ends at its
+    // terminator or at the comment on that line and never includes the line break, on either side:
+    // the break is the first character of the gap, and the gap is compared.
+    writtenExcluded:
+      writtenMiddle.length === 0 ? [] : [throughComment(written, span(writtenMiddle))],
   };
 }
 
@@ -1332,22 +1333,6 @@ function span(spans) {
   return [spans[0][0], spans[spans.length - 1][1]];
 }
 
-/**
- * A span extended to the end of the line its last character sits on.
- *
- * The writer's own field comment follows the terminator and ends the line, where the source's
- * statement stops at its comment. Past that the two texts are the same gap again.
- *
- * @param {string} text
- * @param {[number, number]} bounds
- * @returns {[number, number]}
- */
-function throughLine(text, bounds) {
-  let end = bounds[1];
-  while (end < text.length && text[end] !== '\n') end += 1;
-  if (end < text.length) end += 1;
-  return [bounds[0], end];
-}
 
 /**
  * @param {string} text
