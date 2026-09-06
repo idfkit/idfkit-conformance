@@ -600,6 +600,7 @@ typescript = "complete"
 names      = [
   "preserve formatting on a round-trip",
   "the original source text",
+  "label a field the author left without a comment",
   "the objects a preserving write will rewrite",
   "the retained source structure",
 ]

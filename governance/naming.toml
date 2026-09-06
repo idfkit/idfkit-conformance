@@ -3347,6 +3347,30 @@ name, same meaning, and the optionality difference follows from `create a new do
 rename_count = { python = 0, typescript = 0 }
 
 [[entry]]
+concept    = "label a field the author left without a comment"
+python     = "field_comments"
+typescript = "fieldComments"
+kind       = "aligned"
+notes      = """
+A writer control, `"preserve"` or `"generate"`, meaningful only on the preserving path because that
+is the only path that knows what the author wrote.
+
+`"preserve"` leaves a bare field bare. A field written without a comment was written that way on
+purpose, and absence is as much a thing the author wrote as the words are. `"generate"` labels it,
+for a caller who wants the file annotated.
+
+Neither setting touches the author's own comment LINES. A comment between two objects is carried by
+the text between them, and a comment on its own line inside an object is emitted with the field
+below it, so asking for labels adds them and never costs a line. That is the property this option
+exists to make safe: without it, wanting labels would mean taking the whole ordinary writer and
+losing everything it cannot regenerate.
+
+An enumeration rather than a boolean, on the same reasoning as `ordering`: a third behaviour is
+plausible, reusing the author's comment and appending the unit, and a flag could not say which.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
 concept    = "the objects a preserving write will rewrite"
 python     = "IDFDocument.changed_objects"
 typescript = "IdfDocument.changedObjects"
