@@ -957,7 +957,11 @@ def _written_spans(document: Any, written: str) -> tuple[tuple[int, tuple[int, i
             # The node's original text goes with it: the writer reuses that object's own field
             # comments rather than generating new ones, so a reconstruction that omitted it would
             # rebuild a different object and the self-check below would reject the run.
-            emit(f"{formatter.format_object(node.obj, node.text)}\n\n", key)
+            # The object's own trailing blank lines, not a fixed two: the writer reuses whatever
+            # separated this object from the next, so an object at the end of a file keeps its
+            # single newline.
+            separator = node.text[len(node.text.rstrip("\n")) :] or "\n\n"
+            emit(f"{formatter.format_object(node.obj, node.text)}{separator}", key)
 
     added = [obj for obj in document.all_objects if id(obj) not in emitted]
     if added:
