@@ -51,6 +51,19 @@ surface real findings, so anything that generates noise at this volume defeats i
 The corollary matters as much: a comparator that is textual anywhere is textual everywhere. Do not
 compare a nested subtree by serializing it, not even for a fast path or a cheap hash.
 
+**One bounded exception, and its boundary.** Assertion 9, `preserved-text`, compares bytes. It is
+permitted to because it compares a library's output to that same library's own input, and never to
+the other library's output. The reason above has no purchase on that comparison: it is about two
+libraries rendering one value as two texts, and this assertion's whole content is that nothing was
+re-rendered, so no notation is generated to disagree about. The corollary stands unchanged for
+every comparison between the two libraries, which is every other assertion in this file. A
+comparator may be textual in that direction only, and a second textual comparison requires a second
+direction to be stated here first.
+
+The boundary is a **direction**, not an assertion number, deliberately. An exception keyed to
+"assertion 9" invites the next byte comparison to be added by precedent. An exception keyed to a
+direction cannot be extended without writing down the new direction and defending it.
+
 ### 2. Numbers
 
 epJSON has one number type. Python distinguishes `int` from `float`, JavaScript has neither
@@ -168,6 +181,36 @@ missing and extra kinds.
 while both stay green. Extending this list is an amendment to this file, made before either
 comparator changes.
 
+### 8. A byte comparison reports an offset and a window, never a whole file
+
+Assertion 9 alone compares text, on the terms rule 1's exception sets. This rule states how it
+reports, so that the one textual comparator in this file cannot fall back on the shape of a diff.
+
+A comparison of two texts reports, for each differing region:
+
+- the **offset** of the first differing byte in that region, counted from the start of the text;
+- the **line and column** that offset falls on, both counting from one, by the same convention
+  every other position in this corpus uses;
+- a **bounded window** of each side around the offset, at most 80 characters, with the window's own
+  start offset so a reader can place it.
+
+It never prints either text whole, and it never emits a line diff.
+
+**Reason.** This assertion's failures are one character wide by nature: a lost trailing newline, a
+`3.000` come back as `3`, a line ending translated. A diff of two 600 KB files is not a finding a
+maintainer can act on, and printing one hides the single character that is actually wrong inside
+everything that is right.
+
+`--max-differences` bounds this comparator as it bounds every other, counting **differing regions**
+rather than differing characters. Two texts that diverge completely from offset zero are one region,
+not six hundred thousand differences.
+
+A case declaring operations narrows what is compared rather than how it reports: the regions of the
+objects those operations touched are excluded from the comparison, because their text is the
+library's ordinary formatting and legitimately differs between the two. Everything outside them is
+compared as above. A runner that cannot determine a touched object's extent reports an error rather
+than a pass.
+
 ## Reporting
 
 The comparator returns **every** difference it finds, not the first. The runner may truncate what it
@@ -207,12 +250,22 @@ Every difference reports both values verbatim as parsed, never reformatted, so t
 | 6 | Type descriptions match `expected.introspection.json` | now |
 | 7 | Documentation addresses match `expected.docs-url.json` | now |
 | 8 | Collection lookups by object type name match `expected.type-lookup.json` | now |
+| 9 | Preserved text: a preserving write of the case's own source text equals that source text, byte for byte | now |
 
 Rules 1, 2, 3, 5, 6, and 7 apply to assertions 2 and 3. Rule 4 applies to assertion 3 only.
 Assertion 1 compares an outcome, not a value, and uses no rule but rule 6 for reading the input.
 Assertions 5 to 7 are governed by [The Tier 1 assertions](#the-tier-1-assertions) below, and by
 every rule except rule 4: they compare values that have no IDF field order. Assertion 8 is
 governed by [Assertion 8: type lookup](#assertion-8-type-lookup) below.
+
+Assertion 9 is governed by rule 1's bounded exception and by rule 8, and by no other rule here:
+it compares text rather than values, so the rules about numbers, key order, field order and
+unordered collections have nothing to compare. Rule 6 still applies to reading the input, as it
+does everywhere. It is **not** assertion 3 under another name: assertion 3 re-reads a library's own
+output and compares documents, saying nothing about the bytes in between, and it writes with
+preservation explicitly OFF because the lossless path would otherwise echo the source back and make
+it trivially true. Assertion 9 is that echo, asserted deliberately. The two must not be merged and
+their names must not invite it.
 
 Assertions 1 to 3 needed no changes inside either library, which is why they shipped first.
 Assertion 4 did need changes, which is why it was deferred: `ParseDiagnostic` in JavaScript carried

@@ -1,0 +1,19 @@
+title = "Two objects of one type declaring the same name, which both readers refuse"
+why = """
+Two Zone objects share a name, which the schema forbids and real files contain.
+
+Both libraries refuse the file, and they agree, which is worth pinning on its own: a duplicate name
+is the one malformed shape where the two have historically been asked to differ, and this case
+records that they do not.
+
+The writer hazard this fixture was donated for is the other half, and it is not reachable here: it
+is what happens to the characters of a statement the read REJECTED while the read still succeeded,
+which is a state neither reader offers, since both stop at the duplicate instead. The preserved-text
+assertion is declared and skipped, and the gap is recorded in the README with the other two.
+
+Donated from the syntax fixtures of the second language.
+"""
+tags = ["naming"]
+energyplus_version = "26.1.0"
+truth = "convention"
+assertions = ["parse-outcome", "preserved-text"]

@@ -19,7 +19,15 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 import * as compare from '../compare.mjs';
-import { ABSENT, Absent, Comparison, Difference, DifferenceKind } from '../compare.mjs';
+import {
+  ABSENT,
+  Absent,
+  Comparison,
+  Difference,
+  DifferenceKind,
+  TextComparison,
+  TextRegion,
+} from '../compare.mjs';
 import { Assertion, Library, ParseOutcome } from '../model.mjs';
 
 const FIXTURE_FILE = new URL('./compare_fixtures.json', import.meta.url);
@@ -27,7 +35,7 @@ const FIXTURE_FILE = new URL('./compare_fixtures.json', import.meta.url);
 // Every rule in compare.md that a fixture can exercise. Rule 6, the encoding, belongs to the
 // runner: values reach the comparator already decoded, so the fixtures pin only that a decoded high
 // byte compares as itself.
-const RULES = [1, 2, 3, 4, 5, 6, 7];
+const RULES = [1, 2, 3, 4, 5, 6, 7, 8];
 
 /**
  * Which comparator a fixture drives.
@@ -38,6 +46,7 @@ const RULES = [1, 2, 3, 4, 5, 6, 7];
 const Mode = Object.freeze({
   VALUES: 'values',
   UNORDERED: 'unordered',
+  TEXT: 'text',
 });
 
 /**
@@ -49,13 +58,15 @@ const Mode = Object.freeze({
  * @property {string} why
  * @property {*} left
  * @property {*} right
- * @property {readonly Difference[]} expect
+ * @property {readonly Difference[] | readonly TextRegion[]} expect
+ * @property {readonly (readonly [number, number])[]} [leftExcluded]
+ * @property {readonly (readonly [number, number])[]} [rightExcluded]
  */
 
 /** One row of the shared table, decoded. */
 class Fixture {
   /** @param {FixtureFields} fields */
-  constructor({ id, rules, mode, path, why, left, right, expect }) {
+  constructor({ id, rules, mode, path, why, left, right, expect, leftExcluded = [], rightExcluded = [] }) {
     this.id = id;
     this.rules = Object.freeze([...rules]);
     this.mode = mode;
@@ -64,6 +75,8 @@ class Fixture {
     this.left = left;
     this.right = right;
     this.expect = Object.freeze([...expect]);
+    this.leftExcluded = Object.freeze(leftExcluded.map(([start, end]) => Object.freeze([start, end])));
+    this.rightExcluded = Object.freeze(rightExcluded.map(([start, end]) => Object.freeze([start, end])));
     Object.freeze(this);
   }
 }
@@ -118,6 +131,32 @@ function loadFixtures() {
     return value;
   }
 
+  /**
+   * A text row records regions rather than differences, because rule 8 reports a place in a file
+   * and not a path into a value.
+   *
+   * @param {*} row
+   * @returns {readonly Difference[] | readonly TextRegion[]}
+   */
+  function expectation(row) {
+    if (row.mode === Mode.TEXT) {
+      return row.expect.map(
+        (entry) =>
+          new TextRegion({
+            offset: entry.offset,
+            line: entry.line,
+            column: entry.column,
+            rightOffset: entry.right_offset,
+            leftText: entry.left_text,
+            rightText: entry.right_text,
+          })
+      );
+    }
+    return row.expect.map(
+      (entry) => new Difference(entry.kind, entry.path, decode(entry.left), decode(entry.right))
+    );
+  }
+
   const fixtures = document.fixtures.map(
     (row) =>
       new Fixture({
@@ -128,9 +167,9 @@ function loadFixtures() {
         why: row.why,
         left: decode(row.left),
         right: decode(row.right),
-        expect: row.expect.map(
-          (entry) => new Difference(entry.kind, entry.path, decode(entry.left), decode(entry.right))
-        ),
+        expect: expectation(row),
+        leftExcluded: row.left_excluded ?? [],
+        rightExcluded: row.right_excluded ?? [],
       })
   );
   return { fixtures, specialKey, document };
@@ -194,6 +233,12 @@ function run(fixture) {
   if (fixture.mode === Mode.VALUES) {
     return compare.compareValues(fixture.left, fixture.right, { path: fixture.path });
   }
+  if (fixture.mode === Mode.TEXT) {
+    return compare.comparePreservedText(fixture.left, fixture.right, {
+      leftExcluded: fixture.leftExcluded,
+      rightExcluded: fixture.rightExcluded,
+    });
+  }
   return compare.compareUnordered(fixture.left, fixture.right, { path: fixture.path });
 }
 
@@ -215,17 +260,21 @@ for (const fixture of FIXTURES) {
   test(fixture.id, () => {
     // The comparator returns exactly the differences the table records, in the table's order.
     const result = run(fixture);
-    assert.deepStrictEqual(shape(result.differences), shape(fixture.expect), fixture.why);
-    for (const [index, observed] of result.differences.entries()) {
-      const expected = fixture.expect[index];
-      assert.ok(
-        same(observed.left, expected.left),
-        `${fixture.id}: left value at ${expected.path}`
-      );
-      assert.ok(
-        same(observed.right, expected.right),
-        `${fixture.id}: right value at ${expected.path}`
-      );
+    if (result instanceof TextComparison) {
+      assert.deepStrictEqual([...result.regions], [...fixture.expect], fixture.why);
+    } else {
+      assert.deepStrictEqual(shape(result.differences), shape(fixture.expect), fixture.why);
+      for (const [index, observed] of result.differences.entries()) {
+        const expected = fixture.expect[index];
+        assert.ok(
+          same(observed.left, expected.left),
+          `${fixture.id}: left value at ${expected.path}`
+        );
+        assert.ok(
+          same(observed.right, expected.right),
+          `${fixture.id}: right value at ${expected.path}`
+        );
+      }
     }
     assert.equal(result.equal, fixture.expect.length === 0);
     assert.equal(result.count, fixture.expect.length);
@@ -241,7 +290,9 @@ test('fixture ids are unique', () => {
 test('every difference kind is pinned', () => {
   // A kind no fixture produces is a kind the two comparators can disagree about.
   const produced = new Set(
-    FIXTURES.flatMap((fixture) => fixture.expect.map((difference) => difference.kind))
+    FIXTURES.filter((fixture) => fixture.mode !== Mode.TEXT).flatMap((fixture) =>
+      fixture.expect.map((difference) => difference.kind)
+    )
   );
   assert.deepStrictEqual([...produced].sort(), Object.values(DifferenceKind).slice().sort());
 });
@@ -570,4 +621,30 @@ test('unmatched elements are reported left side first, each in its own document 
       ['right', 'charlie'],
     ]
   );
+});
+
+test('a byte comparison truncates by region and says so', () => {
+  // Rule 8: `--max-differences` counts differing REGIONS, and truncation reports the total. The
+  // alternative, counting characters, makes the flag useless on the failure this assertion
+  // actually produces: two texts that diverge from offset zero are one place to look at, not six
+  // hundred thousand findings.
+  const fixture = FIXTURES.find((item) => item.id === 'preserved-text-three-regions');
+  const result = run(fixture);
+  assert.equal(result.count, 3);
+
+  const lines = result.render({ limit: 2 });
+  assert.equal(lines.length, 3);
+  assert.equal(lines[lines.length - 1], '... and 1 more differing region(s), 3 in total');
+  assert.deepStrictEqual([...result.render()], [...result.render({ limit: null })]);
+});
+
+test('a byte comparison never prints a whole file', () => {
+  // Rule 8's window is a cap, not a suggestion. A 600 KB failure is still one readable line.
+  const right = 'A'.repeat(200000);
+  const left = 'B'.repeat(200000);
+  const result = compare.comparePreservedText(left, right);
+  assert.equal(result.count, 1);
+  const line = result.render()[0];
+  assert.ok(line.length < 400);
+  assert.ok(line.includes('(+199920 more)'));
 });

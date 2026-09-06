@@ -1,0 +1,17 @@
+title = "Zero bytes, which every invariant has to hold vacuously"
+why = """
+An empty file. The vacuous case, and the one a walk over statements gets wrong by indexing rather
+than by reasoning.
+
+Both readers refuse it, for the same reason they refuse preserve-comments-only: no Version
+statement, so no schema resolves. The declared outcome is that refusal and the two agree on it.
+
+The preserved-text assertion is declared and skipped in both languages, on the same terms as
+preserve-comments-only and recorded in the README with it.
+
+Donated from the syntax fixtures of the second language, where the layer is required to tile it.
+"""
+tags = ["malformed"]
+energyplus_version = "26.1.0"
+truth = "convention"
+assertions = ["parse-outcome", "preserved-text"]

@@ -55,6 +55,8 @@ __all__ = [
     "Manifest",
     "ManifestEntry",
     "ManifestError",
+    "Operation",
+    "OperationKind",
     "ParseOutcome",
     "Tag",
     "Truth",
@@ -122,6 +124,12 @@ class Assertion(str, Enum):
     when a *caller* names an object type, which is the question the two libraries answered
     differently for as long as nobody wrote it down: ``d["zone"]`` was empty in Python and six
     zones in TypeScript on the same parsed document.
+
+    ``PRESERVED_TEXT`` is the one byte-level assertion, and it is not ``ROUND_TRIP`` under another
+    name. Round-trip re-reads a library's own output and compares documents, saying nothing about
+    the bytes in between, and it writes with preservation explicitly off because otherwise the
+    lossless path would echo the source back and make the assertion trivially true. This assertion
+    is that echo, asserted deliberately, and the two must never be merged.
     """
 
     PARSE_OUTCOME = "parse-outcome"
@@ -132,6 +140,7 @@ class Assertion(str, Enum):
     INTROSPECTION = "introspection"
     DOCS_URL = "docs-url"
     TYPE_LOOKUP = "type-lookup"
+    PRESERVED_TEXT = "preserved-text"
 
 
 class Tag(str, Enum):
@@ -186,6 +195,20 @@ class Library(str, Enum):
 
     PYTHON = "python"
     TYPESCRIPT = "typescript"
+
+
+class OperationKind(str, Enum):
+    """The four changes a case may declare between reading and writing.
+
+    Four, and no more: they are the four the touched record has to get right, which is what the
+    ``preserved-text`` assertion narrows to when a case declares them. A fifth is added when a
+    claim needs it, not in advance.
+    """
+
+    SET_FIELD = "set-field"
+    RENAME = "rename"
+    REMOVE = "remove"
+    ADD = "add"
 
 
 # ---------------------------------------------------------------------------
@@ -243,6 +266,62 @@ class Case:
     def expects_diagnostics(self) -> bool:
         """Whether the ``diagnostics`` assertion applies, which is what requires the diagnostics file."""
         return Assertion.DIAGNOSTICS in self.assertions
+
+
+@dataclass(frozen=True, slots=True)
+class Operation:
+    """One change a case applies to its document between the read and the write.
+
+    Language-neutral, exactly as :class:`WriterOptions` is: ``type`` and ``name`` identify the
+    object, and each runner maps the four kinds onto its own library's mutators. Parsed into this
+    rather than left as a bare mapping so that a malformed operation is a load error naming the
+    case, rather than an attribute error inside a run where it reads as a library failure.
+
+    ``value`` and the members of ``fields`` are text, because a case says what a file would have
+    said and each runner coerces it the way its own reader coerces a value read from a file.
+    """
+
+    op: OperationKind
+    type: str
+    name: str
+    field: str | None = None
+    value: str | None = None
+    to: str | None = None
+    fields: Mapping[str, str] | None = None
+
+    def __post_init__(self) -> None:
+        _check_non_empty(self.type, "type", ManifestError)
+        if self.op is OperationKind.SET_FIELD:
+            if not (self.field or "").strip():
+                raise ManifestError("operation 'set-field' requires a non-empty 'field'")
+            if self.value is None:
+                raise ManifestError("operation 'set-field' requires a 'value'")
+        elif self.field is not None or self.value is not None:
+            raise ManifestError(f"operation {self.op.value!r} takes neither 'field' nor 'value'")
+
+        if self.op is OperationKind.RENAME:
+            if not (self.to or "").strip():
+                raise ManifestError("operation 'rename' requires a non-empty 'to'")
+        elif self.to is not None:
+            raise ManifestError(f"operation {self.op.value!r} takes no 'to'")
+
+        if self.op is not OperationKind.ADD and self.fields is not None:
+            raise ManifestError(f"operation {self.op.value!r} takes no 'fields'")
+        if self.fields is not None:
+            object.__setattr__(self, "fields", dict(self.fields))
+
+    def to_json_obj(self) -> dict[str, Any]:
+        """The operation as it is written to ``manifest.json``. The JSON boundary, not a model type."""
+        entry: dict[str, Any] = {"op": self.op.value, "type": self.type, "name": self.name}
+        if self.field is not None:
+            entry["field"] = self.field
+        if self.value is not None:
+            entry["value"] = self.value
+        if self.to is not None:
+            entry["to"] = self.to
+        if self.fields is not None:
+            entry["fields"] = dict(self.fields)
+        return entry
 
 
 @dataclass(frozen=True, slots=True)
@@ -304,10 +383,12 @@ class ManifestEntry:
     expected_docs_url: str | None = None
     expected_type_lookup: str | None = None
     writer_options: WriterOptions | None = None
+    operations: tuple[Operation, ...] = ()
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "tags", tuple(self.tags))
         object.__setattr__(self, "assertions", tuple(self.assertions))
+        object.__setattr__(self, "operations", tuple(self.operations))
         _check_case_id(self.id, ManifestError)
         _check_non_empty(self.title, "title", ManifestError)
         _check_unique_non_empty(self.tags, "tags", ManifestError)
@@ -357,6 +438,8 @@ class ManifestEntry:
             named: str | None = getattr(self, key)
             if named is not None:
                 entry[key] = named
+        if self.operations:
+            entry["operations"] = [operation.to_json_obj() for operation in self.operations]
         return entry
 
 
@@ -602,6 +685,69 @@ def _read_writer_options(raw: Mapping[str, Any], *, path: Path, where: str) -> W
     )
 
 
+_OPERATION_KEYS: Final = frozenset({"op", "type", "name", "field", "value", "to", "fields"})
+
+
+def _read_operations(raw: Mapping[str, Any], *, path: Path, where: str) -> tuple[Operation, ...]:
+    """Read the optional ``operations`` list, or an empty tuple when the case declares none.
+
+    An absent block means read only, which is what every case written before this assertion means
+    and must keep meaning. A block that is present and empty is rejected rather than treated as
+    absent, because writing one is a mistake rather than a way of saying nothing.
+    """
+    value = raw.get("operations")
+    if value is None:
+        return ()
+    if not isinstance(value, list):
+        _fail(ManifestError, path, f"{where}.operations", f"expected a list, got {type(value).__name__}")
+    if not value:
+        _fail(ManifestError, path, f"{where}.operations", "is empty; omit the block to mean read only")
+
+    operations: list[Operation] = []
+    for index, raw_operation in enumerate(value):
+        at = f"{where}.operations[{index}]"
+        block = _read_mapping(raw_operation, path, at, ManifestError)
+        _reject_unknown_keys(block, _OPERATION_KEYS, path=path, where=at, error=ManifestError)
+
+        fields_value = block.get("fields")
+        fields: dict[str, str] | None = None
+        if fields_value is not None:
+            table = _read_mapping(fields_value, path, f"{at}.fields", ManifestError)
+            for field_name, field_value in table.items():
+                if not isinstance(field_value, str):
+                    _fail(
+                        ManifestError,
+                        path,
+                        f"{at}.fields.{field_name}",
+                        f"must be a string, because a case says what a file would have said, got {field_value!r}",
+                    )
+            fields = {str(key): str(item) for key, item in table.items()}
+
+        # `name` may legitimately be blank, for a type that declares an optional name, so it is
+        # read as a plain string rather than through the non-empty helper.
+        name = block.get("name")
+        if not isinstance(name, str):
+            _fail(ManifestError, path, at, f"'name' must be a string, got {name!r}")
+
+        try:
+            operations.append(
+                Operation(
+                    op=_read_enum(block, "op", OperationKind, path=path, where=at, error=ManifestError),
+                    type=_read_str(block, "type", path=path, where=at, error=ManifestError),
+                    name=name,
+                    field=_read_optional_str(block, "field", path=path, where=at, error=ManifestError),
+                    value=block.get("value") if isinstance(block.get("value"), str) else None,
+                    to=_read_optional_str(block, "to", path=path, where=at, error=ManifestError),
+                    fields=fields,
+                )
+            )
+        except ManifestError as error:
+            # Re-raised with the file and the case position, so a malformed operation names the
+            # case rather than surfacing as a bare rule violation with no address.
+            _fail(ManifestError, path, at, str(error))
+    return tuple(operations)
+
+
 def _read_optional_str(
     raw: Mapping[str, Any], key: str, *, path: Path, where: str, error: type[CorpusError]
 ) -> str | None:
@@ -682,6 +828,7 @@ _ENTRY_KEYS: Final = frozenset(
         "expected_docs_url",
         "expected_type_lookup",
         "writer_options",
+        "operations",
     }
 )
 _MANIFEST_KEYS: Final = frozenset({"$schema", "schema_version", "corpus_level", "oracle", "convention"})
@@ -756,6 +903,7 @@ def _load_entry(raw_entry: object, truth: Truth, path: Path, index: int) -> Mani
             raw, "expected_type_lookup", path=path, where=where, error=ManifestError
         ),
         writer_options=_read_writer_options(raw, path=path, where=where),
+        operations=_read_operations(raw, path=path, where=where),
     )
 
 

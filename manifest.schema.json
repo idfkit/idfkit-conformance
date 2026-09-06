@@ -59,9 +59,9 @@
       ]
     },
     "assertion": {
-      "description": "One assertion. 'diagnostics' is accepted and skipped by the runners until phase two. 'validation', 'introspection' and 'docs-url' are the Tier 1 assertions, which have no oracle behind them; see runners/compare.md. 'type-lookup' has no oracle either and asks a different question from every other assertion: not what a library made of a file, but what it returns when a caller names an object type.",
+      "description": "One assertion. 'diagnostics' is accepted and skipped by the runners until phase two. 'validation', 'introspection' and 'docs-url' are the Tier 1 assertions, which have no oracle behind them; see runners/compare.md. 'type-lookup' has no oracle either and asks a different question from every other assertion: not what a library made of a file, but what it returns when a caller names an object type. 'preserved-text' is the one byte-level assertion and is not 'round-trip' under another name: round-trip re-reads a library's own output and compares documents, saying nothing about the bytes in between, and it writes with preservation explicitly OFF for that reason. preserved-text asserts the echo that would make round-trip trivially true, deliberately.",
       "type": "string",
-      "enum": ["parse-outcome", "epjson", "round-trip", "diagnostics", "validation", "introspection", "docs-url", "type-lookup"]
+      "enum": ["parse-outcome", "epjson", "round-trip", "diagnostics", "validation", "introspection", "docs-url", "type-lookup", "preserved-text"]
     },
     "case": {
       "description": "One case entry. Shared by both sections; the section decides whether 'expected' is required or forbidden.",
@@ -134,6 +134,12 @@
           "type": "string",
           "const": "expected.type-lookup.json"
         },
+        "operations": {
+          "description": "Changes to apply to the document between reading and writing, in list order. Language-neutral: each runner maps the four kinds onto its own library's mutators, exactly as 'writer_options' already does for the five writer controls. ABSENT MEANS READ ONLY, which is what all 56 pre-existing cases mean and must keep meaning. A case declaring operations alongside 'preserved-text' narrows that assertion to the property FR-023 states: every byte outside the extents of the objects these operations touched equals the input. The four kinds are the four the touched record has to get right, and no more; a fifth is added when a claim needs it, not in advance.",
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/operation" }
+        },
         "writer_options": {
           "description": "Writer controls to apply before re-reading, in the 'round-trip' assertion. Language-neutral names: each runner maps them onto its own writer's option. Absent means every writer default, which is what all 48 pre-existing cases mean and must keep meaning. A case that sets one is asserting FR-019: a document written under that control re-reads to the same structure.",
           "type": "object",
@@ -173,6 +179,64 @@
         { "$ref": "#/$defs/expectationRule/introspection" },
         { "$ref": "#/$defs/expectationRule/docsUrl" },
         { "$ref": "#/$defs/expectationRule/typeLookup" }
+      ]
+    },
+    "operation": {
+      "description": "One change to the document, applied before the write. 'type' and 'name' identify the object in language-neutral terms; a name is required even for a type that carries none, in which case it is the collection key the runner looks the object up by.",
+      "type": "object",
+      "required": ["op", "type", "name"],
+      "additionalProperties": false,
+      "properties": {
+        "op": {
+          "description": "Which change. 'set-field' writes one field; 'rename' changes an object's name and retargets every reference to it; 'remove' takes an object out of the document; 'add' puts a new one in.",
+          "type": "string",
+          "enum": ["set-field", "rename", "remove", "add"]
+        },
+        "type": {
+          "description": "The object's type name, as the schema spells it.",
+          "type": "string",
+          "minLength": 1
+        },
+        "name": {
+          "description": "The object's name. For 'add', the name the new object takes.",
+          "type": "string"
+        },
+        "field": {
+          "description": "The epJSON field name to write. Required by 'set-field', forbidden otherwise.",
+          "type": "string",
+          "minLength": 1
+        },
+        "value": {
+          "description": "The value to write, as text. Each runner coerces it the way its own reader coerces a value read from a file, so a case says what a file would have said. Required by 'set-field', forbidden otherwise.",
+          "type": "string"
+        },
+        "to": {
+          "description": "The new name. Required by 'rename', forbidden otherwise.",
+          "type": "string",
+          "minLength": 1
+        },
+        "fields": {
+          "description": "Field values for the new object, as text. Optional on 'add', forbidden otherwise.",
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "op": { "const": "set-field" } }, "required": ["op"] },
+          "then": { "required": ["field", "value"] },
+          "else": { "allOf": [{ "not": { "required": ["field"] } }, { "not": { "required": ["value"] } }] }
+        },
+        {
+          "if": { "properties": { "op": { "const": "rename" } }, "required": ["op"] },
+          "then": { "required": ["to"] },
+          "else": { "not": { "required": ["to"] } }
+        },
+        {
+          "if": { "properties": { "op": { "const": "add" } }, "required": ["op"] },
+          "then": true,
+          "else": { "not": { "required": ["fields"] } }
+        }
       ]
     },
     "expectationRule": {

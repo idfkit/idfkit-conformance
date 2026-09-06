@@ -26,7 +26,7 @@ if str(RUNNERS) not in sys.path:
 
 import compare  # noqa: E402
 import pytest  # noqa: E402
-from compare import Comparison, Difference, DifferenceKind  # noqa: E402
+from compare import Comparison, Difference, DifferenceKind, TextComparison, TextRegion  # noqa: E402
 from model import Assertion, Library, ParseOutcome  # noqa: E402
 
 FIXTURE_FILE: Final = Path(__file__).resolve().parent / "compare_fixtures.json"
@@ -34,7 +34,7 @@ FIXTURE_FILE: Final = Path(__file__).resolve().parent / "compare_fixtures.json"
 # Every rule in compare.md that a fixture can exercise. Rule 6, the encoding, belongs to the
 # runner: values reach the comparator already decoded, so the fixtures pin only that a decoded high
 # byte compares as itself.
-RULES: Final = frozenset({1, 2, 3, 4, 5, 6, 7})
+RULES: Final = frozenset({1, 2, 3, 4, 5, 6, 7, 8})
 
 
 class Mode(str, Enum):
@@ -42,6 +42,7 @@ class Mode(str, Enum):
 
     VALUES = "values"
     UNORDERED = "unordered"
+    TEXT = "text"
 
 
 @dataclass(frozen=True, slots=True)
@@ -55,7 +56,9 @@ class Fixture:
     why: str
     left: Any
     right: Any
-    expect: tuple[Difference, ...]
+    expect: tuple[Difference, ...] | tuple[TextRegion, ...]
+    left_excluded: tuple[tuple[int, int], ...] = ()
+    right_excluded: tuple[tuple[int, int], ...] = ()
 
 
 def _load_fixtures() -> tuple[tuple[Fixture, ...], str]:
@@ -82,6 +85,34 @@ def _load_fixtures() -> tuple[tuple[Fixture, ...], str]:
             return [decode(member) for member in value]
         return value
 
+    def spans(row: Any, key: str) -> tuple[tuple[int, int], ...]:
+        return tuple((int(start), int(end)) for start, end in row.get(key, ()))
+
+    def expectation(row: Any) -> tuple[Any, ...]:
+        # A text row records regions rather than differences, because rule 8 reports a place in a
+        # file and not a path into a value.
+        if row["mode"] == Mode.TEXT.value:
+            return tuple(
+                TextRegion(
+                    offset=entry["offset"],
+                    line=entry["line"],
+                    column=entry["column"],
+                    right_offset=entry["right_offset"],
+                    left_text=entry["left_text"],
+                    right_text=entry["right_text"],
+                )
+                for entry in row["expect"]
+            )
+        return tuple(
+            Difference(
+                kind=DifferenceKind(entry["kind"]),
+                path=entry["path"],
+                left=decode(entry["left"]),
+                right=decode(entry["right"]),
+            )
+            for entry in row["expect"]
+        )
+
     fixtures = tuple(
         Fixture(
             id=row["id"],
@@ -91,15 +122,9 @@ def _load_fixtures() -> tuple[tuple[Fixture, ...], str]:
             why=row["why"],
             left=decode(row["left"]),
             right=decode(row["right"]),
-            expect=tuple(
-                Difference(
-                    kind=DifferenceKind(entry["kind"]),
-                    path=entry["path"],
-                    left=decode(entry["left"]),
-                    right=decode(entry["right"]),
-                )
-                for entry in row["expect"]
-            ),
+            expect=expectation(row),
+            left_excluded=spans(row, "left_excluded"),
+            right_excluded=spans(row, "right_excluded"),
         )
         for row in document["fixtures"]
     )
@@ -134,10 +159,17 @@ def _same(left: Any, right: Any) -> bool:
     return False
 
 
-def _run(fixture: Fixture) -> Comparison:
+def _run(fixture: Fixture) -> Comparison | TextComparison:
     """Drive the comparator the fixture names."""
     if fixture.mode is Mode.VALUES:
         return compare.compare_values(fixture.left, fixture.right, path=fixture.path)
+    if fixture.mode is Mode.TEXT:
+        return compare.compare_preserved_text(
+            fixture.left,
+            fixture.right,
+            left_excluded=fixture.left_excluded,
+            right_excluded=fixture.right_excluded,
+        )
     return compare.compare_unordered(fixture.left, fixture.right, path=fixture.path)
 
 
@@ -155,10 +187,13 @@ def _shape(differences: tuple[Difference, ...]) -> list[tuple[str, str]]:
 def test_fixture_verdict(fixture: Fixture) -> None:
     """The comparator returns exactly the differences the table records, in the table's order."""
     result = _run(fixture)
-    assert _shape(result.differences) == _shape(fixture.expect), fixture.why
-    for observed, expected in zip(result.differences, fixture.expect, strict=True):
-        assert _same(observed.left, expected.left), f"{fixture.id}: left value at {expected.path}"
-        assert _same(observed.right, expected.right), f"{fixture.id}: right value at {expected.path}"
+    if isinstance(result, TextComparison):
+        assert result.regions == fixture.expect, fixture.why
+    else:
+        assert _shape(result.differences) == _shape(fixture.expect), fixture.why
+        for observed, expected in zip(result.differences, fixture.expect, strict=True):
+            assert _same(observed.left, expected.left), f"{fixture.id}: left value at {expected.path}"
+            assert _same(observed.right, expected.right), f"{fixture.id}: right value at {expected.path}"
     assert result.equal is (not fixture.expect)
     assert result.count == len(fixture.expect)
 
@@ -171,7 +206,12 @@ def test_fixture_ids_are_unique() -> None:
 
 def test_every_difference_kind_is_pinned() -> None:
     """A kind no fixture produces is a kind the two comparators can disagree about."""
-    produced = {difference.kind for fixture in FIXTURES for difference in fixture.expect}
+    produced = {
+        difference.kind
+        for fixture in FIXTURES
+        if fixture.mode is not Mode.TEXT
+        for difference in fixture.expect
+    }
     assert produced == set(DifferenceKind)
 
 
@@ -358,3 +398,31 @@ def test_deeply_nested_values_are_compared_all_the_way_down() -> None:
         right = {"child": right}
     result = compare.compare_values(left, right)
     assert _shape(result.differences) == [("value", "/child" * depth)]
+
+
+def test_a_byte_comparison_truncates_by_region_and_says_so() -> None:
+    """Rule 8: ``--max-differences`` counts differing REGIONS, and truncation reports the total.
+
+    The alternative, counting characters, makes the flag useless on the failure this assertion
+    actually produces: two texts that diverge from offset zero are one place to look at, not six
+    hundred thousand findings.
+    """
+    fixture = next(item for item in FIXTURES if item.id == "preserved-text-three-regions")
+    result = _run(fixture)
+    assert result.count == 3
+
+    lines = result.render(limit=2)
+    assert len(lines) == 3
+    assert lines[-1] == "... and 1 more differing region(s), 3 in total"
+    assert result.render() == result.render(limit=None)
+
+
+def test_a_byte_comparison_never_prints_a_whole_file() -> None:
+    """Rule 8's window is a cap, not a suggestion. A 600 KB failure is still one readable line."""
+    right = "A" * 200_000
+    left = "B" * 200_000
+    result = compare.compare_preserved_text(left, right)
+    assert result.count == 1
+    line = result.render()[0]
+    assert len(line) < 400
+    assert "(+199920 more)" in line

@@ -1,0 +1,19 @@
+title = "A field written the value it already holds leaves the object as it was"
+why = """
+The same input, and an operation that writes the Building's Terrain the value the file already
+gives it. Nothing changed, so nothing may be reformatted, and the operations block excludes no
+extent: the write is compared against the input in full.
+
+This case exists because it caught a real defect. The first language cleared its retained source
+text on every field write, without comparing, so this operation reformatted the Building and turned
+its `0.0` into `0`. It was found by running the library rather than by reading it, and it is
+written as a corpus case rather than as that library's unit test for exactly that reason: the
+second language got this right for free through a comparing accessor, and a claim that only one
+library's own tests hold is a claim the other can drift away from.
+
+FR-004 and the fourth acceptance scenario of the one-object-diff story.
+"""
+tags = ["numeric"]
+energyplus_version = "26.1.0"
+truth = "convention"
+assertions = ["parse-outcome", "preserved-text"]

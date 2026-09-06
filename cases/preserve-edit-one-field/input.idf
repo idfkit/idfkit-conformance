@@ -1,0 +1,24 @@
+Version,
+  26.1;
+
+Building,
+  Scientific Notation,
+  0.0,                     !- North Axis {deg}
+  City,                    !- Terrain
+  0.04,                    !- Loads Convergence Tolerance Value {W}
+  0.4,                     !- Temperature Convergence Tolerance Value {deltaC}
+  FullExterior,            !- Solar Distribution
+  25,                      !- Maximum Number of Warmup Days
+  6;                       !- Minimum Number of Warmup Days
+
+GlobalGeometryRules,
+  UpperLeftCorner,         !- Starting Vertex Position
+  Counterclockwise,        !- Vertex Entry Direction
+  Relative;                !- Coordinate System
+
+Curve:Linear,
+  Exponent Forms,          !- Name
+  1.0E-5,                  !- Coefficient1 Constant
+  -2.5e-3,                 !- Coefficient2 x
+  -1.5E+2,                 !- Minimum Value of x
+  1.5E2;                   !- Maximum Value of x

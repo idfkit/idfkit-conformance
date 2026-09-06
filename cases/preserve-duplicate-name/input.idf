@@ -1,0 +1,9 @@
+Version, 26.1;
+
+Zone,
+  Zone One,                !- Name
+  0.0;                     !- Direction of Relative North
+
+Zone,
+  Zone One,                !- Name
+  90.0;                    !- Direction of Relative North

@@ -1,7 +1,7 @@
 {
   "$schema": "./manifest.schema.json",
   "schema_version": 1,
-  "corpus_level": "conformance-2026.8",
+  "corpus_level": "conformance-2026.9",
   "oracle": [
     {
       "id": "encoding-latin1-high-bytes",
@@ -13,7 +13,8 @@
       "assertions": [
         "parse-outcome",
         "epjson",
-        "round-trip"
+        "round-trip",
+        "preserved-text"
       ],
       "input": "input.idf",
       "parse_outcome": "success",
@@ -29,7 +30,8 @@
       "assertions": [
         "parse-outcome",
         "epjson",
-        "round-trip"
+        "round-trip",
+        "preserved-text"
       ],
       "input": "input.idf",
       "parse_outcome": "success",
@@ -45,7 +47,8 @@
       "assertions": [
         "parse-outcome",
         "epjson",
-        "round-trip"
+        "round-trip",
+        "preserved-text"
       ],
       "input": "input.idf",
       "parse_outcome": "success",
@@ -62,7 +65,8 @@
       "assertions": [
         "parse-outcome",
         "epjson",
-        "round-trip"
+        "round-trip",
+        "preserved-text"
       ],
       "input": "input.idf",
       "parse_outcome": "success",
@@ -80,7 +84,8 @@
       "assertions": [
         "parse-outcome",
         "epjson",
-        "round-trip"
+        "round-trip",
+        "preserved-text"
       ],
       "input": "input.idf",
       "parse_outcome": "success",
@@ -96,7 +101,8 @@
       "assertions": [
         "parse-outcome",
         "epjson",
-        "round-trip"
+        "round-trip",
+        "preserved-text"
       ],
       "input": "input.idf",
       "parse_outcome": "success",
@@ -112,7 +118,8 @@
       "assertions": [
         "parse-outcome",
         "epjson",
-        "round-trip"
+        "round-trip",
+        "preserved-text"
       ],
       "input": "input.idf",
       "parse_outcome": "success",
@@ -129,7 +136,8 @@
       "assertions": [
         "parse-outcome",
         "epjson",
-        "round-trip"
+        "round-trip",
+        "preserved-text"
       ],
       "input": "input.idf",
       "parse_outcome": "success",
@@ -145,7 +153,8 @@
       "assertions": [
         "parse-outcome",
         "epjson",
-        "round-trip"
+        "round-trip",
+        "preserved-text"
       ],
       "input": "input.idf",
       "parse_outcome": "success",
@@ -161,7 +170,8 @@
       "assertions": [
         "parse-outcome",
         "epjson",
-        "round-trip"
+        "round-trip",
+        "preserved-text"
       ],
       "input": "input.idf",
       "parse_outcome": "success",
@@ -177,7 +187,8 @@
       "assertions": [
         "parse-outcome",
         "epjson",
-        "round-trip"
+        "round-trip",
+        "preserved-text"
       ],
       "input": "input.idf",
       "parse_outcome": "success",
@@ -193,7 +204,8 @@
       "assertions": [
         "parse-outcome",
         "epjson",
-        "round-trip"
+        "round-trip",
+        "preserved-text"
       ],
       "input": "input.idf",
       "parse_outcome": "success",
@@ -210,7 +222,8 @@
       "assertions": [
         "parse-outcome",
         "epjson",
-        "round-trip"
+        "round-trip",
+        "preserved-text"
       ],
       "input": "input.idf",
       "parse_outcome": "success",
@@ -226,7 +239,8 @@
       "assertions": [
         "parse-outcome",
         "epjson",
-        "round-trip"
+        "round-trip",
+        "preserved-text"
       ],
       "input": "input.idf",
       "parse_outcome": "success",
@@ -243,7 +257,8 @@
       "assertions": [
         "parse-outcome",
         "epjson",
-        "round-trip"
+        "round-trip",
+        "preserved-text"
       ],
       "input": "input.idf",
       "parse_outcome": "success",
@@ -260,7 +275,8 @@
       "assertions": [
         "parse-outcome",
         "epjson",
-        "round-trip"
+        "round-trip",
+        "preserved-text"
       ],
       "input": "input.idf",
       "parse_outcome": "success",
@@ -277,7 +293,8 @@
       "assertions": [
         "parse-outcome",
         "epjson",
-        "round-trip"
+        "round-trip",
+        "preserved-text"
       ],
       "input": "input.idf",
       "parse_outcome": "success",
@@ -294,7 +311,8 @@
       "assertions": [
         "parse-outcome",
         "epjson",
-        "round-trip"
+        "round-trip",
+        "preserved-text"
       ],
       "input": "input.idf",
       "parse_outcome": "success",
@@ -310,7 +328,8 @@
       "assertions": [
         "parse-outcome",
         "epjson",
-        "round-trip"
+        "round-trip",
+        "preserved-text"
       ],
       "input": "input.idf",
       "parse_outcome": "success",
@@ -326,7 +345,8 @@
       "assertions": [
         "parse-outcome",
         "epjson",
-        "round-trip"
+        "round-trip",
+        "preserved-text"
       ],
       "input": "input.idf",
       "parse_outcome": "success",
@@ -342,7 +362,8 @@
       "assertions": [
         "parse-outcome",
         "epjson",
-        "round-trip"
+        "round-trip",
+        "preserved-text"
       ],
       "input": "input.idf",
       "parse_outcome": "success",
@@ -358,7 +379,8 @@
       "assertions": [
         "parse-outcome",
         "epjson",
-        "round-trip"
+        "round-trip",
+        "preserved-text"
       ],
       "input": "input.idf",
       "parse_outcome": "success",
@@ -374,7 +396,8 @@
       "assertions": [
         "parse-outcome",
         "epjson",
-        "round-trip"
+        "round-trip",
+        "preserved-text"
       ],
       "input": "input.idf",
       "parse_outcome": "success",
@@ -390,7 +413,8 @@
       "assertions": [
         "parse-outcome",
         "epjson",
-        "round-trip"
+        "round-trip",
+        "preserved-text"
       ],
       "input": "input.idf",
       "parse_outcome": "success",
@@ -406,7 +430,8 @@
       "assertions": [
         "parse-outcome",
         "epjson",
-        "round-trip"
+        "round-trip",
+        "preserved-text"
       ],
       "input": "input.idf",
       "parse_outcome": "success",
@@ -422,7 +447,8 @@
       "assertions": [
         "parse-outcome",
         "epjson",
-        "round-trip"
+        "round-trip",
+        "preserved-text"
       ],
       "input": "input.idf",
       "parse_outcome": "success",
@@ -438,7 +464,8 @@
       "assertions": [
         "parse-outcome",
         "epjson",
-        "round-trip"
+        "round-trip",
+        "preserved-text"
       ],
       "input": "input.idf",
       "parse_outcome": "success",
@@ -454,7 +481,8 @@
       "assertions": [
         "parse-outcome",
         "epjson",
-        "round-trip"
+        "round-trip",
+        "preserved-text"
       ],
       "input": "input.idf",
       "parse_outcome": "success",
@@ -470,7 +498,8 @@
       "assertions": [
         "parse-outcome",
         "epjson",
-        "round-trip"
+        "round-trip",
+        "preserved-text"
       ],
       "input": "input.idf",
       "parse_outcome": "success",
@@ -486,7 +515,8 @@
       "assertions": [
         "parse-outcome",
         "epjson",
-        "round-trip"
+        "round-trip",
+        "preserved-text"
       ],
       "input": "input.idf",
       "parse_outcome": "success",
@@ -502,7 +532,8 @@
       "assertions": [
         "parse-outcome",
         "epjson",
-        "round-trip"
+        "round-trip",
+        "preserved-text"
       ],
       "input": "input.idf",
       "parse_outcome": "success",
@@ -518,7 +549,8 @@
       "assertions": [
         "parse-outcome",
         "epjson",
-        "round-trip"
+        "round-trip",
+        "preserved-text"
       ],
       "input": "input.idf",
       "parse_outcome": "success",
@@ -534,7 +566,8 @@
       "assertions": [
         "parse-outcome",
         "epjson",
-        "round-trip"
+        "round-trip",
+        "preserved-text"
       ],
       "input": "input.idf",
       "parse_outcome": "success",
@@ -550,7 +583,8 @@
       "assertions": [
         "parse-outcome",
         "epjson",
-        "round-trip"
+        "round-trip",
+        "preserved-text"
       ],
       "input": "input.idf",
       "parse_outcome": "success",
@@ -566,7 +600,8 @@
       "assertions": [
         "parse-outcome",
         "epjson",
-        "round-trip"
+        "round-trip",
+        "preserved-text"
       ],
       "input": "input.idf",
       "parse_outcome": "success",
@@ -582,7 +617,8 @@
       "assertions": [
         "parse-outcome",
         "epjson",
-        "round-trip"
+        "round-trip",
+        "preserved-text"
       ],
       "input": "input.idf",
       "parse_outcome": "success",
@@ -598,7 +634,8 @@
       "assertions": [
         "parse-outcome",
         "epjson",
-        "round-trip"
+        "round-trip",
+        "preserved-text"
       ],
       "input": "input.idf",
       "parse_outcome": "success",
@@ -906,6 +943,231 @@
       "writer_options": {
         "ordering": "source"
       }
+    },
+    {
+      "id": "preserve-line-endings-crlf",
+      "title": "A file written with carriage returns comes back with them",
+      "tags": [
+        "encoding"
+      ],
+      "energyplus_version": "26.1.0",
+      "assertions": [
+        "parse-outcome",
+        "preserved-text"
+      ],
+      "input": "input.idf",
+      "parse_outcome": "success"
+    },
+    {
+      "id": "preserve-line-endings-mixed",
+      "title": "A file mixing both line-ending conventions keeps each line's own",
+      "tags": [
+        "encoding"
+      ],
+      "energyplus_version": "26.1.0",
+      "assertions": [
+        "parse-outcome",
+        "preserved-text"
+      ],
+      "input": "input.idf",
+      "parse_outcome": "success"
+    },
+    {
+      "id": "preserve-no-trailing-newline",
+      "title": "A file whose last line has no line feed does not gain one",
+      "tags": [
+        "encoding"
+      ],
+      "energyplus_version": "26.1.0",
+      "assertions": [
+        "parse-outcome",
+        "preserved-text"
+      ],
+      "input": "input.idf",
+      "parse_outcome": "success"
+    },
+    {
+      "id": "preserve-unterminated-final",
+      "title": "A file that ends inside its last object, which one parser drops in silence",
+      "tags": [
+        "malformed"
+      ],
+      "energyplus_version": "26.1.0",
+      "assertions": [
+        "parse-outcome",
+        "preserved-text"
+      ],
+      "input": "input.idf",
+      "parse_outcome": "failure"
+    },
+    {
+      "id": "preserve-comment-hazards",
+      "title": "A comma and a semicolon inside a trailing comment, neither of which is a delimiter",
+      "tags": [
+        "positional"
+      ],
+      "energyplus_version": "26.1.0",
+      "assertions": [
+        "parse-outcome",
+        "preserved-text"
+      ],
+      "input": "input.idf",
+      "parse_outcome": "success"
+    },
+    {
+      "id": "preserve-value-across-lines",
+      "title": "A field value written across two lines keeps both of them",
+      "tags": [
+        "positional"
+      ],
+      "energyplus_version": "26.1.0",
+      "assertions": [
+        "parse-outcome",
+        "preserved-text"
+      ],
+      "input": "input.idf",
+      "parse_outcome": "success"
+    },
+    {
+      "id": "preserve-comments-only",
+      "title": "A file of comments and nothing else, which neither reader will open",
+      "tags": [
+        "malformed"
+      ],
+      "energyplus_version": "26.1.0",
+      "assertions": [
+        "parse-outcome",
+        "preserved-text"
+      ],
+      "input": "input.idf",
+      "parse_outcome": "failure"
+    },
+    {
+      "id": "preserve-empty",
+      "title": "Zero bytes, which every invariant has to hold vacuously",
+      "tags": [
+        "malformed"
+      ],
+      "energyplus_version": "26.1.0",
+      "assertions": [
+        "parse-outcome",
+        "preserved-text"
+      ],
+      "input": "input.idf",
+      "parse_outcome": "failure"
+    },
+    {
+      "id": "preserve-duplicate-name",
+      "title": "Two objects of one type declaring the same name, which both readers refuse",
+      "tags": [
+        "naming"
+      ],
+      "energyplus_version": "26.1.0",
+      "assertions": [
+        "parse-outcome",
+        "preserved-text"
+      ],
+      "input": "input.idf",
+      "parse_outcome": "failure"
+    },
+    {
+      "id": "preserve-edit-one-field",
+      "title": "One field changes and exactly one object looks changed",
+      "tags": [
+        "numeric"
+      ],
+      "energyplus_version": "26.1.0",
+      "assertions": [
+        "parse-outcome",
+        "preserved-text"
+      ],
+      "input": "input.idf",
+      "parse_outcome": "success",
+      "operations": [
+        {
+          "op": "set-field",
+          "type": "Building",
+          "name": "Scientific Notation",
+          "field": "terrain",
+          "value": "Suburbs"
+        }
+      ]
+    },
+    {
+      "id": "preserve-edit-no-op",
+      "title": "A field written the value it already holds leaves the object as it was",
+      "tags": [
+        "numeric"
+      ],
+      "energyplus_version": "26.1.0",
+      "assertions": [
+        "parse-outcome",
+        "preserved-text"
+      ],
+      "input": "input.idf",
+      "parse_outcome": "success",
+      "operations": [
+        {
+          "op": "set-field",
+          "type": "Building",
+          "name": "Scientific Notation",
+          "field": "terrain",
+          "value": "City"
+        }
+      ]
+    },
+    {
+      "id": "preserve-edit-rename",
+      "title": "A rename leaves no occurrence of the old name, including in the objects that pointed at it",
+      "tags": [
+        "references",
+        "naming"
+      ],
+      "energyplus_version": "26.1.0",
+      "assertions": [
+        "parse-outcome",
+        "preserved-text"
+      ],
+      "input": "input.idf",
+      "parse_outcome": "success",
+      "operations": [
+        {
+          "op": "rename",
+          "type": "Material:NoMass",
+          "name": "Partition Material",
+          "to": "Partition Material Renamed"
+        }
+      ]
+    },
+    {
+      "id": "preserve-edit-remove-and-add",
+      "title": "An object removed and another added leave the text between them alone",
+      "tags": [
+        "references"
+      ],
+      "energyplus_version": "26.1.0",
+      "assertions": [
+        "parse-outcome",
+        "preserved-text"
+      ],
+      "input": "input.idf",
+      "parse_outcome": "success",
+      "operations": [
+        {
+          "op": "remove",
+          "type": "Construction",
+          "name": "Lower Case Reference"
+        },
+        {
+          "op": "add",
+          "type": "Material:NoMass",
+          "name": "Added Material",
+          "fields": {
+            "roughness": "Smooth",
+            "thermal_resistance": "2.5"
+          }
+        }
+      ]
     }
   ]
 }

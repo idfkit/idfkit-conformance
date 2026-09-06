@@ -1,0 +1,19 @@
+title = "A file written with carriage returns comes back with them"
+why = """
+Every line of this file ends CRLF, and nothing about the model is unusual: the twin
+preserve-line-endings-mixed carries the same statements under a different convention, so a
+difference between the two is a line-ending difference and not a content one.
+
+A writer that rebuilds a file from its own idea of a line break silently converts every line of a
+file it was asked to reproduce. The damage is invisible in a rendered diff and total in a byte
+comparison, and it is the reason FR-021 asks for inputs the curated set does not hold: those were
+swept from what one engine emits on one platform, and that engine emits the platform's own ending.
+
+Donated from the syntax fixtures of the second language, where it is read as bytes and never
+through anything that normalises a line ending. A tool that helpfully converts this file has
+destroyed it rather than tidied it.
+"""
+tags = ["encoding"]
+energyplus_version = "26.1.0"
+truth = "convention"
+assertions = ["parse-outcome", "preserved-text"]

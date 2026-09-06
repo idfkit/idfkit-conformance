@@ -1,0 +1,18 @@
+title = "One field changes and exactly one object looks changed"
+why = """
+The input is the one from numeric-scientific-notation, unaltered. The operation writes the
+Building's Terrain, and the assertion is about every byte that is not the Building's.
+
+This is SC-002 as a case rather than as a hope. The Curve:Linear object below carries `1.0E-5`,
+`-2.5e-3`, `-1.5E+2` and `1.5E2`, four notations no writer reproduces from a parsed number, so a
+writer that reformats the whole document to satisfy one edit fails here loudly and immediately.
+The comments, the blank lines and the trailing newline are outside every object and are compared
+too.
+
+An existing input rather than a new one, deliberately: the property is about the file the operation
+did NOT touch, so the more ordinary the file the better the evidence.
+"""
+tags = ["numeric"]
+energyplus_version = "26.1.0"
+truth = "convention"
+assertions = ["parse-outcome", "preserved-text"]

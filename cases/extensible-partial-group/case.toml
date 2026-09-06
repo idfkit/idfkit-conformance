@@ -25,4 +25,4 @@ is a difference the oracle expectation catches.
 tags = ["extensible", "positional"]
 energyplus_version = "26.1.0"
 truth = "oracle"
-assertions = ["parse-outcome", "epjson", "round-trip"]
+assertions = ["parse-outcome", "epjson", "round-trip", "preserved-text"]

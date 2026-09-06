@@ -1,0 +1,17 @@
+title = "A file mixing both line-ending conventions keeps each line's own"
+why = """
+The same statements as preserve-line-endings-crlf, with the two conventions alternating line by
+line. Real files reach this state through an editor that appends with one convention to a file
+written with the other, and they are common.
+
+This is the case a writer passes by accident and fails by design. Normalising to either convention
+reproduces most of the file correctly, so a spot check looks right; the assertion compares bytes
+and the difference is one character on every second line.
+
+Donated from the syntax fixtures of the second language. Do not open this file in anything that
+normalises line endings on save.
+"""
+tags = ["encoding"]
+energyplus_version = "26.1.0"
+truth = "convention"
+assertions = ["parse-outcome", "preserved-text"]

@@ -77,7 +77,7 @@
  */
 
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { availableParallelism, tmpdir } from 'node:os';
 import { gunzipSync } from 'node:zlib';
 import { dirname, isAbsolute, join, resolve, sep } from 'node:path';
@@ -89,6 +89,7 @@ import {
   compareDocuments,
   compareEpjson,
   compareOutcome,
+  comparePreservedText,
   compareUnordered,
   compareValues,
   Comparison,
@@ -108,6 +109,7 @@ import {
   InputFile,
   Library,
   MANIFEST_FILE,
+  OperationKind,
   ParseOutcome,
   Tag,
   Truth,
@@ -138,6 +140,7 @@ const ASSERTION_ORDER = Object.freeze([
   Assertion.INTROSPECTION,
   Assertion.DOCS_URL,
   Assertion.TYPE_LOOKUP,
+  Assertion.PRESERVED_TEXT,
 ]);
 
 const DEFAULT_DIFFERENCE_LIMIT = 20;
@@ -251,7 +254,8 @@ export class CaseJob {
   /**
    * @param {{ caseId: string, caseDir: string, inputFile: InputFile,
    *           expectedParseOutcome: ParseOutcome, truth: Truth,
-   *           assertions: readonly Assertion[], writerOptions?: * }} fields
+   *           assertions: readonly Assertion[], writerOptions?: *,
+   *           operations?: readonly * [] }} fields
    */
   constructor({
     caseId,
@@ -261,6 +265,7 @@ export class CaseJob {
     truth,
     assertions,
     writerOptions = null,
+    operations = [],
   }) {
     /** @type {string} */
     this.caseId = caseId;
@@ -280,6 +285,12 @@ export class CaseJob {
      * @type {* | null}
      */
     this.writerOptions = writerOptions ?? null;
+    /**
+     * Changes to apply between reading and writing, or empty for a read-only case.
+     *
+     * @type {readonly *[]}
+     */
+    this.operations = Object.freeze([...operations]);
     Object.freeze(this);
   }
 
@@ -691,6 +702,7 @@ export function buildJobs(corpus, caseIds, tags) {
         truth: entry.truth,
         assertions: ASSERTION_ORDER.filter((assertion) => entry.assertions.includes(assertion)),
         writerOptions: entry.writerOptions,
+        operations: entry.operations,
       })
     );
   }
@@ -967,6 +979,9 @@ async function runAssertion(library, job, assertion, parse, limit) {
   if (assertion === Assertion.TYPE_LOOKUP) {
     return assertTypeLookup(library, job, parse.document, limit);
   }
+  if (assertion === Assertion.PRESERVED_TEXT) {
+    return await assertPreservedText(library, job, limit);
+  }
   // A ninth assertion added to model.mjs without a runner change lands here. Saying so beats
   // falling through to whichever branch happened to be last.
   return errored(
@@ -1062,6 +1077,307 @@ function noDocument(job, assertion, parse) {
  * @param {number} limit
  * @returns {AssertionOutcome}
  */
+/**
+ * Assertion 9: the library's preserving write of a text against that same text, byte for byte.
+ *
+ * Declaring this assertion asserts the property over EVERY source text the case supplies (FR-024),
+ * which is the case input always and, for an oracle case, its committed `expected.epJSON` read as
+ * an object-notation input as well. Those 37 files carry a third tool's formatting rather than
+ * either library's, which is exactly the kind of sample this claim needs, and reading them here
+ * does not change what they mean as the expectation for assertion 2.
+ *
+ * This assertion does its own read, deliberately. Every other assertion shares the run's one parse,
+ * which is a plain read; this one is about what a PRESERVING read retains, so a shared plain read
+ * would test nothing.
+ *
+ * @param {LibraryUnderTest} library
+ * @param {CaseJob} job
+ * @param {number} limit
+ * @returns {Promise<AssertionOutcome>}
+ */
+async function assertPreservedText(library, job, limit) {
+  /** @type {[string, string][]} */
+  const texts = [['input', job.inputPath]];
+  if (job.truth === Truth.ORACLE && existsSync(job.expectedEpjsonPath)) {
+    texts.push(['expected.epJSON', job.expectedEpjsonPath]);
+  }
+
+  for (const [label, path] of texts) {
+    const outcome = await preservedTextOf(library, job, label, path, limit);
+    if (outcome.status !== Status.PASSED) return outcome;
+  }
+  return new AssertionOutcome({
+    caseId: job.caseId,
+    assertion: Assertion.PRESERVED_TEXT,
+    status: Status.PASSED,
+  });
+}
+
+/**
+ * One text: read it preserving, apply the case's operations, write, compare bytes.
+ *
+ * @param {LibraryUnderTest} library
+ * @param {CaseJob} job
+ * @param {string} label
+ * @param {string} path
+ * @param {number} limit
+ * @returns {Promise<AssertionOutcome>}
+ */
+async function preservedTextOf(library, job, label, path, limit) {
+  let preserved;
+  try {
+    preserved = await preservingRoundTrip(library, job, path);
+  } catch (error) {
+    if (error instanceof ExtentUnknown) {
+      // Never a pass. A runner that cannot say where a touched object sits cannot say which bytes
+      // the assertion excludes, so it has no verdict to give.
+      return errored(job.caseId, Assertion.PRESERVED_TEXT, `${label}: ${error.message}`);
+    }
+    return errored(
+      job.caseId,
+      Assertion.PRESERVED_TEXT,
+      `${label}: the preserving round trip raised ${describeError(error)}`
+    );
+  }
+
+  const comparison = comparePreservedText(preserved.written, preserved.source, {
+    leftExcluded: preserved.writtenExcluded,
+    rightExcluded: preserved.sourceExcluded,
+  });
+  return fromComparison(job.caseId, Assertion.PRESERVED_TEXT, comparison, limit, [
+    `comparing the write of ${label} against ${label} itself`,
+  ]);
+}
+
+/** The runner could not place a touched object's text on one side or the other. */
+class ExtentUnknown extends RunnerError {}
+
+/**
+ * Read `path` with preservation, apply the case's operations, and write it back.
+ *
+ * The object notation preserves on all-or-nothing terms in both languages, so a case declaring
+ * operations over one has no per-object extents to exclude and no meaningful narrowing. The corpus
+ * has no such case, and one appearing is a corpus fault rather than something to guess at.
+ *
+ * @param {LibraryUnderTest} library
+ * @param {CaseJob} job
+ * @param {string} path
+ * @returns {Promise<{ source: string, written: string,
+ *                     sourceExcluded: readonly [number, number][],
+ *                     writtenExcluded: readonly [number, number][] }>}
+ */
+async function preservingRoundTrip(library, job, path) {
+  // Read as bytes and decode here. Node's text reading translates nothing, unlike Python's, but
+  // the decode is spelled out anyway so the three line-ending cases are compared against the file
+  // the case actually contains rather than against a normalised copy of it.
+  const isIdf = path.endsWith('.idf');
+  const source = readFileSync(path).toString(isIdf ? IDF_ENCODING : 'utf8');
+
+  if (!isIdf) {
+    if (job.operations.length > 0) {
+      throw new ExtentUnknown(
+        'the case declares operations over an object-notation text, which preserves on ' +
+          'all-or-nothing terms and has no per-object extent to exclude'
+      );
+    }
+    const schema = await library.node.schemaFor(library.core.getEpJsonVersion(source));
+    const { document } = library.core.parseEpJson(source, schema, { preserveFormatting: true });
+    return {
+      source,
+      written: library.core.writeEpJson(document),
+      sourceExcluded: [],
+      writtenExcluded: [],
+    };
+  }
+
+  const schema = await library.node.schemaFor(library.core.getIdfVersion(source));
+  const { document } = library.core.parseIdf(source, schema, { preserveFormatting: true });
+  const sourceSpans = statementSpans(library, source);
+  applyOperations(library, document, job.operations);
+  const written = library.core.writeIdf(document);
+  if (job.operations.length === 0) {
+    return { source, written, sourceExcluded: [], writtenExcluded: [] };
+  }
+
+  // The extents come from the library's own syntax layer, on both sides: the statement a touched
+  // object was read from, and the statement it was written as. Matching them by position is sound
+  // for the same reason the writer's own anchoring is, that both walks visit statements in source
+  // order, and it stops being sound the moment a statement is added or removed. So the two walks
+  // are reconciled on the text that did NOT change rather than on an index.
+  const writtenSpans = statementSpans(library, written);
+  return reconcileSpans(job, source, written, sourceSpans, writtenSpans);
+}
+
+/**
+ * Every statement's extent in one text, from the library's own scan.
+ *
+ * @param {LibraryUnderTest} library
+ * @param {string} text
+ * @returns {[number, number][]}
+ */
+function statementSpans(library, text) {
+  const layer = library.core.scanIdf(text);
+  return layer.statements.map((statement) => [statement.region.start, statement.region.end]);
+}
+
+/**
+ * Which statements differ between the two sides, as extents to exclude on each.
+ *
+ * The two texts agree everywhere the write preserved and differ inside the statements it did not.
+ * So the extents are found by walking the two statement lists together and taking the longest run
+ * that matches character for character from each end: what is left in the middle on each side is
+ * the text of the objects the operations touched, whether that is one statement reformatted, a
+ * statement gone, or a statement appended.
+ *
+ * This determines an extent from the layer, as the contract requires, and it needs no map from a
+ * statement to the object it produced: the assertion excludes text, not objects.
+ *
+ * @param {CaseJob} job
+ * @param {string} source
+ * @param {string} written
+ * @param {[number, number][]} sourceSpans
+ * @param {[number, number][]} writtenSpans
+ */
+function reconcileSpans(job, source, written, sourceSpans, writtenSpans) {
+  let head = 0;
+  while (
+    head < sourceSpans.length &&
+    head < writtenSpans.length &&
+    sliceOf(source, sourceSpans[head]) === sliceOf(written, writtenSpans[head]) &&
+    gapBefore(source, sourceSpans, head) === gapBefore(written, writtenSpans, head)
+  ) {
+    head += 1;
+  }
+
+  let tail = 0;
+  while (
+    tail < sourceSpans.length - head &&
+    tail < writtenSpans.length - head &&
+    sliceOf(source, sourceSpans[sourceSpans.length - 1 - tail]) ===
+      sliceOf(written, writtenSpans[writtenSpans.length - 1 - tail])
+  ) {
+    tail += 1;
+  }
+
+  const sourceMiddle = sourceSpans.slice(head, sourceSpans.length - tail);
+  const writtenMiddle = writtenSpans.slice(head, writtenSpans.length - tail);
+  if (sourceMiddle.length === 0 && writtenMiddle.length === 0 && job.operations.length > 0) {
+    throw new ExtentUnknown(
+      'the case declares operations and the written text reproduces every statement of the ' +
+        'source, so no statement can be identified as the one that changed'
+    );
+  }
+
+  // One span per side, from the first differing statement to the last, plus the separator that
+  // follows it: the writer's own punctuation around a reformatted object is written for that
+  // object and has no counterpart in the source.
+  return {
+    source,
+    written,
+    sourceExcluded: sourceMiddle.length === 0 ? [] : [enclosing(source, sourceMiddle)],
+    writtenExcluded: writtenMiddle.length === 0 ? [] : [enclosing(written, writtenMiddle)],
+  };
+}
+
+/**
+ * @param {string} text
+ * @param {[number, number]} span
+ * @returns {string}
+ */
+function sliceOf(text, span) {
+  return text.slice(span[0], span[1]);
+}
+
+/**
+ * The text between the previous statement and this one, which belongs to no object.
+ *
+ * @param {string} text
+ * @param {[number, number][]} spans
+ * @param {number} index
+ * @returns {string}
+ */
+function gapBefore(text, spans, index) {
+  const from = index === 0 ? 0 : spans[index - 1][1];
+  return text.slice(from, spans[index][0]);
+}
+
+/**
+ * One span covering every statement in `spans`, and the blank text that trails the last of them.
+ *
+ * @param {string} text
+ * @param {[number, number][]} spans
+ * @returns {[number, number]}
+ */
+function enclosing(text, spans) {
+  const start = spans[0][0];
+  let end = spans[spans.length - 1][1];
+  while (end < text.length && (text[end] === '\n' || text[end] === '\r')) end += 1;
+  return [start, end];
+}
+
+/**
+ * Apply a case's declared changes, in list order, through the library's own mutators.
+ *
+ * A case says what a FILE would have said, so a value arrives as text and is coerced the way this
+ * library's own reader coerces a value read from a file. Handing the text straight over instead
+ * would make every `set-field` on a numeric field a change even when the case wrote the value
+ * already held, which is the one property `preserve-edit-no-op` exists to check.
+ *
+ * @param {LibraryUnderTest} library
+ * @param {*} document
+ * @param {readonly *[]} operations
+ */
+function applyOperations(library, document, operations) {
+  for (const operation of operations) {
+    if (operation.op === OperationKind.ADD) {
+      /** @type {Record<string, string | number>} */
+      const fields = {};
+      for (const [field, value] of Object.entries(operation.fields ?? {})) {
+        fields[field] = coerced(document, operation.type, field, value);
+      }
+      document.add(operation.type, operation.name, fields);
+      continue;
+    }
+
+    const object = document.get(operation.type, operation.name);
+    if (object === undefined) {
+      throw new ExtentUnknown(
+        `operation ${quote(operation.op)} names ${operation.type} ${quote(operation.name)}, ` +
+          'which the document does not hold'
+      );
+    }
+    if (operation.op === OperationKind.SET_FIELD) {
+      object.set(operation.field, coerced(document, operation.type, operation.field, operation.value));
+    } else if (operation.op === OperationKind.RENAME) {
+      object.name = operation.to;
+    } else {
+      document.remove(object);
+    }
+  }
+}
+
+/**
+ * A case's text turned into the value this library's own reader would have made of it.
+ *
+ * The schema decides, not the text: a numeric-looking string in a string field stays a string, and
+ * a sizing sentinel in a numeric field stays a string too, because that is what the reader does
+ * with both.
+ *
+ * @param {*} document
+ * @param {string} typeName
+ * @param {string} field
+ * @param {string} value
+ * @returns {string | number}
+ */
+function coerced(document, typeName, field, value) {
+  const description = document.schema.require(typeName)?.p?.[field];
+  const kind = description?.t;
+  if (kind !== 'n' && kind !== 'i') return value;
+  const number = Number(value);
+  if (Number.isNaN(number) || value.trim() === '') return value;
+  return kind === 'i' ? Math.trunc(number) : number;
+}
+
 function assertParseOutcome(job, parse, limit) {
   const comparison = compareOutcome(parse.outcome, job.expectedParseOutcome);
   const extra = parse.error ? [`parse error: ${parse.error}`] : [];

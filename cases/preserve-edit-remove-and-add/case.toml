@@ -1,0 +1,21 @@
+title = "An object removed and another added leave the text between them alone"
+why = """
+The same input as preserve-edit-rename. One Construction is removed and one Material:NoMass is
+added.
+
+Two properties in one case, and they fail in opposite directions. A removal must take the object's
+own extent and nothing else: the blank line and the comment around it belong to no object and must
+survive, and a writer that removes a line too many or too few is reproducing a file the author did
+not write. An addition must go to the end, formatted, and must not run onto the last line of a file
+whose final statement is where the author left it.
+
+The removal half is also where the object notation's terms were found to be wrong in the first
+language: its preserving write asked the surviving objects whether they were unmodified, and a
+removed object is not among them to ask, so the original text came back with the removed object
+still in it. That is fixed at the library, and this case is the text format's half of the same
+question.
+"""
+tags = ["references"]
+energyplus_version = "26.1.0"
+truth = "convention"
+assertions = ["parse-outcome", "preserved-text"]
