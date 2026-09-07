@@ -70,8 +70,9 @@ from downstream rather than found here.
 See [idfkit-js#28](https://github.com/idfkit/idfkit-js/issues/28).
 
 Closing this gap needs a check that calls each library's own reader, which no `input.idf` plus
-`expected.epJSON` pair can express. That is what the `checks/` directory the contract reserves is
-for. It has no members yet.
+`expected.epJSON` pair can express. That is what the `checks/` directory is for. It exists now, and
+its one member, `weather-monthly`, is about a weather file rather than about this gap: reading an
+IDF from disk is still open.
 
 A second consequence, worth stating separately: cases are curated from a sweep of the EnergyPlus
 example files, so the corpus only sees hazards that EnergyPlus's own files exhibit. Byte-order marks,
@@ -239,6 +240,12 @@ runners/
   run.mjs                # JavaScript runner
   compare.md             # the normative comparison rules
   validate.md            # the normative validation semantics, which assertion 5 checks
+checks/
+  README.md              # why a claim lands here rather than in cases/, and what a check owes
+  <check-id>/
+    check.md             # what is claimed, the oracle, the assertions, the coverage it lacks
+    fixtures/            # the check's own inputs, committed rather than fetched
+    expected/            # the check's own committed expectations
 tools/
   regenerate.sh          # re-run ConvertInputFormat over every case (maintainer task)
   seed_tier1.py          # draft the Tier 1 expectations (maintainer task; read its header)
@@ -246,9 +253,10 @@ governance/              # naming.toml and parity.toml, read at a pinned governa
 known-divergence.toml    # accepted failures, each with an issue link
 ```
 
-There is no `checks/` directory. Some cross-library claims are not expressible as an input file with
-an expected epJSON, and such a check would live there. None exists at landing, so the directory is
-created when the first one is written, not before.
+`checks/` holds the cross-library claims that are not expressible as an input file with an expected
+epJSON. The contract reserved it at landing and said the directory would be created when the first
+such check was written; `weather-monthly` is that first one. Its members are indexed by
+`checks/README.md`, not by `manifest.json`, which indexes cases.
 
 ## The assertions
 

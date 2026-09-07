@@ -1,0 +1,280 @@
+
+# The EPW reserved-value table.
+#
+# WHAT THIS FILE IS
+#
+# EPW has no blanks. Every field of every hourly row holds a number, so a station that never
+# measured a quantity writes a reserved value meaning "not measured" rather than leaving the slot
+# empty. This file records, per field, which values are reserved and what each one means.
+#
+# Both libraries read this file rather than transcribing the table, so that neither can drift from
+# the other. Neither reads it at run time: the values are generated into each library at build time,
+# because the portable JavaScript surface runs in a browser with no filesystem, no TOML parser and
+# no dependencies.
+#
+# WHY IT IS "reserved" AND NOT "sentinel"
+#
+# A table of missing values is not enough, and ceiling height is the field that proves it. It
+# reserves 99999 for a measurement that was not made, and it also reserves 77777 for an unlimited
+# ceiling and 88888 for a cirroform ceiling. Those two are observations. A reader applying the rule
+# that a large number means missing blanks them and reports a real sky condition as unmeasured.
+#
+# The corpus says how much that costs: across the thirty-five sampled files, from two producers,
+# ceiling height holds 77777 in 169,252 rows, which is 55% of every ceiling reading in the evidence,
+# and holds 99999 in none. So the field is never missing anywhere in the fixtures and more than half
+# of it carries a value that means something.
+#
+# EVERY ENTRY IS `kind = "missing"` OR `kind = "observation"`. A reader maps the first to its absent
+# value and leaves the second alone.
+#
+# WHERE THIS COMES FROM
+#
+# The EnergyPlus Weather File (EPW) Data Dictionary, in the Auxiliary Programs document. Read at the
+# two document versions named in `[source]` below, which agree, and that agreement is the evidence
+# that one table serves every EnergyPlus version rather than needing one per version.
+#
+# HOW IT IS CHECKED
+#
+# The table has a failure mode of its own, which is what makes it trustworthy rather than merely
+# written down. A wrong entry produces a wrong monthly mean, and `check.md`'s comparison against the
+# weather converter's own summary catches it. That coupling is deliberate.
+#
+# It is NOT derived from the corpus, and 88888 is the case that shows why: it is real, it is in the
+# document, and it appears in none of the thirty-five sampled files. A table built from the evidence
+# would omit it and be wrong on the first file that carries one.
+
+[source]
+document = "EnergyPlus Weather File (EPW) Data Dictionary, Auxiliary Programs"
+versions_checked = ["23.2", "24.2"]
+url = "https://bigladdersoftware.com/epx/docs/24-2/auxiliary-programs/energyplus-weather-file-epw-data-dictionary.html"
+note = """
+The two versions agree on every value below. The documentation project this toolkit ships does not
+build Auxiliary Programs, so this table cannot be looked up from inside the toolkit even though it is
+published; that gap is tracked separately and is not a reason this file could not exist.
+"""
+
+# ---------------------------------------------------------------------------
+# Fields
+# ---------------------------------------------------------------------------
+#
+#   field     string   required   The field's name, as the data dictionary spells it.
+#   position  integer  required   Zero-based position in the comma-separated hourly row.
+#   units     string   required   "" where the field is dimensionless.
+#   values    array    required   One entry per reserved value: { value, kind, means }.
+#
+# Positions 5 (source and uncertainty flags) and 27 (present weather codes) are text and reserve
+# nothing. They are listed at the end with an empty `values` so that a reader enumerating this file
+# cannot silently treat them as numeric.
+#
+# POSITIONS 0 TO 4 ARE ABSENT ON PURPOSE. Year, month, day, hour and minute are numeric and reserve
+# nothing, so they have no entry here. This file is the reserved-value table and not the column map:
+# a generator reading it produces the fields that need sentinel handling, and the full 35-field
+# layout lives with the reader. Twenty-eight numeric fields appear below, being the twenty-seven of
+# the document's missing-value table plus Present Weather Observation, which the document describes
+# in its own paragraph rather than in that table.
+
+[[field]]
+field = "Dry Bulb Temperature"
+position = 6
+units = "C"
+values = [{ value = 99.9, kind = "missing", means = "not measured" }]
+
+[[field]]
+field = "Dew Point Temperature"
+position = 7
+units = "C"
+values = [{ value = 99.9, kind = "missing", means = "not measured" }]
+
+[[field]]
+field = "Relative Humidity"
+position = 8
+units = "%"
+values = [{ value = 999, kind = "missing", means = "not measured" }]
+
+[[field]]
+field = "Atmospheric Station Pressure"
+position = 9
+units = "Pa"
+values = [{ value = 999999, kind = "missing", means = "not measured" }]
+
+[[field]]
+field = "Extraterrestrial Horizontal Radiation"
+position = 10
+units = "Wh/m2"
+values = [{ value = 9999, kind = "missing", means = "not measured" }]
+
+[[field]]
+field = "Extraterrestrial Direct Normal Radiation"
+position = 11
+units = "Wh/m2"
+values = [{ value = 9999, kind = "missing", means = "not measured" }]
+
+[[field]]
+field = "Horizontal Infrared Radiation Intensity from Sky"
+position = 12
+units = "Wh/m2"
+values = [{ value = 9999, kind = "missing", means = "not measured" }]
+
+[[field]]
+field = "Global Horizontal Radiation"
+position = 13
+units = "Wh/m2"
+values = [{ value = 9999, kind = "missing", means = "not measured" }]
+
+[[field]]
+field = "Direct Normal Radiation"
+position = 14
+units = "Wh/m2"
+values = [{ value = 9999, kind = "missing", means = "not measured" }]
+
+[[field]]
+field = "Diffuse Horizontal Radiation"
+position = 15
+units = "Wh/m2"
+values = [{ value = 9999, kind = "missing", means = "not measured" }]
+
+[[field]]
+field = "Global Horizontal Illuminance"
+position = 16
+units = "lux"
+values = [{ value = 999999, kind = "missing", means = "not measured" }]
+
+[[field]]
+field = "Direct Normal Illuminance"
+position = 17
+units = "lux"
+values = [{ value = 999999, kind = "missing", means = "not measured" }]
+
+[[field]]
+field = "Diffuse Horizontal Illuminance"
+position = 18
+units = "lux"
+values = [{ value = 999999, kind = "missing", means = "not measured" }]
+
+[[field]]
+field = "Zenith Luminance"
+position = 19
+units = "Cd/m2"
+values = [{ value = 9999, kind = "missing", means = "not measured" }]
+
+[[field]]
+field = "Wind Direction"
+position = 20
+units = "degrees"
+values = [{ value = 999, kind = "missing", means = "not measured" }]
+
+[[field]]
+field = "Wind Speed"
+position = 21
+units = "m/s"
+values = [{ value = 999, kind = "missing", means = "not measured" }]
+
+[[field]]
+field = "Total Sky Cover"
+position = 22
+units = "tenths"
+values = [{ value = 99, kind = "missing", means = "not measured" }]
+
+[[field]]
+field = "Opaque Sky Cover"
+position = 23
+units = "tenths"
+values = [{ value = 99, kind = "missing", means = "not measured" }]
+
+[[field]]
+field = "Visibility"
+position = 24
+units = "km"
+values = [{ value = 9999, kind = "missing", means = "not measured" }]
+
+# The field this whole file's shape exists for. Three reserved values, of which one is an absence
+# and two are observations. See the header for the corpus counts.
+[[field]]
+field = "Ceiling Height"
+position = 25
+units = "m"
+values = [
+  { value = 99999, kind = "missing", means = "not measured" },
+  { value = 77777, kind = "observation", means = "unlimited ceiling height" },
+  { value = 88888, kind = "observation", means = "cirroform ceiling" },
+]
+
+# A flag rather than a quantity. Its 9 says no observation was made, which makes the Present Weather
+# Codes field beside it meaningless for that hour; it is not a missing measurement of its own.
+[[field]]
+field = "Present Weather Observation"
+position = 26
+units = ""
+values = [
+  { value = 0, kind = "observation", means = "weather observation made; the codes field is meaningful" },
+  { value = 9, kind = "missing", means = "weather observation not made, or missing" },
+]
+
+[[field]]
+field = "Precipitable Water"
+position = 28
+units = "mm"
+values = [{ value = 999, kind = "missing", means = "not measured" }]
+
+[[field]]
+field = "Aerosol Optical Depth"
+position = 29
+units = "thousandths"
+values = [{ value = 0.999, kind = "missing", means = "not measured" }]
+
+[[field]]
+field = "Snow Depth"
+position = 30
+units = "cm"
+values = [{ value = 999, kind = "missing", means = "not measured" }]
+
+# The document reserves 99. Both sampled files, from two different producers, hold 88 for every hour
+# of the year. 88 is therefore neither the missing value nor a documented reserved value nor
+# plausibly a measurement. It is recorded in `check.md` as an observation about the data and is
+# deliberately NOT given a meaning here: inferring one from a constant is the empirical derivation
+# this file exists to avoid.
+[[field]]
+field = "Days Since Last Snowfall"
+position = 31
+units = ""
+values = [{ value = 99, kind = "missing", means = "not measured" }]
+
+[[field]]
+field = "Albedo"
+position = 32
+units = ""
+values = [{ value = 999, kind = "missing", means = "not measured" }]
+
+[[field]]
+field = "Liquid Precipitation Depth"
+position = 33
+units = "mm"
+values = [{ value = 999, kind = "missing", means = "not measured" }]
+
+[[field]]
+field = "Liquid Precipitation Quantity"
+position = 34
+units = "hr"
+values = [{ value = 99, kind = "missing", means = "not measured" }]
+
+# ---------------------------------------------------------------------------
+# The text fields
+# ---------------------------------------------------------------------------
+#
+# Listed so that a reader enumerating this file knows they exist and are not numeric. Position 27
+# looks numeric and is not: it holds a nine-digit composite of nine single-digit observations, so
+# "999999999" is nine observations of 9 rather than the number nine hundred and ninety-nine million.
+
+[[field]]
+field = "Data Source and Uncertainty Flags"
+position = 5
+units = ""
+text = true
+values = []
+
+[[field]]
+field = "Present Weather Codes"
+position = 27
+units = ""
+text = true
+values = []

@@ -1,0 +1,87 @@
+{
+  "station": "USA_AZ_Tucson.722740_TMYx.2004-2018",
+  "source": "STAT member of the same archive, produced by the EnergyPlus Weather Converter",
+  "converter": "EnergyPlus Weather Converter Version 2026.03.17",
+  "fields": {
+    "dry_bulb": {
+      "covered": true,
+      "units": "C",
+      "monthly": [
+        10.9,
+        13.8,
+        17.6,
+        20.9,
+        25.9,
+        31.3,
+        30.6,
+        30.1,
+        28.0,
+        22.5,
+        16.5,
+        10.3
+      ],
+      "decimal_places": 1,
+      "tolerance": 0.05
+    },
+    "dew_point": {
+      "covered": true,
+      "units": "C",
+      "monthly": [
+        -2.1,
+        -3.4,
+        -5.4,
+        -3.2,
+        -4.1,
+        2.7,
+        12.5,
+        15.9,
+        11.1,
+        2.0,
+        -1.8,
+        -2.4
+      ],
+      "decimal_places": 1,
+      "tolerance": 0.05
+    },
+    "relative_humidity": {
+      "covered": true,
+      "units": "%",
+      "monthly": [
+        45.0,
+        36.0,
+        24.0,
+        23.0,
+        14.0,
+        18.0,
+        38.0,
+        46.0,
+        38.0,
+        29.0,
+        32.0,
+        44.0
+      ],
+      "decimal_places": 0,
+      "tolerance": 0.5
+    },
+    "wind_speed": {
+      "covered": true,
+      "units": "m/s",
+      "monthly": [
+        3.3,
+        2.9,
+        3.7,
+        3.6,
+        3.7,
+        3.1,
+        3.2,
+        3.1,
+        3.1,
+        2.8,
+        3.2,
+        2.9
+      ],
+      "decimal_places": 1,
+      "tolerance": 0.05
+    }
+  }
+}

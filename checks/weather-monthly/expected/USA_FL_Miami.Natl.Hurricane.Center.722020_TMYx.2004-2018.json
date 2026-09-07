@@ -1,0 +1,87 @@
+{
+  "station": "USA_FL_Miami.Natl.Hurricane.Center.722020_TMYx.2004-2018",
+  "source": "STAT member of the same archive, produced by the EnergyPlus Weather Converter",
+  "converter": "EnergyPlus Weather Converter Version 2026.03.17",
+  "fields": {
+    "dry_bulb": {
+      "covered": true,
+      "units": "C",
+      "monthly": [
+        19.8,
+        21.8,
+        22.6,
+        24.6,
+        26.4,
+        27.8,
+        29.0,
+        29.0,
+        27.8,
+        26.5,
+        23.1,
+        22.2
+      ],
+      "decimal_places": 1,
+      "tolerance": 0.05
+    },
+    "dew_point": {
+      "covered": true,
+      "units": "C",
+      "monthly": [
+        15.6,
+        15.6,
+        14.9,
+        17.3,
+        20.8,
+        22.2,
+        23.3,
+        24.2,
+        22.9,
+        21.3,
+        16.5,
+        16.5
+      ],
+      "decimal_places": 1,
+      "tolerance": 0.05
+    },
+    "relative_humidity": {
+      "covered": true,
+      "units": "%",
+      "monthly": [
+        79.0,
+        70.0,
+        63.0,
+        65.0,
+        73.0,
+        73.0,
+        72.0,
+        76.0,
+        76.0,
+        74.0,
+        68.0,
+        72.0
+      ],
+      "decimal_places": 0,
+      "tolerance": 0.5
+    },
+    "wind_speed": {
+      "covered": true,
+      "units": "m/s",
+      "monthly": [
+        3.9,
+        3.4,
+        4.0,
+        4.8,
+        3.8,
+        3.6,
+        2.7,
+        2.3,
+        2.5,
+        3.3,
+        2.9,
+        3.0
+      ],
+      "decimal_places": 1,
+      "tolerance": 0.05
+    }
+  }
+}
