@@ -102,6 +102,11 @@ state that changes when one is found, and nothing for an expectation file to hol
 needs the same `checks/` directory the file-reading gap needs, and for the same reason: the claim
 is about a library's behaviour rather than about a document's content.
 
+**The directory now exists and does not close this.** `weather-monthly` is about reading the EPW
+text a retrieval produced, not about the retrieval that produced it: it hands each library committed
+bytes and asks what it made of them. Resolving a station still has no check, and `weather-index`
+stays where this section puts it.
+
 `weather-index` is `partial` for TypeScript in the parity ledger, which records what the two
 libraries do and does not depend on this corpus. What proves the port instead is a documented
 build-time warm-up and a run with the network switched off, which is where the specification puts
@@ -236,8 +241,10 @@ cases/
     expected.type-lookup.json   # expected collection lookups by type name
 manifest.json            # index: every case, its tags, which assertions apply
 runners/
-  run.py                 # Python runner
-  run.mjs                # JavaScript runner
+  run.py                 # Python runner, over cases/
+  run.mjs                # JavaScript runner, over cases/
+  weather_check.py       # Python entry point for checks/weather-monthly
+  weather-check.mjs      # JavaScript entry point for checks/weather-monthly
   compare.md             # the normative comparison rules
   validate.md            # the normative validation semantics, which assertion 5 checks
 checks/
@@ -255,8 +262,16 @@ known-divergence.toml    # accepted failures, each with an issue link
 
 `checks/` holds the cross-library claims that are not expressible as an input file with an expected
 epJSON. The contract reserved it at landing and said the directory would be created when the first
-such check was written; `weather-monthly` is that first one. Its members are indexed by
-`checks/README.md`, not by `manifest.json`, which indexes cases.
+such check was written; `weather-monthly` is that first one. `manifest.json` indexes them in its
+own `checks` section, separate from the two case sections and shaped differently, because a check
+has no input document, no epJSON expectation and no place in either. `checks/README.md` says what a
+check owes; the manifest says which ones exist and which libraries have a recorded result.
+
+A check runs from its own entry point rather than from `run.py` or `run.mjs`. Those run cases, and
+a case is a shape this claim does not have.
+
+    node runners/weather-check.mjs --library /path/to/idfkit-js
+    python runners/weather_check.py --library /path/to/idfkit
 
 ## The assertions
 

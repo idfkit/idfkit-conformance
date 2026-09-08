@@ -444,11 +444,59 @@ class ManifestEntry:
 
 
 @dataclass(frozen=True, slots=True)
+class CheckEntry:
+    """One entry in ``manifest.json``'s ``checks`` section.
+
+    A check is not a case and is indexed separately for that reason. A case is an input file, a
+    parsed document, and an assertion about what the library made of it against an expectation
+    ``ConvertInputFormat`` produced. A check makes a claim about a library's BEHAVIOUR, carries its
+    own fixtures and its own committed expectations, and states its own assertions in its own
+    ``check.md``. Neither shape can hold the other, so the manifest carries both rather than
+    stretching one to fit.
+
+    ``assertions`` are the check's own names, not the case taxonomy: a check declares what it
+    asserts in prose that its runner mirrors, and there is no fixed enum to draw from.
+    """
+
+    id: str
+    title: str
+    path: str
+    assertions: tuple[str, ...]
+    libraries: tuple[Library, ...] = ()
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "assertions", tuple(self.assertions))
+        object.__setattr__(self, "libraries", tuple(self.libraries))
+        _check_case_id(self.id, ManifestError)
+        _check_non_empty(self.title, "title", ManifestError)
+        _check_non_empty(self.path, "path", ManifestError)
+        if not self.assertions:
+            raise ManifestError(f"check {self.id!r}: 'assertions' needs at least one entry")
+        for assertion in self.assertions:
+            _check_non_empty(assertion, "assertions", ManifestError)
+        if len(set(self.assertions)) != len(self.assertions):
+            raise ManifestError(f"check {self.id!r}: 'assertions' must not repeat an entry")
+        if len(set(self.libraries)) != len(self.libraries):
+            raise ManifestError(f"check {self.id!r}: 'libraries' must not repeat an entry")
+
+    def to_json_obj(self) -> dict[str, Any]:
+        """The entry as it is written to ``manifest.json``. The JSON boundary, not a model type."""
+        return {
+            "id": self.id,
+            "title": self.title,
+            "path": self.path,
+            "assertions": list(self.assertions),
+            "libraries": [library.value for library in self.libraries],
+        }
+
+
+@dataclass(frozen=True, slots=True)
 class Manifest:
     """``manifest.json``: the index over every case, in two sections that never mix."""
 
     oracle: tuple[ManifestEntry, ...] = ()
     convention: tuple[ManifestEntry, ...] = ()
+    checks: tuple[CheckEntry, ...] = ()
     corpus_level: str | None = None
     schema_version: int = MANIFEST_SCHEMA_VERSION
     schema_ref: str | None = MANIFEST_SCHEMA_REF
@@ -456,6 +504,7 @@ class Manifest:
     def __post_init__(self) -> None:
         object.__setattr__(self, "oracle", tuple(self.oracle))
         object.__setattr__(self, "convention", tuple(self.convention))
+        object.__setattr__(self, "checks", tuple(self.checks))
         if self.schema_version != MANIFEST_SCHEMA_VERSION:
             raise ManifestError(f"schema_version must be {MANIFEST_SCHEMA_VERSION}, got {self.schema_version!r}")
         if self.corpus_level is not None and not CORPUS_LEVEL_PATTERN.match(self.corpus_level):
@@ -475,6 +524,12 @@ class Manifest:
             if entry.id in seen:
                 raise ManifestError(f"case id {entry.id!r} appears more than once across the two sections")
             seen.add(entry.id)
+
+        seen_checks: set[str] = set()
+        for check in self.checks:
+            if check.id in seen_checks:
+                raise ManifestError(f"check id {check.id!r} appears more than once")
+            seen_checks.add(check.id)
 
     def entries(self) -> Iterator[ManifestEntry]:
         """Every entry, oracle first, then convention."""
@@ -497,6 +552,9 @@ class Manifest:
         document["corpus_level"] = self.corpus_level
         document["oracle"] = [entry.to_json_obj() for entry in self.oracle]
         document["convention"] = [entry.to_json_obj() for entry in self.convention]
+        # Written only when there is one, so a corpus with no check keeps the manifest it had.
+        if self.checks:
+            document["checks"] = [check.to_json_obj() for check in self.checks]
         return document
 
 
@@ -831,7 +889,10 @@ _ENTRY_KEYS: Final = frozenset(
         "operations",
     }
 )
-_MANIFEST_KEYS: Final = frozenset({"$schema", "schema_version", "corpus_level", "oracle", "convention"})
+_MANIFEST_KEYS: Final = frozenset(
+    {"$schema", "schema_version", "corpus_level", "oracle", "convention", "checks"}
+)
+_CHECK_KEYS: Final = frozenset({"id", "title", "path", "assertions", "libraries"})
 _DIVERGENCE_KEYS: Final = frozenset({"case", "library", "assertion", "issue", "observed", "expected"})
 
 
@@ -907,6 +968,34 @@ def _load_entry(raw_entry: object, truth: Truth, path: Path, index: int) -> Mani
     )
 
 
+def _load_check(raw_check: object, path: Path, index: int) -> CheckEntry:
+    """Read one ``checks`` entry."""
+    where = f"checks[{index}]"
+    raw = _read_mapping(raw_check, path, where, ManifestError)
+    _reject_unknown_keys(raw, _CHECK_KEYS, path=path, where=where, error=ManifestError)
+
+    raw_assertions = raw.get("assertions")
+    if not isinstance(raw_assertions, list) or not all(isinstance(item, str) for item in raw_assertions):
+        _fail(ManifestError, path, where, f"'assertions' must be an array of strings, got {raw_assertions!r}")
+    raw_libraries = raw.get("libraries", [])
+    if not isinstance(raw_libraries, list):
+        _fail(ManifestError, path, where, f"'libraries' must be an array, got {raw_libraries!r}")
+    libraries = []
+    for item in raw_libraries:
+        try:
+            libraries.append(Library(item))
+        except ValueError:
+            _fail(ManifestError, path, where, f"'libraries' holds {item!r}, which is not python or typescript")
+
+    return CheckEntry(
+        id=_read_str(raw, "id", path=path, where=where, error=ManifestError),
+        title=_read_str(raw, "title", path=path, where=where, error=ManifestError),
+        path=_read_str(raw, "path", path=path, where=where, error=ManifestError),
+        assertions=tuple(raw_assertions),
+        libraries=tuple(libraries),
+    )
+
+
 def load_manifest(path: Path) -> Manifest:
     """Read ``manifest.json`` into a :class:`Manifest`, deriving each entry's truth from its section."""
     if not path.is_file():
@@ -928,6 +1017,11 @@ def load_manifest(path: Path) -> Manifest:
             _load_entry(raw_entry, truth, path, index) for index, raw_entry in enumerate(raw_section)
         )
 
+    raw_checks = raw.get("checks", [])
+    if not isinstance(raw_checks, list):
+        _fail(ManifestError, path, "manifest", f"'checks' must be an array, got {raw_checks!r}")
+    checks = tuple(_load_check(raw_check, path, index) for index, raw_check in enumerate(raw_checks))
+
     corpus_level = raw.get("corpus_level")
     if corpus_level is not None and not isinstance(corpus_level, str):
         _fail(ManifestError, path, "manifest", f"'corpus_level' must be a string or null, got {corpus_level!r}")
@@ -938,6 +1032,7 @@ def load_manifest(path: Path) -> Manifest:
     return Manifest(
         oracle=sections[Truth.ORACLE],
         convention=sections[Truth.CONVENTION],
+        checks=checks,
         corpus_level=corpus_level,
         schema_version=schema_version,
         schema_ref=schema_ref,

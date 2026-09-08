@@ -625,11 +625,82 @@ export class ManifestEntry {
  */
 
 /** `manifest.json`: the index over every case, in two sections that never mix. */
+/**
+ * @typedef {object} CheckEntryFields
+ * @property {string} id
+ * @property {string} title
+ * @property {string} path
+ * @property {readonly string[]} assertions
+ * @property {readonly Library[]} [libraries]
+ */
+
+/**
+ * One entry in `manifest.json`'s `checks` section.
+ *
+ * A check is not a case and is indexed separately for that reason. A case is an input file, a
+ * parsed document, and an assertion about what the library made of it against an expectation
+ * `ConvertInputFormat` produced. A check makes a claim about a library's BEHAVIOUR, carries its
+ * own fixtures and its own committed expectations, and states its own assertions in its own
+ * `check.md`. Neither shape can hold the other, so the manifest carries both rather than
+ * stretching one to fit.
+ *
+ * `assertions` are the check's own names, not the case taxonomy: a check declares what it asserts
+ * in prose that its runner mirrors, and there is no fixed enum to draw from.
+ */
+export class CheckEntry {
+  /** @param {CheckEntryFields} fields */
+  constructor({ id, title, path, assertions, libraries = [] }) {
+    /** @type {string} */
+    this.id = id;
+    /** @type {string} */
+    this.title = title;
+    /** @type {string} */
+    this.path = path;
+    /** @type {readonly string[]} */
+    this.assertions = Object.freeze([...assertions]);
+    /** @type {readonly Library[]} */
+    this.libraries = Object.freeze([...libraries]);
+
+    checkCaseId(this.id, ManifestError);
+    checkNonEmpty(this.title, 'title', ManifestError);
+    checkNonEmpty(this.path, 'path', ManifestError);
+    if (this.assertions.length === 0) {
+      throw new ManifestError(`check ${repr(this.id)}: 'assertions' needs at least one entry`);
+    }
+    for (const assertion of this.assertions) {
+      checkNonEmpty(assertion, 'assertions', ManifestError);
+    }
+    if (new Set(this.assertions).size !== this.assertions.length) {
+      throw new ManifestError(`check ${repr(this.id)}: 'assertions' must not repeat an entry`);
+    }
+    if (new Set(this.libraries).size !== this.libraries.length) {
+      throw new ManifestError(`check ${repr(this.id)}: 'libraries' must not repeat an entry`);
+    }
+    Object.freeze(this);
+  }
+
+  /**
+   * The entry as it is written to `manifest.json`. The JSON boundary, not a model type.
+   *
+   * @returns {Record<string, unknown>}
+   */
+  toJsonObj() {
+    return {
+      id: this.id,
+      title: this.title,
+      path: this.path,
+      assertions: [...this.assertions],
+      libraries: [...this.libraries],
+    };
+  }
+}
+
 export class Manifest {
   /** @param {ManifestFields} [fields] */
   constructor({
     oracle = [],
     convention = [],
+    checks = [],
     corpusLevel = null,
     schemaVersion = MANIFEST_SCHEMA_VERSION,
     schemaRef = MANIFEST_SCHEMA_REF,
@@ -638,6 +709,8 @@ export class Manifest {
     this.oracle = Object.freeze([...oracle]);
     /** @type {readonly ManifestEntry[]} */
     this.convention = Object.freeze([...convention]);
+    /** @type {readonly CheckEntry[]} */
+    this.checks = Object.freeze([...checks]);
     /** @type {string | null} */
     this.corpusLevel = corpusLevel ?? null;
     /** @type {number} */
@@ -680,6 +753,15 @@ export class Manifest {
         );
       }
       seen.add(entry.id);
+    }
+
+    /** @type {Set<string>} */
+    const seenChecks = new Set();
+    for (const check of this.checks) {
+      if (seenChecks.has(check.id)) {
+        throw new ManifestError(`check id ${repr(check.id)} appears more than once`);
+      }
+      seenChecks.add(check.id);
     }
     Object.freeze(this);
   }
@@ -724,6 +806,10 @@ export class Manifest {
     document.corpus_level = this.corpusLevel;
     document.oracle = this.oracle.map((entry) => entry.toJsonObj());
     document.convention = this.convention.map((entry) => entry.toJsonObj());
+    // Written only when there is one, so a corpus with no check keeps the manifest it had.
+    if (this.checks.length > 0) {
+      document.checks = this.checks.map((check) => check.toJsonObj());
+    }
     return document;
   }
 }
@@ -1225,7 +1311,7 @@ class TomlReader {
       return this.readArray();
     }
     if (character === '{') {
-      this.fail('inline tables are not supported by this reader');
+      return this.readInlineTable();
     }
     if (this.text.startsWith('true', this.pos)) {
       this.pos += 4;
@@ -1368,6 +1454,62 @@ class TomlReader {
     }
   }
 
+  /**
+   * `{ key = value, ... }`, on one line.
+   *
+   * Supported because `sentinels.toml` is written this way and `tomllib`, which the Python side
+   * reads it with, accepts it. A reader here that refused would make the two runners disagree
+   * about what the corpus can hold, which is exactly what the mirror rule forbids.
+   *
+   * Newlines inside the braces are rejected, as TOML 1.0 and `tomllib` reject them, so a file this
+   * reader accepts is a file `tomllib` accepts.
+   *
+   * @returns {Record<string, unknown>}
+   */
+  readInlineTable() {
+    this.pos += 1;
+    /** @type {Record<string, unknown>} */
+    const table = Object.create(null);
+    this.skipInline();
+    if (this.peek() === '}') {
+      this.pos += 1;
+      return table;
+    }
+    for (;;) {
+      this.skipInline();
+      const keys = this.readKeyPath();
+      this.skipInline();
+      if (this.peek() !== '=') {
+        this.fail("expected '=' after a key in an inline table");
+      }
+      this.pos += 1;
+      this.skipInline();
+      const value = this.readValue();
+
+      let target = table;
+      for (const key of keys.slice(0, -1)) {
+        target = this.descend(target, key);
+      }
+      const last = keys[keys.length - 1];
+      if (Object.hasOwn(target, last)) {
+        this.fail(`key ${repr(keys.join('.'))} is defined more than once`);
+      }
+      target[last] = value;
+
+      this.skipInline();
+      const character = this.peek();
+      if (character === ',') {
+        this.pos += 1;
+        continue;
+      }
+      if (character === '}') {
+        this.pos += 1;
+        return table;
+      }
+      this.fail(`expected ',' or '}' in an inline table, got ${repr(character ?? null)}`);
+    }
+  }
+
   /** @returns {number} */
   readNumber() {
     const match = NUMBER.exec(this.text.slice(this.pos));
@@ -1388,11 +1530,17 @@ class TomlReader {
 /**
  * Parse TOML text into plain tables. The counterpart of `tomllib.loads`.
  *
+ * Exported because a check reads TOML this module knows nothing about: the
+ * weather check reads `sentinels.toml`, and Node has no TOML parser to fall back
+ * on where Python has `tomllib` in its standard library. The alternative was a
+ * second reader in this repository, which is the drift the mirror rule exists to
+ * prevent.
+ *
  * @param {string} text
  * @param {string} path used only in the error message
  * @returns {Record<string, unknown>}
  */
-function parseToml(text, path) {
+export function parseToml(text, path) {
   return new TomlReader(text, path).parse();
 }
 
@@ -1606,7 +1754,9 @@ const MANIFEST_KEYS = new Set([
   'corpus_level',
   'oracle',
   'convention',
+  'checks',
 ]);
+const CHECK_KEYS = new Set(['id', 'title', 'path', 'assertions', 'libraries']);
 const DIVERGENCE_KEYS = new Set([
   'case',
   'library',
@@ -1853,6 +2003,44 @@ function readWriterOptions(raw, options) {
  * @param {string} path
  * @returns {Manifest}
  */
+/**
+ * Read one `checks` entry.
+ *
+ * @param {unknown} rawCheck
+ * @param {string} path
+ * @param {number} index
+ * @returns {CheckEntry}
+ */
+function loadCheck(rawCheck, path, index) {
+  const where = `checks[${index}]`;
+  const raw = readMapping(rawCheck, path, where, ManifestError);
+  rejectUnknownKeys(raw, CHECK_KEYS, { path, where, error: ManifestError });
+
+  const rawAssertions = raw.assertions;
+  if (!Array.isArray(rawAssertions) || !rawAssertions.every((item) => typeof item === 'string')) {
+    const problem = `'assertions' must be an array of strings, got ${repr(rawAssertions)}`;
+    fail(ManifestError, path, where, problem);
+  }
+  const rawLibraries = raw.libraries ?? [];
+  if (!Array.isArray(rawLibraries)) {
+    fail(ManifestError, path, where, `'libraries' must be an array, got ${repr(rawLibraries)}`);
+  }
+  for (const item of rawLibraries) {
+    if (item !== Library.PYTHON && item !== Library.TYPESCRIPT) {
+      const problem = `'libraries' holds ${repr(item)}, which is not python or typescript`;
+      fail(ManifestError, path, where, problem);
+    }
+  }
+
+  return new CheckEntry({
+    id: readString(raw, 'id', { path, where, error: ManifestError }),
+    title: readString(raw, 'title', { path, where, error: ManifestError }),
+    path: readString(raw, 'path', { path, where, error: ManifestError }),
+    assertions: /** @type {string[]} */ (rawAssertions),
+    libraries: /** @type {Library[]} */ (rawLibraries),
+  });
+}
+
 export function loadManifest(path) {
   if (!isFile(path)) {
     throw new ManifestError(`${path}: missing`);
@@ -1886,6 +2074,12 @@ export function loadManifest(path) {
     sections[truth] = rawSection.map((rawEntry, index) => loadEntry(rawEntry, truth, path, index));
   }
 
+  const rawChecks = raw.checks ?? [];
+  if (!Array.isArray(rawChecks)) {
+    fail(ManifestError, path, 'manifest', `'checks' must be an array, got ${repr(rawChecks)}`);
+  }
+  const checks = rawChecks.map((rawCheck, index) => loadCheck(rawCheck, path, index));
+
   const corpusLevel = raw.corpus_level ?? null;
   if (corpusLevel !== null && typeof corpusLevel !== 'string') {
     fail(
@@ -1903,6 +2097,7 @@ export function loadManifest(path) {
   return new Manifest({
     oracle: sections[Truth.ORACLE],
     convention: sections[Truth.CONVENTION],
+    checks,
     corpusLevel,
     schemaVersion,
     schemaRef,

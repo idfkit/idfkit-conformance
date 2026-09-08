@@ -1169,5 +1169,20 @@
         }
       ]
     }
+  ],
+  "checks": [
+    {
+      "id": "weather-monthly",
+      "title": "Monthly means from an EPW against the Weather Converter's own summary, and the reserved values read as absent",
+      "path": "checks/weather-monthly",
+      "assertions": [
+        "monthly-aggregates",
+        "absent-values"
+      ],
+      "libraries": [
+        "python",
+        "typescript"
+      ]
+    }
   ]
 }

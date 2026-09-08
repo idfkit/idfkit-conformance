@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://raw.githubusercontent.com/idfkit/idfkit-conformance/main/manifest.schema.json",
   "title": "idfkit conformance manifest",
-  "description": "Index over every conformance case: its id, its tags, and which of the four assertions apply. Cases carrying an externally produced expectation live in the 'oracle' section; cases resting on agreed convention live in the 'convention' section, so agreed convention is never mistaken for external truth (FR-020).",
+  "description": "Index over every conformance case: its id, its tags, and which of the four assertions apply. Cases carrying an externally produced expectation live in the 'oracle' section; cases resting on agreed convention live in the 'convention' section, so agreed convention is never mistaken for external truth (FR-020). Claims about a library's behaviour rather than about a document's content are not cases at all: they are indexed in 'checks', and each carries its own directory, fixtures, committed expectations and check.md.",
   "type": "object",
   "required": ["schema_version", "oracle", "convention"],
   "additionalProperties": false,
@@ -32,9 +32,39 @@
       "type": "array",
       "uniqueItems": true,
       "items": { "$ref": "#/$defs/conventionCase" }
+    },
+    "checks": {
+      "description": "Claims about a library's behaviour, each a directory under checks/ carrying its own check.md, fixtures and committed expectations. Absent while the corpus has none. A check is not a case: it has no input document, no epJSON expectation, and no place in either section above.",
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/check" }
     }
   },
   "$defs": {
+    "check": {
+      "description": "One check: the directory it lives in, what it asserts, and which libraries have a recorded result.",
+      "type": "object",
+      "required": ["id", "title", "path", "assertions"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "#/$defs/caseId", "description": "Slug identifying the check. Also the directory name under checks/." },
+        "title": { "description": "One line saying what is claimed.", "type": "string", "minLength": 1 },
+        "path": { "description": "The check's directory, relative to the repository root.", "type": "string", "minLength": 1 },
+        "assertions": {
+          "description": "The check's own assertion names, stated in its check.md and mirrored by its runners. Deliberately not the case assertion taxonomy: a check states what it asserts rather than drawing from a fixed enum, because the shape of the claim differs from check to check.",
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "libraries": {
+          "description": "The libraries whose result this check records at this level. A library absent here has not run the check, which is a gap rather than a failure.",
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "enum": ["python", "typescript"] }
+        }
+      }
+    },
     "caseId": {
       "description": "Slug identifying the case. Also the directory name under cases/, and the key the exception register refers to.",
       "type": "string",
