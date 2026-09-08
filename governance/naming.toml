@@ -1746,6 +1746,118 @@ retrieved weather files` divergence seen from the disk-writing side.
 rename_count = { python = 0, typescript = 0 }
 
 # ---------------------------------------------------------------------------
+# Entries: reading a weather file (007-weather-file-readers)
+# ---------------------------------------------------------------------------
+#
+# REGISTERED BEFORE EITHER IMPLEMENTATION EXISTS, which this file's own rules provide for: a name
+# registered ahead of its implementation stays at rename_count 0 when it is written, because writing
+# a registered name is not a rename. The preserving writer landed the same way.
+#
+# WHY THESE ARE ALIGNED WHEN THE REST OF THE WEATHER SURFACE IS DIVERGENT
+#
+# The divergences in retrieval all follow from where the bytes come from: Python's downloader is an
+# object owning a cache and returning paths, TypeScript's is a free function owning nothing and
+# returning text. None of that reaches a reader. A reader takes text the caller already holds and
+# returns values, has no state, and touches neither network nor disk, so it has no reason to be
+# spelled differently in the two languages. This is the first part of the weather surface where the
+# input comes from the caller rather than from the network.
+#
+# THE VERB FOLLOWS THE MODEL FORMATS
+#
+# Both libraries already split reading from text against reading from a source, and spell it the same
+# way in both: `parse` takes text, `load` takes a path. Retrieval hands the caller text in TypeScript
+# and a path in Python, so the text-taking form is the one the common case needs and the
+# source-taking form is the convenience over it.
+
+[[entry]]
+concept    = "filter stations by metadata"
+python     = "StationIndex.filter"
+typescript = "StationIndex.filter"
+kind       = "aligned"
+notes      = """
+Registered by 007-weather-file-readers, which found it absent. `search stations` was already here and
+this was not, although the two are the same kind of method on the same class, so the omission reads
+as a gap rather than a decision. Both signatures take the same keys and always have.
+
+A method rather than a top-level export, so it is outside the naming gate's reach and is covered by
+its exported head, `the station index`. That is exactly why it is registered explicitly: the gate
+will never fail on it, so review is the only control, and an entry is what review reads.
+
+**The climate zone keys.** 007 adds two keys to the options object both signatures take: one naming an
+ASHRAE climate zone, and one asking for the records whose zone could not be determined. They land in
+both languages in the same change, so this entry never passes through a divergent state.
+
+The second key exists rather than being a magic value of the first because of what the shipped index
+holds. Of 69,638 records, 1,262 are labelled `7A - ASHRAE Climate Zone could not be determined` and
+900 are labelled `8A - ...`. Neither 7A nor 8A is an ASHRAE zone, since zones 7 and 8 carry no
+suffix. Keying the filter on the label's first token invents two zones that do not exist holding 3.1%
+of the index, so the key is matched against a parsed code with the undetermined records excluded, and
+asking for them is a separate question with a separate key rather than a reserved string in the
+first key's domain.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "read a weather file from text"
+python     = "parse_epw"
+typescript = "parseEpw"
+kind       = "aligned"
+notes      = """
+Registered ahead of both implementations. Neither library has an EPW reader today; this is a new
+concept in both rather than a port, because Python's weather module is retrieval, geocoding, the
+index, spatial search and design days, and its design-day half parses DDY by calling the ordinary
+IDF loader rather than a reader of its own.
+
+Lives on the portable surface in both languages. In TypeScript that means `@idfkit/weather` and NOT
+`@idfkit/weather/node`: that entry point exists for the two things a browser cannot do, being the
+bundled index and writing to disk, and reading a string is neither.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "read a weather file from a source"
+python     = "load_epw"
+typescript = "loadEpw"
+kind       = "aligned"
+notes      = """
+Registered ahead of both implementations. The filesystem edge over `parse_epw` / `parseEpw`, adding
+no behaviour of its own. In TypeScript it lives in `@idfkit/weather/node`, which the shared install
+name does not currently expose as a subpath; that is an existing property of the facade's export map
+and not a claim made here.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "the weather file a reader returns"
+python     = "WeatherFile"
+typescript = "WeatherFile"
+kind       = "aligned"
+notes      = """
+Registered ahead of both implementations. The eight header records plus the hourly table as columns.
+
+Distinct from `the retrieved weather files` (`WeatherFiles`, plural), which is what retrieval hands
+back: the EPW, DDY and STAT members of one archive. This is what reading ONE of those members
+produces. The two names are one character apart and that is a hazard, so it is named here rather than
+discovered in review: retrieval yields WeatherFiles, and reading the EPW inside it yields a
+WeatherFile.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "monthly aggregates of a weather file"
+python     = "monthly_means"
+typescript = "monthlyMeans"
+kind       = "aligned"
+notes      = """
+Registered ahead of both implementations. Twelve values for one column, each carrying the count of
+hours it included, with absent hours excluded from both the sum and the divisor.
+
+The count is part of the returned value rather than derivable: without it a caller cannot tell a mean
+over 744 hours from a mean over three, and both look like numbers.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+# ---------------------------------------------------------------------------
 # Entries: the weather options-object types (FR-006, FR-078)
 # ---------------------------------------------------------------------------
 

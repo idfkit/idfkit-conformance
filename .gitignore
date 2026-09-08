@@ -12,3 +12,6 @@ expected/
 .ruff_cache/
 .pytest_cache/
 sweep-report.local.json
+
+# The weather check commits its expectations; the bare `expected/` above would swallow them.
+!checks/**/expected/

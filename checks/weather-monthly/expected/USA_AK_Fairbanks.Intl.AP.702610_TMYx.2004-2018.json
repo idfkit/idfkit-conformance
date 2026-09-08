@@ -1,0 +1,87 @@
+{
+  "station": "USA_AK_Fairbanks.Intl.AP.702610_TMYx.2004-2018",
+  "source": "STAT member of the same archive, produced by the EnergyPlus Weather Converter",
+  "converter": "EnergyPlus Weather Converter Version 2026.03.17",
+  "fields": {
+    "dry_bulb": {
+      "covered": true,
+      "units": "C",
+      "monthly": [
+        -22.8,
+        -17.5,
+        -11.2,
+        3.0,
+        10.8,
+        16.1,
+        16.9,
+        13.7,
+        8.1,
+        -1.9,
+        -14.6,
+        -19.8
+      ],
+      "decimal_places": 1,
+      "tolerance": 0.05
+    },
+    "dew_point": {
+      "covered": true,
+      "units": "C",
+      "monthly": [
+        -25.1,
+        -20.9,
+        -17.1,
+        -6.5,
+        0.3,
+        6.5,
+        10.1,
+        7.8,
+        3.1,
+        -5.5,
+        -16.4,
+        -23.5
+      ],
+      "decimal_places": 1,
+      "tolerance": 0.05
+    },
+    "relative_humidity": {
+      "covered": true,
+      "units": "%",
+      "monthly": [
+        80.0,
+        72.0,
+        62.0,
+        51.0,
+        52.0,
+        57.0,
+        68.0,
+        70.0,
+        73.0,
+        77.0,
+        85.0,
+        71.0
+      ],
+      "decimal_places": 0,
+      "tolerance": 0.5
+    },
+    "wind_speed": {
+      "covered": true,
+      "units": "m/s",
+      "monthly": [
+        1.2,
+        0.7,
+        1.8,
+        2.4,
+        2.6,
+        2.0,
+        1.7,
+        1.7,
+        1.5,
+        1.1,
+        0.9,
+        1.4
+      ],
+      "decimal_places": 1,
+      "tolerance": 0.05
+    }
+  }
+}

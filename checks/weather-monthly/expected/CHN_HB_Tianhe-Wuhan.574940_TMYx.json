@@ -1,0 +1,87 @@
+{
+  "station": "CHN_HB_Tianhe-Wuhan.574940_TMYx",
+  "source": "STAT member of the same archive, produced by the EnergyPlus Weather Converter",
+  "converter": "EnergyPlus Weather Converter Version 2026.01.31",
+  "fields": {
+    "dry_bulb": {
+      "covered": true,
+      "units": "C",
+      "monthly": [
+        4.3,
+        6.8,
+        11.2,
+        17.8,
+        22.3,
+        26.0,
+        29.5,
+        29.0,
+        24.5,
+        18.9,
+        12.5,
+        6.7
+      ],
+      "decimal_places": 1,
+      "tolerance": 0.05
+    },
+    "dew_point": {
+      "covered": true,
+      "units": "C",
+      "monthly": [
+        0.0,
+        3.2,
+        6.9,
+        13.3,
+        18.1,
+        22.4,
+        24.9,
+        24.5,
+        20.8,
+        14.4,
+        7.1,
+        1.1
+      ],
+      "decimal_places": 1,
+      "tolerance": 0.05
+    },
+    "relative_humidity": {
+      "covered": true,
+      "units": "%",
+      "monthly": [
+        76.0,
+        80.0,
+        77.0,
+        77.0,
+        79.0,
+        82.0,
+        78.0,
+        78.0,
+        81.0,
+        77.0,
+        73.0,
+        71.0
+      ],
+      "decimal_places": 0,
+      "tolerance": 0.5
+    },
+    "wind_speed": {
+      "covered": true,
+      "units": "m/s",
+      "monthly": [
+        2.9,
+        2.2,
+        2.0,
+        3.1,
+        2.2,
+        2.6,
+        2.3,
+        2.6,
+        2.2,
+        2.6,
+        2.1,
+        2.1
+      ],
+      "decimal_places": 1,
+      "tolerance": 0.05
+    }
+  }
+}

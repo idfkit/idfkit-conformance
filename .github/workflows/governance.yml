@@ -18,6 +18,10 @@ on:
       - "known-divergence.toml"
       - "manifest.json"
       - "cases/**"
+      # `checks/` carries its own fixtures and its own committed expectations, and none of
+      # it is indexed by `manifest.json`. Without this line a pull request touching only a
+      # check runs no job at all in this repository.
+      - "checks/**"
       - "tools/validate_governance.py"
       - ".github/workflows/governance.yml"
   push:
