@@ -206,9 +206,23 @@ def check_aggregates(library: Any, station: str, expectation: dict[str, Any], re
             reason = field.get("reason", "the summary has no such section")
             report.uncovered.append(f"{station}/{key}: {reason}")
             continue
+        # Checked before comparing, and reported as an unusable run rather than as a traceback.
+        # The mirror in weather-check.mjs needs this to fail at all: `NaN > undefined` is false
+        # there, so a truncated `monthly` or a missing `tolerance` would pass every comparison.
+        monthly = field.get("monthly")
+        if not isinstance(monthly, list) or len(monthly) != 12 or not all(isinstance(v, (int, float)) for v in monthly):
+            raise Unusable(
+                f"{station}/{key}: the expectation's 'monthly' is not twelve numbers, "
+                f"so nothing here can be compared"
+            )
+        if not isinstance(field.get("tolerance"), (int, float)):
+            raise Unusable(
+                f"{station}/{key}: the expectation carries no numeric 'tolerance', so no comparison has a verdict"
+            )
+
         means = library.monthly_means(epw, column)
         for month in range(12):
-            expected = field["monthly"][month]
+            expected = monthly[month]
             actual = means[month].mean
             report.compared += 1
             if actual is None or math.isnan(actual):

@@ -159,9 +159,24 @@ function checkAggregates(library, station, expectation, report) {
       report.uncovered.push(`${station}/${key}: ${field.reason ?? 'the summary has no such section'}`);
       continue;
     }
+    // Checked before comparing, because the comparison cannot fail on what it does not have:
+    // `Math.abs(actual - undefined)` is NaN and `NaN > undefined` is false, so a truncated
+    // `monthly` or a missing `tolerance` would count twelve comparisons and report none of them
+    // failing. A gate that cannot fail is not a gate.
+    const monthly = field.monthly;
+    if (!Array.isArray(monthly) || monthly.length !== 12 || monthly.some((v) => typeof v !== 'number')) {
+      throw new Unusable(
+        `${station}/${key}: the expectation's 'monthly' is not twelve numbers, so nothing here can be compared`
+      );
+    }
+    if (typeof field.tolerance !== 'number') {
+      throw new Unusable(
+        `${station}/${key}: the expectation carries no numeric 'tolerance', so no comparison has a verdict`
+      );
+    }
     const means = library.monthlyMeans(epw, column);
     for (let month = 0; month < 12; month += 1) {
-      const expected = field.monthly[month];
+      const expected = monthly[month];
       const actual = means[month].mean;
       report.compared += 1;
       if (!Number.isFinite(actual)) {
