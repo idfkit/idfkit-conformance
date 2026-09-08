@@ -1080,3 +1080,44 @@ names = [
   "an explanation result",
   "a declaration result",
 ]
+
+# CREATED COMPLETE ON BOTH SIDES, WITH NO `absence_kind` AND NO `issue`, BECAUSE NO GAP EVER OPENED.
+#
+# Every other row here was written when one language had the capability and the other did not, and
+# the ledger's job in that moment is to say so rather than let a reader assume parity. This row is
+# the one case where that job is done by there being nothing to describe: the two implementations
+# shipped on one date, so there is no interval in which this file would have said `absent` on
+# either side.
+#
+# That is the strongest available compliance with Principle III rather than a way around it. The
+# principle exists so a gap is visible where a reader would otherwise assume parity, and the
+# cheapest way to satisfy it is not to open one. The cost is real and was accepted where the
+# decision was made: releasing together means no partial delivery, so nothing shipped until both
+# languages were done.
+#
+# WHAT THE CAPABILITY IS. A caller hands a library the text of an EPW file and gets the eight header
+# records and the hourly table as columns, with a measurement the file says was not taken read as
+# absent rather than as the value the format reserves for it, and monthly means that exclude those
+# hours from the sum and from the divisor alike.
+#
+# WHY IT IS ALIGNED WHERE THE REST OF THE WEATHER SURFACE IS NOT. The divergences under
+# `weather-index` all follow from where the bytes come from: Python's downloader owns a cache and
+# returns paths, TypeScript's owns nothing and returns text. None of that reaches a reader, whose
+# input comes from the caller. `naming.toml` records the same reasoning against the four concepts.
+#
+# WHAT PROVES IT. `checks/weather-monthly` in this repository, against the EnergyPlus Weather
+# Converter's own summary of the same archive. Not either library's own tests: this is the first
+# capability whose cross-language claim had no `ConvertInputFormat` expectation available, and the
+# summary is what stands in for one.
+[[capability]]
+id         = "weather-file-reading"
+title      = "Reading an EPW weather file"
+tier       = "tier-2"
+python     = "complete"
+typescript = "complete"
+names      = [
+  "read a weather file from text",
+  "read a weather file from a source",
+  "the weather file a reader returns",
+  "monthly aggregates of a weather file",
+]

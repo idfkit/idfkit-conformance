@@ -63,6 +63,24 @@ bulb, dew point and wind speed to one decimal and relative humidity to none, so 
 `"covered": false` and a reason, and is reported as uncovered rather than passing silently or failing
 as a defect.
 
+## Running it
+
+Each language has its own entry point, beside the case runners and not inside them. `run.py` and
+`run.mjs` run cases, and a case is a shape this claim does not have.
+
+    node runners/weather-check.mjs --library /path/to/idfkit-js
+    python runners/weather_check.py --library /path/to/idfkit
+
+Both take a **path**, never a language word: the runner file already fixes the language. Both exit 0
+when every comparison is green, 1 on any disagreement, and 2 when the run could not start, which is
+what a library without the reader reports rather than a failure. `--verbose` lists every reserved
+value the second assertion saw, with its row count.
+
+**The check was verified to earn its keep rather than assumed to.** Changing Dry Bulb Temperature's
+missing value in `sentinels.toml` from 99.9 to 25.0 and regenerating moves the monthly means and
+fails 28 of the comparisons, naming the station, the field, the month and the size of the
+disagreement against the tolerance. A table nothing reads is a table nobody notices is wrong.
+
 ## The fixtures
 
 Committed, never fetched. A check that downloads changes its verdict when a website changes, which is
@@ -119,7 +137,11 @@ Stated here rather than left implied, alongside the corpus's other declared cove
   arithmetic.
 - **Fields the summary does not aggregate.** Four are compared. The rest are covered only by the two
   libraries agreeing with each other, which is weaker, and this says so rather than implying the
-  whole table is oracled.
+  whole table is oracled. That agreement was measured rather than assumed: over the seven committed
+  fixtures, all thirty-five columns of every file agree cell for cell under the corpus's numeric
+  rules, being 245 columns and 2,146,200 cells at a relative tolerance of 1e-12, with no
+  disagreement. It is still two libraries agreeing with each other, which is why it is recorded
+  here as coverage this check does not have rather than as evidence it does.
 - **Reading from disk.** The runners hand each library a string, as they do for every case, so
   neither library's own file reading is exercised. That is a separate `checks/` member the corpus
   already tracks.
