@@ -1,7 +1,7 @@
 {
   "$schema": "./manifest.schema.json",
   "schema_version": 1,
-  "corpus_level": "conformance-2026.10",
+  "corpus_level": "conformance-2026.13",
   "oracle": [
     {
       "id": "encoding-latin1-high-bytes",
