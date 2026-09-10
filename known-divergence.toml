@@ -11,16 +11,21 @@
 #
 # The entries group by root cause rather than one per failing assertion: idfkit 178 to 187,
 # idfkit-js 7 to 11 and 26. Two bugs exist identically in BOTH libraries, choice-field casing
-# (idfkit 180, idfkit-js 10) and latin-1 decoding of UTF-8 input (idfkit 186, idfkit-js 11). Fixing
-# either side alone turns its entries stale, which the runner reports as a failure, so those four
-# issues must land together.
+# (idfkit 180, idfkit-js 10) and latin-1 decoding of UTF-8 input (idfkit 186, idfkit-js 11). A bug
+# in both languages is still one entry per language: fixing one side turns that side's entry stale,
+# which the runner reports as a failure, and the change that fixes it removes it. This header once
+# read that such issues "must land together"; idfkit-js 10 landed alone on 2026-09-10 and the
+# register followed it, one entry at a time, with the python half of the same bug still recorded.
 #
-# Counts, against idfkit 1.0.0rc2 and @idfkit/core 0.2.0, EnergyPlus 26.1.0: 22 entries over 13
-# issues and 13 cases, 16 against python and 6 against typescript, on a corpus of 69 cases and 211
-# assertions. Four entries went away in e60b74d, when both libraries started agreeing about blank
-# names. This header stated 22 entries over 47 cases until 2026-09-04, and 20 over 12 cases until
-# the preserved-text assertion landed; it is recounted from the file and from the runner's own
-# tally rather than adjusted, and it is recounted again whenever a case lands.
+# Counts, against idfkit 1.0.0rc2 and @idfkit/core 0.3.0-rc.3 with idfkit-js#60 applied,
+# EnergyPlus 26.1.0: 21 entries over
+# 11 issues and 13 cases, 16 against python and 5 against typescript, on a corpus of 69 cases and
+# 211 assertions. Four entries went away in e60b74d, when both libraries started agreeing about
+# blank names, and the typescript half of types-choice-field-casing went away with idfkit-js 10.
+# This header stated 22 entries over 47 cases until 2026-09-04, 20 over 12 cases until the
+# preserved-text assertion landed, and 22 over 12 issues until choice casing was fixed in the
+# second language; it is recounted from the file and from the runner's own tally rather than
+# adjusted, and it is recounted again whenever a case lands.
 
 #
 # The tier1-introspection-field-shapes entry was removed on 2026-09-04, in the change that closed
@@ -187,13 +192,16 @@ issue     = "https://github.com/idfkit/idfkit/issues/180"
 observed  = '''Choice values are echoed as the file wrote them: /GlobalGeometryRules/GlobalGeometryRules 1/vertex_entry_direction "CounterClockWise", /ScheduleTypeLimits/Any Number Limits/numeric_type "CONTINUOUS", /Output:Variable/Output:Variable 1/reporting_frequency "hourly".'''
 expected  = '''The casing the schema declares for each choice: "Counterclockwise", "Continuous", "Hourly". ConvertInputFormat normalises a choice field to its schema spelling, so a consumer may compare a choice value for equality without folding case.'''
 
-[[divergence]]
-case      = "types-choice-field-casing"
-library   = "typescript"
-assertion = "epjson"
-issue     = "https://github.com/idfkit/idfkit-js/issues/10"
-observed  = '''The identical three values Python produces, at the identical three pointers: "CounterClockWise", "CONTINUOUS" and "hourly". Both libraries preserve the file's as-written casing and both differ from the oracle, 54,468 occurrences over 749 example files and 184 distinct shapes in the bootstrap sweep.'''
-expected  = '''"Counterclockwise", "Continuous" and "Hourly". This is the flagship case for FR-015: no comparison between the two libraries could ever have found it, because the two libraries agree.'''
+# The typescript entry on this case was removed on 2026-09-10, in the change that landed choice
+# canonicalisation in the JavaScript library (idfkit-js#60, closing idfkit-js#10). Its case now
+# passes, and a passing case with an entry still standing is a failure the runner reports, so the
+# entry goes with the fix rather than after it.
+#
+# The python entry stays. idfkit#180 is unfixed, so it is not stale. This header once said the four
+# entries on the two both-language bugs "must land together"; the pairing is real for the bug and
+# not for the register, which records one entry per case, library and assertion and goes stale one
+# entry at a time. Choice casing is now the proof: one language fixed it, one entry left, the other
+# still failing and still recorded.
 
 # ---------------------------------------------------------------------------
 # versions
