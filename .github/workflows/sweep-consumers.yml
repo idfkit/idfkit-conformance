@@ -1,0 +1,64 @@
+# The scheduled sweep (feature 004, research R3, FR-008).
+#
+# The only check that can find a repository nobody registered, because an unregistered repository
+# runs no self-check. It reads every registered consumer's level from the declaration the register
+# names, compares each with what the registries publish, and walks the organisation for anything that
+# depends on either library and is not on the roster.
+#
+# IT READS THE WORKING TREE, NOT A TAG, and that is the one exception to FR-002: it runs inside this
+# repository and reports on the file it runs beside. Every other reader pins a tag.
+#
+# A TOKEN THAT CAN READ PRIVATE REPOSITORIES IS A PREREQUISITE. Four consumers are private
+# (idfkit-app, idfkit-lsp, idfkit-mcp-deployment, and idfkit-engine among the non-consumers), and
+# GITHUB_TOKEN cannot see them. Without CONSUMER_SWEEP_TOKEN (a fine-grained token with read access
+# to contents and metadata on every repository in the organisation) those repositories land in
+# `unreachable`, and the run goes red with exit 2. It never goes green by not looking.
+#
+# Exit 1: at least one stranger. Exit 2: no stranger found, and something could not be checked.
+# The two are never merged, because a permissions failure that read as an all-clear is the bug this
+# feature was written about.
+
+name: sweep-consumers
+
+on:
+  schedule:
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sweep:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Refuse to sweep blind
+        env:
+          TOKEN: ${{ secrets.CONSUMER_SWEEP_TOKEN }}
+        run: |
+          if [ -z "$TOKEN" ]; then
+            echo "::error title=No sweep token::CONSUMER_SWEEP_TOKEN is not set, so private repositories cannot be read and the sweep would report them as unreachable. Set it; see the header of this workflow."
+            exit 2
+          fi
+
+      - name: Sweep
+        env:
+          GH_TOKEN: ${{ secrets.CONSUMER_SWEEP_TOKEN }}
+        run: python tools/sweep_consumers.py --out consumer-report.json
+
+      - name: Keep the report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: consumer-report
+          path: consumer-report.json
+          if-no-files-found: error

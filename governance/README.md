@@ -1,14 +1,15 @@
 # Governance files
 
 This directory holds the two files that fix the shared vocabulary of `idfkit` (Python) and
-`idfkit-js` (TypeScript):
+`idfkit-js` (TypeScript), and the register of every project that consumes them:
 
 | File | What it records | Rendered at |
 | ---- | --------------- | ----------- |
 | `naming.toml` | The naming register: every concept shared across the two libraries, its spelling on each side, and every accepted difference | `idfkit-developers/docs/explanation/naming-map.md` |
 | `parity.toml` | The parity ledger: every capability, its tier, and whether each language implements it completely, partially, or not at all | `idfkit-developers/docs/explanation/parity.md` |
+| `consumers.toml` | The consumer register: every project in the workspace that resolves either library or teaches a reader to install one, where each one's level is written, and any deliberate or temporary lag | `idfkit-developers/docs/explanation/consumers.md` |
 
-Neither file is written by hand in a library. Both are written here, released under a tag, and
+None of the three is written by hand in a library. All are written here, released under a tag, and
 read from that tag by whatever needs them.
 
 ## Why they live here
@@ -34,7 +35,7 @@ This repository publishes two independent series of immutable git tags.
 | Series | Governs | Declared by |
 | ------ | ------- | ----------- |
 | `conformance-YYYY.N` | The corpus level: one state of the case set under `cases/`, plus `manifest.json` and `known-divergence.toml` | `[tool.idfkit.conformance] level` in `idfkit/pyproject.toml`, `idfkit.conformance` in `idfkit-js/packages/core/package.json` |
-| `governance-YYYY.N` | This directory: `naming.toml` and `parity.toml` | `[tool.idfkit.governance] level` in `idfkit/pyproject.toml`, `idfkit.governance` in `idfkit-js/packages/core/package.json` |
+| `governance-YYYY.N` | This directory: `naming.toml`, `parity.toml` and `consumers.toml` | `[tool.idfkit.governance] level` in `idfkit/pyproject.toml`, `idfkit.governance` in `idfkit-js/packages/core/package.json` |
 
 They are separate on purpose, and the purpose runs in both directions:
 
@@ -85,7 +86,7 @@ Two rules follow, and the tooling enforces them (FR-084):
 
 A tag is cut from `main` after the change has merged, never from a branch.
 
-1. **Land the change.** Edit `naming.toml` or `parity.toml` on a branch and open a pull request.
+1. **Land the change.** Edit `naming.toml`, `parity.toml` or `consumers.toml` on a branch and open a pull request.
    `.github/CODEOWNERS` requests review from both `@idfkit/python-maintainers` and
    `@idfkit/javascript-maintainers`. That review has no override (FR-091): if a maintainer of the
    other language is unavailable, the merge waits.
@@ -98,9 +99,15 @@ A tag is cut from `main` after the change has merged, never from a branch.
 
    ```bash
    python tools/validate_governance.py
+   python tools/check_consumers.py
    ```
 
-   It reads only these files and never imports either library, so it cannot go red because a
+   The second covers `consumers.toml`. **A tag covers all three files at once**, whichever one the
+   change touched, so both scripts run on every pull request and both must pass before any tag is
+   cut: a malformed roster reaches every consumer's self-check through the same tag as a rename
+   reaches both libraries.
+
+   Both read only these files and never import either library, so neither can go red because a
    library drifted. Whether the code matches the record is the library's own gate, run there
    against a pinned tag.
 3. **Choose the number.** `YYYY` is the current calendar year. `N` is the next integer in that year,
@@ -137,3 +144,92 @@ The one ordering constraint that is not optional: a capability's entry in `parit
 published and pinned before any documentation page renders an absence from it (FR-083). The macro
 fails on an unresolvable capability id, which is what keeps that ordering honest after the first
 time.
+
+## The consumer register
+
+`consumers.toml` is the third file in this directory and the fourth governance artifact, counting
+the corpus. It is here for the reasons the other two are: owned by no single repository, read by
+many, and required to hold still while it is read. It was a heredoc inside
+`idfkit/.github/workflows/notify-downstream.yml` until feature 004, readable by no gate, visible to
+one language, and already missing the two repositories that hand the library to a person.
+
+**What it governs.** Who consumes either library, which door each came through in the second
+language (the shared name or the scoped packages, both first-class), how each resolves the library,
+which consumer each depends on, and where each one's level is written. It never states a level. A
+tool that wants one follows the Declaration to the consumer's own file, so a consumer bumping its
+level changes nothing here, and a governance tag is not cut per bump.
+
+**How it is read.** At a pinned `governance-YYYY.N` tag, like the other two, by:
+
+| Reader | Where | What it asks |
+| ------ | ----- | ------------ |
+| `tools/check_consumers.py` | this repository's CI | Is the file well formed? The only thing permitted to say so. |
+| `.github/workflows/check-consumer.yml` | every consumer's CI | Does this repository still match its entry? |
+| `.github/workflows/rehearse.yml` | on demand, per consumer | What does an unpublished candidate do to this consumer? |
+| `tools/adoption.py` | both libraries' `notify-downstream.yml` | In which waves is a published level adopted? |
+| `tools/sweep_consumers.py` | weekly, here | What level is everyone on, and who is missing from the roster? |
+
+The sweep is the one reader that reads the working tree. It runs beside the file and reports on it.
+
+### Consumers call the self-check at a tag, never at a branch
+
+Each consumer calls the self-check as a reusable workflow, with the tag on its `uses:` line:
+
+```yaml
+jobs:
+  consumer-register:
+    uses: idfkit/idfkit-conformance/.github/workflows/check-consumer.yml@governance-2026.18
+    with:
+      governance_level: governance-2026.18
+```
+
+**Never `@main`, never a branch, never a sha somebody copied.** The reason is the one the whole
+series rests on: an unpinned read lets a merge here change a consumer's verdict with no change
+landing in the consumer. The called-workflow form makes the pin something GitHub resolves rather
+than something each repository reimplements, which is why the reader is not copied into nine
+repositories the way `_governance_source.py` is copied into two (research R11). That duplication is
+held together by a test that compares two files, and no test can compare eleven files in
+repositories that cannot see each other.
+
+The tag appears twice in the caller, once on `uses:` and once as the input, because a called
+workflow cannot see its own ref. The workflow's first step refuses to run unless the two are
+identical, so they remain one fact. `tests/test_workflow_pins.py` holds this repository's own
+workflows to the same rule.
+
+`rehearse.yml` is called the same way, from each consumer's `rehearse-candidate.yml`.
+
+### Tag cadence, now that three files share the series
+
+Unchanged: a tag is cut when a change that consumers must see has merged, and not otherwise. The
+roster changes when a consumer is added, changes its door, or moves where its level is declared,
+which the register's design makes rare on purpose, so it adds few tags to a series that already
+moves for renames and ledger changes. Adopting a new tag is still per repository and deliberate. A
+consumer that is not affected by a roster change may stay on an older tag, because its own entry is
+what its self-check reads.
+
+What does change is that **one tag now covers three files**, so a tag cut for a rename also carries
+whatever roster edits have merged, and the reverse. Release notes for a tag state all three.
+
+## Downstream statements of unavailability
+
+When a product tells its users that something cannot be done for a library reason, it is quoting
+the parity ledger. It says so with one comment beside the statement, in whatever comment syntax the
+file uses, identical in both languages:
+
+```text
+idfkit:unavailable parity_id=write
+idfkit:unavailable parity_id=write own_reason="The editor saves object notation only, by design."
+```
+
+- `parity_id` names the `parity.toml` entry the statement rests on (004-FR-033). The self-check
+  resolves it at the consumer's pinned tag and fails the build on an unknown id, exactly as the
+  `parity(id)` documentation macro fails a page.
+- `own_reason` records that the consumer keeps the statement after its entry closes, for a reason of
+  its own, and from then on the statement no longer cites the library (004-FR-035).
+- The side is the file's language: Python source rests on the `python` side of the entry, anything
+  else on `typescript`. `side=python` or `side=typescript` overrides that for a file that is neither.
+
+When an adoption moves a consumer across a tag at which an entry became `complete` on a marker's
+side, `tools/surface_statements.py surface` lists the marker, and the adoption is not complete while
+one is listed (004-FR-025, FR-034). Reviewing it is one of two changes: remove the statement and its
+marker, or add `own_reason`. An entry declared `never` surfaces nothing, because nothing is coming.

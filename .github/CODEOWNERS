@@ -41,6 +41,12 @@
 # change here reaches both libraries at their next pin bump.
 /governance/            @idfkit/python-maintainers @idfkit/javascript-maintainers
 
+# The consumer register (feature 004). Already covered by /governance/ above, and named again
+# because its most frequent edits LOOK local: adding a consumer, changing a rehearsal command,
+# moving a declaration. None of them is. Every consumer's self-check and both libraries' dispatch
+# read this file, so a change here is cross-language surface like the two files beside it.
+/governance/consumers.toml  @idfkit/python-maintainers @idfkit/javascript-maintainers
+
 # The runners themselves, and the tooling that regenerates expected output. A change to
 # how a case is compared changes what both gates mean.
 /runners/               @idfkit/python-maintainers @idfkit/javascript-maintainers

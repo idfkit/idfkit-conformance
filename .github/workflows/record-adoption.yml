@@ -1,0 +1,87 @@
+# Record what an adoption changed in the consumer register, as a pull request (FR-023, FR-024).
+#
+# Dispatched by a consumer's bump workflow, or by hand. Most adoptions never reach this: a consumer
+# moving from one level to the next changes nothing the register holds, because the register points
+# at the level rather than holding it. Two outcomes do change it:
+#
+#   close-lag  the adoption reached the current level, so the consumer's not-yet lag closes with it
+#   decline    the consumer will not take the level, recorded as a deliberate lag with a policy reason,
+#              which is a resting state rather than a bot pull request left to rot
+#
+# The register lives here and the adoption in the consumer, so one commit cannot carry both. The
+# paired pull request opened by the same run is the nearest honest thing, and the consumer's bump
+# pull request links to it. Review is the usual cross-language review, through CODEOWNERS.
+
+name: record-adoption
+
+on:
+  workflow_dispatch:
+    inputs:
+      consumer:
+        description: The consumer's id in governance/consumers.toml.
+        required: true
+        type: string
+      library:
+        description: python or javascript.
+        required: true
+        type: choice
+        options: [python, javascript]
+      outcome:
+        description: close-lag, or decline.
+        required: true
+        type: choice
+        options: [close-lag, decline]
+      reason:
+        description: Decline only. A policy, never a version.
+        required: false
+        type: string
+      adoption:
+        description: The consumer's bump pull request, linked from this one.
+        required: false
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  record:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Edit the register, and refuse an edit that leaves it malformed
+        id: edit
+        env:
+          CONSUMER: ${{ inputs.consumer }}
+          LIBRARY: ${{ inputs.library }}
+          OUTCOME: ${{ inputs.outcome }}
+          REASON: ${{ inputs.reason }}
+        run: |
+          set -euo pipefail
+          if [ "$OUTCOME" = decline ]; then
+            python tools/record_adoption.py decline --consumer "$CONSUMER" --library "$LIBRARY" --reason "$REASON"
+          else
+            python tools/record_adoption.py close-lag --consumer "$CONSUMER" --library "$LIBRARY"
+          fi
+          python tools/check_consumers.py
+
+      - name: Open the paired pull request
+        uses: peter-evans/create-pull-request@v7
+        with:
+          branch: record-adoption/${{ inputs.consumer }}-${{ inputs.library }}
+          commit-message: "Record ${{ inputs.consumer }} (${{ inputs.library }}): ${{ inputs.outcome }}"
+          title: "Record ${{ inputs.consumer }} (${{ inputs.library }}): ${{ inputs.outcome }}"
+          body: |
+            The register change that goes with an adoption, opened by the same run so it lands with the
+            adoption rather than afterwards (FR-023).
+
+            - Consumer: `${{ inputs.consumer }}`, library `${{ inputs.library }}`
+            - Outcome: `${{ inputs.outcome }}`
+            - Adoption: ${{ inputs.adoption || '(not linked)' }}
+
+            `tools/check_consumers.py` passed on the edited register before this was opened.

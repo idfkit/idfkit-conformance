@@ -1,0 +1,464 @@
+# ==================================================================================================
+# THE CONSUMER REGISTER
+#
+# Every project in the idfkit workspace that resolves either library when it builds, tests or runs,
+# or that tells a reader how to install one. The fourth governance artifact, beside naming.toml,
+# parity.toml and the corpus, and here for the same three reasons: owned by no single repository,
+# read by many, and required to hold still while it is read (feature 004, research R1).
+#
+# HOW IT IS READ. At a pinned governance-YYYY.N tag of this repository, never at a branch and never
+# from a working tree. Each consumer calls .github/workflows/check-consumer.yml with the tag on its
+# `uses:` line, so GitHub resolves the pin rather than our code (R11). Both libraries' downstream
+# dispatch reads it at a tag too. The one reader that reads it unpinned is the scheduled sweep, which
+# runs inside this repository and reports on the file it runs beside.
+#
+# WHAT IT HOLDS, AND THE ONE THING IT NEVER HOLDS. The roster: who the consumers are, which door
+# each comes through, how each resolves a library, which consumers each depends on, and WHERE each
+# one's level is written. It never states a level. A level lives in the consumer's own file, and a
+# tool that wants one follows a Declaration there (R2). Stating it here as well would make two facts
+# out of one apiece, which is the failure pinned_levels.py records happening on this project: a page
+# claimed governance-2026.6 while the release pinned 2026.7, because one copy moved and one did not.
+# The practical consequence: a consumer bumping its level changes nothing in this file.
+#
+# HOW IT IS RENDERED. As a page in idfkit-developers, generated from this file at the site's pinned
+# governance tag and never edited by hand, the way parity.md renders from parity.toml.
+#
+# HOW IT IS CHANGED. By pull request, with review from a maintainer of the other language, which
+# CODEOWNERS enforces. The edits that look local are not: adding a consumer, changing a rehearsal
+# command, moving a declaration. A roster one language cannot see is what existed before this file,
+# as a heredoc in idfkit/.github/workflows/notify-downstream.yml, and it was already wrong.
+# tools/check_consumers.py must pass before merge; it is the only thing that may call this file
+# well formed. A change lands in a consumer's own register-relevant shape (its entry point, its
+# means, where its level is declared) in the same change that moves it, never afterwards (FR-023).
+#
+# WHERE IT STOPS.
+#   - It does not decide when a consumer adopts a level. That is the adoption contract.
+#   - It does not govern @idfkit/engine or @idfkit/engine-assets. Where a consumer resolves them
+#     they are listed under `out_of_scope`, visible to a coordinated bump, and no gate reads that
+#     table (FR-041). check_consumers.py rejects any gate configured on one.
+#   - It does not cover projects outside this workspace (FR-042).
+#   - It does not record where an adoption in progress stopped. That is the adoption report (FR-022).
+#
+# THE FIELDS
+#
+# [[consumer]]
+#   id            slug, stable, never renamed. Keys every report, edge and dispatch.
+#   repository    owner/name on GitHub. What the sweep and the dispatch address.
+#   role          builds    resolves a library into its own build, and breaks in CI
+#                 delivers  hands a library to a person, and breaks in somebody's editor
+#                 teaches   resolves nothing and can still tell a reader to install the wrong thing
+#   depends_on    consumers this one resolves a library through. Acyclic. Produces the wave order.
+#   writes_models, preserves_formatting, formatting_note
+#                 Feature 006's SC-009 answer, for a consumer that writes a model to disk: yes, no,
+#                 inherited (from a consumer it depends on), or not-applicable. What it does TODAY.
+#
+# [[consumer.libraries]]    one Resolution per library. The two say nothing about each other.
+#   library       python | javascript. Never a package name: the entry point decides the package.
+#   entry_point   python: pypi. javascript: shared-name | scoped. BOTH ARE FIRST-CLASS (FR-037). A
+#                 consumer on the scoped packages is not behind anything and carries no lag for it.
+#   means         direct | through-consumer | image | runtime-fetch | prose. Recorded because the
+#                 five differ in what can be pinned and in what a gate can read.
+#   declared_at   [[...]] where the level is written: path, locator, form (exact | range), and for a
+#                 delivery path the `package` it pins and the consumer it is `via` (FR-018). Required
+#                 unless means is through-consumer. Two declarations of one release must agree
+#                 (FR-007); every governed package of the second language is one release.
+#   lag           present only when the consumer sits off the current level. kind not-yet with an
+#                 `issue` URL, or kind deliberate with a `reason` that states a policy and never a
+#                 version. Absent is the normal state and means nothing is wrong.
+#
+# [[consumer.rehearsal]]    one per library, how to build this consumer against a candidate.
+#   install       uv-wheel | npm-tarball | through-provider (the consumer holds no code calling the
+#                 library, so rehearsing it is rehearsing its providers)
+#   typecheck     runs first, and is required: it is the instrument that catches a name surviving a
+#                 rename with a different meaning (R4)
+#   test          runs second. Or `no_test_reason`, for a consumer with no suite.
+#   workdir       where the commands run, relative to the repository root
+#   prose_paths   files the rename scan reads that no checker does (R5)
+#
+# [[consumer.out_of_scope]] package, path, locator, form, note. Nothing else is permitted.
+#
+# [[surface]]   top-level, because two of the three are published by the libraries, and neither
+#               library is a consumer, so there is no consumer row to hang them from.
+#   host, status (serving | retired), published_by (a consumer id or a repository),
+#   states_level (serving), redirects_to (retired)
+# ==================================================================================================
+
+[register]
+schema_version = "1"
+governs = "projects in the idfkit workspace that resolve or teach either library"
+read_at = "a pinned governance-YYYY.N tag of idfkit-conformance, never the default branch"
+review = "a maintainer of the other language, enforced by CODEOWNERS"
+# The two libraries themselves. They publish; they are never consumers of themselves.
+libraries = { python = "idfkit/idfkit", javascript = "idfkit/idfkit-js" }
+
+# ── Wave 1 for the first language: resolve idfkit directly ────────────────────────────────────────
+
+[[consumer]]
+id = "idfkit-mcp"
+repository = "idfkit/idfkit-mcp"
+role = "builds"
+writes_models = true
+preserves_formatting = "no"
+formatting_note = """
+`save_model` calls `write_idf` and `write_epjson` with every default, and `load_model` reads without
+asking for preservation, so a model read and saved comes back reformatted. Closing this is one argument
+on the read and one on each write, and it is worth doing: an agent that edits one field of a user's file
+and hands back four thousand changed lines has made its own work unreviewable.
+"""
+
+  [[consumer.libraries]]
+  library = "python"
+  entry_point = "pypi"
+  means = "direct"
+    [[consumer.libraries.declared_at]]
+    path = "pyproject.toml"
+    locator = "project.dependencies[idfkit]"
+    form = "exact"
+    [consumer.libraries.lag]
+    kind = "not-yet"
+    issue = "https://github.com/idfkit/idfkit-mcp/pull/75"
+
+  [[consumer.rehearsal]]
+  library = "python"
+  install = "uv-wheel"
+  typecheck = "uv run pyright"
+  test = "uv run python -m pytest tests"
+
+[[consumer]]
+id = "idfkit-lsp"
+repository = "idfkit/idfkit-lsp"
+role = "builds"
+writes_models = false
+preserves_formatting = "not-applicable"
+formatting_note = """
+Both servers read and report, and neither applies an edit to a file. Formatting-preserving edits belong
+to the deferred text-editor slice.
+"""
+
+  # The source server, which reads Python code that uses idfkit. levels.json states the same level a
+  # second time for readers of the repository, and its own check-levels gate holds the two together;
+  # listing both here is what lets the self-check state FR-007 once for every consumer.
+  [[consumer.libraries]]
+  library = "python"
+  entry_point = "pypi"
+  means = "direct"
+    [[consumer.libraries.declared_at]]
+    path = "server/pyproject.toml"
+    locator = "project.dependencies[idfkit]"
+    form = "exact"
+    [[consumer.libraries.declared_at]]
+    path = "levels.json"
+    locator = "libraries[name=idfkit].level"
+    form = "exact"
+    [consumer.libraries.lag]
+    kind = "not-yet"
+    issue = "https://github.com/idfkit/idfkit-lsp/issues/17"
+
+  # The model server, which serves IDF text through the language service. Scoped, and not behind on
+  # that account: its optional peer on the shared name exists so it can tell a user what to install.
+  [[consumer.libraries]]
+  library = "javascript"
+  entry_point = "scoped"
+  means = "direct"
+    [[consumer.libraries.declared_at]]
+    path = "model-server/package.json"
+    locator = 'dependencies["@idfkit/core"]'
+    form = "exact"
+    [[consumer.libraries.declared_at]]
+    path = "model-server/package.json"
+    locator = 'dependencies["@idfkit/language"]'
+    form = "exact"
+    [[consumer.libraries.declared_at]]
+    path = "levels.json"
+    locator = "libraries[name=@idfkit/core].level"
+    form = "exact"
+    [consumer.libraries.lag]
+    kind = "not-yet"
+    issue = "https://github.com/idfkit/idfkit-lsp/issues/17"
+
+  # CLAUDE.md and README.md teach calls in prose to every agent and reader of this repository, and no
+  # type checker reads either. The rename scan does (R5, T046).
+  [[consumer.rehearsal]]
+  library = "python"
+  install = "uv-wheel"
+  workdir = "server"
+  typecheck = "uv run --extra dev pyright src ../tools ../tests/protocol"
+  test = "uv run --extra dev pytest tests"
+  prose_paths = ["CLAUDE.md", "README.md"]
+
+  [[consumer.rehearsal]]
+  library = "javascript"
+  install = "npm-tarball"
+  workdir = "model-server"
+  typecheck = "npm run typecheck"
+  test = "npm test"
+  prose_paths = ["CLAUDE.md", "README.md"]
+
+[[consumer]]
+id = "idfkit-docs"
+repository = "idfkit/idfkit-docs"
+role = "builds"
+
+  [[consumer.libraries]]
+  library = "python"
+  entry_point = "pypi"
+  means = "direct"
+    [[consumer.libraries.declared_at]]
+    path = "pyproject.toml"
+    locator = "project.dependencies[idfkit]"
+    form = "exact"
+    # Not deliberate. The bump workflow opened the pull request below and it has not merged, so
+    # this is an adoption in progress rather than a policy (T019).
+    [consumer.libraries.lag]
+    kind = "not-yet"
+    issue = "https://github.com/idfkit/idfkit-docs/pull/30"
+
+  # This repository has no type checker and no suite of its own. The rehearsal lays pyright over the
+  # scripts that import idfkit without adding it to any manifest, which is the one instrument that
+  # sees a renamed schema accessor before a conversion run does.
+  [[consumer.rehearsal]]
+  library = "python"
+  install = "uv-wheel"
+  typecheck = "uv run --with pyright pyright scripts"
+  no_test_reason = "No test suite. The conversion that exercises idfkit runs only against an EnergyPlus LaTeX checkout, so the type check over scripts/ is the whole rehearsal."
+
+[[consumer]]
+id = "idfkit-developers"
+repository = "idfkit/idfkit-developers"
+role = "builds"
+
+  # The FR-007 case the requirement was written from. uv resolves the dependency before any of the
+  # site's code runs, and the pinned-levels hook states [tool.idfkit.library] on every page, so the
+  # level is written twice on purpose and `uv lock --locked` plus this self-check hold them together.
+  [[consumer.libraries]]
+  library = "python"
+  entry_point = "pypi"
+  means = "direct"
+    [[consumer.libraries.declared_at]]
+    path = "pyproject.toml"
+    locator = "project.dependencies[idfkit]"
+    form = "exact"
+    [[consumer.libraries.declared_at]]
+    path = "pyproject.toml"
+    locator = "tool.idfkit.library.level"
+    form = "exact"
+
+  [[consumer.rehearsal]]
+  library = "python"
+  install = "uv-wheel"
+  typecheck = "uv run pyright scripts/ docs/hooks docs/snippets"
+  test = "uv run python -m pytest -m 'not network'"
+
+# ── The second language: resolve the scoped packages directly ─────────────────────────────────────
+
+# envelop and idfkit-shoebox come through the scoped packages. That is a first-class entry point and
+# neither carries a lag on its account (FR-037). Migrating them to the shared name is out of scope,
+# and no gate here may be satisfied by doing it (FR-044).
+
+[[consumer]]
+id = "envelop"
+repository = "idfkit/idfkit-app"
+role = "builds"
+writes_models = true
+preserves_formatting = "yes"
+formatting_note = """
+Reads with `preserveFormatting: true` and saves through `writeIdf(document)` with no options, which gives
+back the file it was given byte for byte when nothing changed and rewrites only an edited object when
+something did. The absence of options is the preserving behaviour: any reformatting option would
+regenerate the whole file, which src/save/write.test.ts asserts against by the arity of the call.
+"""
+
+  [[consumer.libraries]]
+  library = "javascript"
+  entry_point = "scoped"
+  means = "direct"
+    [[consumer.libraries.declared_at]]
+    path = "package.json"
+    locator = 'dependencies["@idfkit/core"]'
+    form = "exact"
+    [[consumer.libraries.declared_at]]
+    path = "package.json"
+    locator = 'dependencies["@idfkit/schemas"]'
+    form = "exact"
+    [[consumer.libraries.declared_at]]
+    path = "package.json"
+    locator = 'dependencies["@idfkit/language"]'
+    form = "exact"
+    [[consumer.libraries.declared_at]]
+    path = "package.json"
+    locator = 'dependencies["@idfkit/weather"]'
+    form = "exact"
+    [consumer.libraries.lag]
+    kind = "not-yet"
+    issue = "https://github.com/idfkit/idfkit-app/issues/226"
+
+  [[consumer.rehearsal]]
+  library = "javascript"
+  install = "npm-tarball"
+  typecheck = "npm run typecheck"
+  test = "npm run test:run"
+
+  [[consumer.out_of_scope]]
+  package = "@idfkit/engine"
+  path = "package.json"
+  locator = 'dependencies["@idfkit/engine"]'
+  form = "exact"
+  note = "EnergyPlus compiled to WebAssembly, run in the browser. Outside the unification by the constitution."
+
+[[consumer]]
+id = "idfkit-shoebox"
+repository = "idfkit/idfkit-shoebox"
+role = "builds"
+writes_models = true
+preserves_formatting = "not-applicable"
+formatting_note = """
+Generates a model from the page's controls and offers a zip of the exact text handed to the engine.
+There is no source file whose formatting could be preserved; the model is authored here each time.
+"""
+
+  [[consumer.libraries]]
+  library = "javascript"
+  entry_point = "scoped"
+  means = "direct"
+    [[consumer.libraries.declared_at]]
+    path = "package.json"
+    locator = 'dependencies["@idfkit/core"]'
+    form = "exact"
+    [[consumer.libraries.declared_at]]
+    path = "package.json"
+    locator = 'dependencies["@idfkit/schemas"]'
+    form = "exact"
+    [[consumer.libraries.declared_at]]
+    path = "package.json"
+    locator = 'dependencies["@idfkit/weather"]'
+    form = "exact"
+
+  # Plain JavaScript with no type checker, no linter and no test runner, which its CLAUDE.md states.
+  # The production build is the strongest instrument it has: Rollup refuses an import the candidate
+  # no longer exports, which is the rename a runtime would otherwise meet in a visitor's browser.
+  [[consumer.rehearsal]]
+  library = "javascript"
+  install = "npm-tarball"
+  typecheck = "npm run build"
+  no_test_reason = "No test runner. Changes are verified by running generated models through EnergyPlus by hand, per CLAUDE.md, so the build is the whole rehearsal."
+
+  [[consumer.out_of_scope]]
+  package = "@idfkit/engine"
+  path = "package.json"
+  locator = 'dependencies["@idfkit/engine"]'
+  form = "range"
+  note = "EnergyPlus compiled to WebAssembly. Declared as a caret range; the lockfile holds what is installed."
+
+  [[consumer.out_of_scope]]
+  package = "@idfkit/engine-assets"
+  path = "package.json"
+  locator = 'dependencies["@idfkit/engine-assets"]'
+  form = "exact"
+  note = "The engine's binary assets, staged into public/ by predev and prebuild. Outside the unification."
+
+# ── Wave 2 for the first language: deliver a library to a person, through a consumer ─────────────
+
+[[consumer]]
+id = "idfkit-mcp-deployment"
+repository = "idfkit/idfkit-mcp-deployment"
+role = "delivers"
+depends_on = ["idfkit-mcp"]
+writes_models = true
+preserves_formatting = "inherited"
+formatting_note = """
+Hosts idfkit-mcp behind a billing gateway and writes no model of its own. Its answer is whatever
+idfkit-mcp's is, which is why the value is inherited rather than repeated: a copied answer can drift.
+"""
+
+  # The hosted server is an image built from an idfkit-mcp checkout. cdk.json names the release tag
+  # that checkout must be at, and app.py refuses to synthesise from anything else, so a rebuild alone
+  # cannot move what the deployment serves (FR-015, T056).
+  [[consumer.libraries]]
+  library = "python"
+  entry_point = "pypi"
+  means = "image"
+    [[consumer.libraries.declared_at]]
+    path = "cdk.json"
+    locator = "context.idfkit_mcp_ref"
+    form = "exact"
+    package = "idfkit-mcp"
+    via = "idfkit-mcp"
+
+  [[consumer.rehearsal]]
+  library = "python"
+  install = "through-provider"
+
+[[consumer]]
+id = "idfkit-plugin"
+repository = "idfkit/idfkit-plugin"
+role = "delivers"
+depends_on = ["idfkit-mcp", "idfkit-lsp"]
+writes_models = false
+preserves_formatting = "not-applicable"
+formatting_note = "Packages idfkit-mcp and idfkit-lsp for an editor and writes nothing itself."
+
+  # Two delivery paths, two servers, two release series. The declarations do not have to agree with
+  # each other, and must not be made to: requiring it would put idfkit-mcp and idfkit-lsp in lockstep.
+  # The second server feature 005 anticipates, for IDF text in the second language, is not in
+  # .lsp.json yet; its Resolution is added in the change that adds it.
+  [[consumer.libraries]]
+  library = "python"
+  entry_point = "pypi"
+  means = "runtime-fetch"
+    [[consumer.libraries.declared_at]]
+    path = ".mcp.json"
+    locator = "mcpServers.idfkit.args[0]"
+    form = "exact"
+    package = "idfkit-mcp"
+    via = "idfkit-mcp"
+    # Unpinned, and cannot be pinned yet: idfkit-lsp has never been published to the package index,
+    # so there is no version to name and today this path resolves nothing at all.
+    [[consumer.libraries.declared_at]]
+    path = ".lsp.json"
+    locator = "idfkit.args[1]"
+    form = "range"
+    package = "idfkit-lsp"
+    via = "idfkit-lsp"
+    [consumer.libraries.lag]
+    kind = "not-yet"
+    issue = "https://github.com/idfkit/idfkit-plugin/issues/17"
+
+  [[consumer.rehearsal]]
+  library = "python"
+  install = "through-provider"
+
+# ── Resolves nothing, and teaches ─────────────────────────────────────────────────────────────────
+
+# The marketing site. It installs nothing and is still the first thing a stranger reads, which makes
+# a wrong install instruction here the most expensive kind of wrong in the workspace. Its instructions
+# are checked by idfkit-developers/scripts/check_surfaces.py rather than by parsing (means `prose`
+# needs no Resolution when nothing is resolved).
+[[consumer]]
+id = "idfkit-com"
+repository = "idfkit/idfkit.com"
+role = "teaches"
+
+# ── Documentation surfaces ────────────────────────────────────────────────────────────────────────
+
+# Three hosts answer a reader today and one of them is meant to. The constitution says the other two
+# "MUST redirect to it permanently rather than continuing to publish", and both publish.
+# idfkit-developers/scripts/check_surfaces.py reads these rows, and retiring the hosts is feature 003's
+# obligation rather than this file's (FR-043).
+
+[[surface]]
+host = "developers.idfkit.com"
+status = "serving"
+published_by = "idfkit-developers"
+states_level = true
+
+[[surface]]
+host = "py.idfkit.com"
+status = "retired"
+published_by = "idfkit/idfkit"
+redirects_to = "developers.idfkit.com"
+
+[[surface]]
+host = "js.idfkit.com"
+status = "retired"
+published_by = "idfkit/idfkit-js"
+redirects_to = "developers.idfkit.com"
