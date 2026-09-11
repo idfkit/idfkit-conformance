@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
@@ -102,12 +103,22 @@ def check_order(
     return rejections
 
 
+def version_key(version: str) -> tuple[int, ...]:
+    """Order releases numerically, a final release after every candidate of the same number."""
+    text = normalize(version)
+    release, _, candidate = text.partition("rc")
+    parts = tuple(int(p) for p in re.findall(r"\d+", re.split(r"[a-z]", release, maxsplit=1)[0]))
+    return (*parts, 0 if candidate else 1, int(candidate) if candidate.isdigit() else 0)
+
+
 def pypi_released_on(fetch: Callable[[str], Mapping[str, Any]]) -> Callable[[str, str], str | None]:
     """A `released_on` reading a server's own published metadata from PyPI."""
 
     def released_on(package: str, level: str) -> str | None:
         document = fetch(f"https://pypi.org/pypi/{package}/json")
-        for version in sorted((document.get("releases") or {}), reverse=True):
+        # Newest first by version, never by string: "0.9.3" sorts after "0.10.0" as text, and the
+        # newest release pinning the level is the one a delivery path should move to.
+        for version in sorted((document.get("releases") or {}), key=version_key, reverse=True):
             meta = fetch(f"https://pypi.org/pypi/{package}/{version}/json")
             for requirement in (meta.get("info") or {}).get("requires_dist") or []:
                 head = requirement.split(";", 1)[0].strip()

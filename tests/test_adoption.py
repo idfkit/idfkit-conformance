@@ -87,6 +87,18 @@ def test_waves_refuse_a_cycle() -> None:
         waves(Register.from_toml(data), "python")
 
 
+def test_released_on_picks_the_newest_release_by_version_not_by_text() -> None:
+    from adoption import pypi_released_on, version_key
+
+    assert sorted(["0.9.3", "0.10.0", "1.0.0rc4", "1.0.0"], key=version_key) == ["0.9.3", "0.10.0", "1.0.0rc4", "1.0.0"]
+    pages = {
+        "https://pypi.org/pypi/idfkit-mcp/json": {"releases": {"0.9.3": [1], "0.10.0": [1]}},
+        "https://pypi.org/pypi/idfkit-mcp/0.9.3/json": {"info": {"requires_dist": ["idfkit==1.0.0"]}},
+        "https://pypi.org/pypi/idfkit-mcp/0.10.0/json": {"info": {"requires_dist": ["idfkit==1.0.0"]}},
+    }
+    assert pypi_released_on(lambda url: pages.get(url, {}))("idfkit-mcp", "1.0.0") == "0.10.0"
+
+
 def test_plan_cli_round_trip(tmp_path: Path) -> None:
     from adoption import main
 
