@@ -8,11 +8,16 @@
 # IT READS THE WORKING TREE, NOT A TAG, and that is the one exception to FR-002: it runs inside this
 # repository and reports on the file it runs beside. Every other reader pins a tag.
 #
-# A TOKEN THAT CAN READ PRIVATE REPOSITORIES IS A PREREQUISITE. Four consumers are private
-# (idfkit-app, idfkit-lsp, idfkit-mcp-deployment, and idfkit-engine among the non-consumers), and
-# GITHUB_TOKEN cannot see them. Without CONSUMER_SWEEP_TOKEN (a fine-grained token with read access
-# to contents and metadata on every repository in the organisation) those repositories land in
-# `unreachable`, and the run goes red with exit 2. It never goes green by not looking.
+# IT READS PRIVATE REPOSITORIES THROUGH THE ORGANISATION'S GITHUB APP. idfkit-app,
+# idfkit-mcp-deployment and idfkit-engine are private, and GITHUB_TOKEN sees only this repository.
+# The idfkit-bot app is installed on every repository in the organisation with read access to
+# contents, so this job mints a token from it for the whole installation: the sweep has to list and
+# read every repository to find a stranger, so the token is deliberately not narrowed.
+#
+# An app rather than a personal access token, by the user's choice: the token belongs to no person,
+# lives an hour instead of months, and the same pair of secrets (APP_ID, APP_PRIVATE_KEY) serves
+# every workflow in the organisation that reaches across repositories. Without them the job refuses
+# to sweep, with exit 2. It never goes green by not looking.
 #
 # Exit 1: at least one stranger. Exit 2: no stranger found, and something could not be checked.
 # The two are never merged, because a permissions failure that read as an all-clear is the bug this
@@ -32,6 +37,8 @@ jobs:
   sweep:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      HAS_APP: ${{ secrets.APP_ID != '' && secrets.APP_PRIVATE_KEY != '' }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -42,17 +49,22 @@ jobs:
           python-version: "3.12"
 
       - name: Refuse to sweep blind
-        env:
-          TOKEN: ${{ secrets.CONSUMER_SWEEP_TOKEN }}
+        if: env.HAS_APP != 'true'
         run: |
-          if [ -z "$TOKEN" ]; then
-            echo "::error title=No sweep token::CONSUMER_SWEEP_TOKEN is not set, so private repositories cannot be read and the sweep would report them as unreachable. Set it; see the header of this workflow."
-            exit 2
-          fi
+          echo "::error title=No app credentials::APP_ID and APP_PRIVATE_KEY are not set, so private repositories cannot be read and the sweep would report them as unreachable. Set them; see the header of this workflow."
+          exit 2
+
+      - name: Mint a token for the whole installation
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
 
       - name: Sweep
         env:
-          GH_TOKEN: ${{ secrets.CONSUMER_SWEEP_TOKEN }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: python tools/sweep_consumers.py --out consumer-report.json
 
       - name: Keep the report
