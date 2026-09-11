@@ -474,7 +474,12 @@ def render(report: Report) -> str:
         lines.append(f"  {current.library:<11} publishes stable {current.stable}, newest {current.newest}")
     lines.append("")
     for standing in report.standings:
-        flag = "" if standing.standing in {"current", "via-provider"} or standing.lag else "   <- unexplained"
+        if standing.standing == "unread":
+            flag = "   <- a declaration did not resolve; the consumer's self-check names which"
+        elif standing.standing in {"current", "via-provider"} or standing.lag:
+            flag = ""
+        else:
+            flag = "   <- unexplained"
         stale = "   <- lag should have closed" if standing.stale_lag else ""
         lines.append(
             f"  {standing.consumer:<22} {standing.library:<11} {str(standing.level):<14} {standing.standing:<13} lag={standing.lag}{flag}{stale}"

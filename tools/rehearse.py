@@ -28,6 +28,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -63,6 +64,15 @@ class Run:
     command: str
     exit_code: int
     tail: str
+    #: Every line of the output that reports an error, normalised so the same error reads the same
+    #: at both levels. Compared, not just counted: see `_attribute`.
+    errors: tuple[str, ...] = ()
+
+
+#: Lines that report a failure in the four instruments the register names: pyright, tsc, pytest and
+#: vitest. Anything else in the output is context, not a verdict.
+_ERROR_LINE = re.compile(r"( - error: |error TS\d+|^FAILED |^\s*(?:FAIL|×) )")
+_NOISE = re.compile(r"(\d+(\.\d+)?m?s\b|0x[0-9a-f]+|/(?:private/)?(?:tmp|var)/\S+?/(?=[^/\s]+\.(?:py|ts|tsx|js)))")
 
 
 @dataclass(frozen=True, slots=True)
@@ -113,7 +123,8 @@ def find_candidate(path: Path, library: str, sha: str) -> Candidate | None:
 def _run(command: str, cwd: Path, env: dict[str, str]) -> Run:
     process = subprocess.run(command, shell=True, cwd=cwd, env=env, capture_output=True, text=True, check=False)  # noqa: S602
     output = (process.stdout + process.stderr).strip().splitlines()
-    return Run(command, process.returncode, "\n".join(output[-_TAIL:]))
+    errors = tuple(sorted({_NOISE.sub("", line.strip()) for line in output if _ERROR_LINE.search(line)}))
+    return Run(command, process.returncode, "\n".join(output[-_TAIL:]), errors)
 
 
 def _status(root: Path) -> str:
@@ -121,11 +132,19 @@ def _status(root: Path) -> str:
 
 
 def _attribute(declared: Run | None, candidate: Run) -> str:
+    """Whose failure this is: the candidate's (`library`), the consumer's own (`consumer`), or none.
+
+    Exit codes alone are not enough, and the first acceptance run showed why: idfkit-docs' type
+    check is red at its declared level for three reasons that have nothing to do with idfkit, and a
+    command that is already red would hide every new error a candidate caused. So a candidate that
+    fails where the declared level also failed is still the library's when it reports an error line
+    the declared level did not.
+    """
     if candidate.exit_code == 0:
         return "ok" if declared is None or declared.exit_code == 0 else "consumer"
-    if declared is not None and declared.exit_code != 0:
-        return "consumer"
-    return "library"
+    if declared is None or declared.exit_code == 0:
+        return "library"
+    return "library" if set(candidate.errors) - set(declared.errors) else "consumer"
 
 
 def _commands(rehearsal: Rehearsal) -> list[tuple[str, str]]:
@@ -153,18 +172,34 @@ def rehearse_python(rehearsal: Rehearsal, root: Path, candidate: Candidate, base
     return checks
 
 
+def _package_of_tarball(filename: str) -> str:
+    """`idfkit-core-0.0.0.tgz` is `@idfkit/core`; `idfkit-0.0.0.tgz` is the shared name."""
+    stem = re.sub(r"-\d+\.\d+\.\d+[^/]*\.tgz$", "", Path(filename).name)
+    return "idfkit" if stem == "idfkit" else "@idfkit/" + stem.removeprefix("idfkit-")
+
+
+def _tarballs_for(manifest: Path, files: Sequence[str]) -> list[str]:
+    """Only the candidate's packages this consumer depends on. One release: installed together."""
+    dependencies = set((json.loads(manifest.read_text(encoding="utf-8")).get("dependencies") or {}).keys())
+    return [f for f in files if _package_of_tarball(f) in dependencies]
+
+
 def rehearse_javascript(rehearsal: Rehearsal, root: Path, candidate: Candidate, baseline: bool) -> list[Check]:
     # A scratch copy, so that even an npm that ignored --no-save could not touch the consumer.
     with tempfile.TemporaryDirectory(prefix="rehearsal-") as scratch:
         copy = Path(scratch) / "consumer"
-        shutil.copytree(root, copy, ignore=shutil.ignore_patterns("node_modules", ".git", "dist"), symlinks=True)
+        # Not the first language's environment: a consumer of both languages may be rehearsing its
+        # other half in the same checkout, and a copy of a half-written .venv is a copy of nothing.
+        shutil.copytree(root, copy, ignore=shutil.ignore_patterns("node_modules", ".git", "dist", ".venv"), symlinks=True)
         workdir = copy / rehearsal.workdir
         env = {**os.environ}
         install = _run("npm ci --no-audit --no-fund", workdir, env)
         if install.exit_code != 0:
             return [Check("setup", install.command, None, install, "consumer")]
         declared = {step: _run(cmd, workdir, env) for step, cmd in _commands(rehearsal)} if baseline else {}
-        tarballs = " ".join(candidate.files)
+        tarballs = " ".join(_tarballs_for(workdir / "package.json", candidate.files))
+        if not tarballs:
+            return [Check("install", "(none)", None, Run("(none)", 1, "the candidate carries no package this consumer depends on"), "library")]
         overlay = _run(f"npm install --no-save --no-audit --no-fund {tarballs}", workdir, env)
         if overlay.exit_code != 0:
             return [Check("install", overlay.command, None, overlay, "library")]
@@ -241,8 +276,13 @@ def render(result: Result) -> str:
     for appearance in result.renames:
         lines.append(f"- `{appearance.path}:{appearance.line}` ({appearance.kind}) `{appearance.text}`")
     for check in result.checks:
-        if check.attribution != "ok":
-            lines += ["", f"### {check.step}, {check.attribution}", "```", check.candidate.tail, "```"]
+        if check.attribution == "ok":
+            continue
+        lines += ["", f"### {check.step}, {check.attribution}"]
+        new = sorted(set(check.candidate.errors) - set(check.declared.errors if check.declared else ()))
+        if new:
+            lines += ["", "Errors the candidate introduced:", "```", *new, "```"]
+        lines += ["", "Output:", "```", check.candidate.tail, "```"]
     for breach in result.contract:
         lines += ["", f"**Contract breach:** {breach}"]
     return "\n".join(lines)

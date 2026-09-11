@@ -215,11 +215,14 @@ role = "builds"
 
   # This repository has no type checker and no suite of its own. The rehearsal lays pyright over the
   # scripts that import idfkit without adding it to any manifest, which is the one instrument that
-  # sees a renamed schema accessor before a conversion run does.
+  # sees a renamed schema accessor before a conversion run does. Named file by file rather than as
+  # `scripts`: the Pygments lexer beside them fails three override checks against Pygments' own
+  # stubs, unrelated to idfkit, and a command already red at the declared level is a poor
+  # instrument (measured in acceptance run 1, 2026-09-11). A new script importing idfkit is added here.
   [[consumer.rehearsal]]
   library = "python"
   install = "uv-wheel"
-  typecheck = "uv run --with pyright pyright scripts"
+  typecheck = "uv run --with pyright pyright scripts/convert.py scripts/schema_utils.py scripts/version_manager.py"
   no_test_reason = "No test suite. The conversion that exercises idfkit runs only against an EnergyPlus LaTeX checkout, so the type check over scripts/ is the whole rehearsal."
 
 [[consumer]]
