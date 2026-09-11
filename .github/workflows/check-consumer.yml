@@ -1,0 +1,116 @@
+# The per-consumer self-check (feature 004, research R3 and R11).
+#
+# Every consumer of either library calls this, with the governance tag on its `uses:` line:
+#
+#     jobs:
+#       consumer-register:
+#         uses: idfkit/idfkit-conformance/.github/workflows/check-consumer.yml@governance-2026.18
+#         with:
+#           governance_level: governance-2026.18
+#
+# ONE IMPLEMENTATION, NINE CALLERS. The reader is not copied into nine repositories: the existing
+# _governance_source.py is duplicated twice on purpose, with a test holding the copies together, and
+# that reasoning does not survive at eleven copies in repositories that cannot see each other. The
+# pin is the `@ref` on the caller's `uses:` line, which GitHub resolves rather than our code, so
+# FR-002's "a pinned immutable tag, never a branch" is enforced by the platform and visible in the
+# consumer's own workflow file, where a reviewer will see it move.
+#
+# THE TAG IS STATED TWICE ON THE CALLER'S SIDE, once on `uses:` and once as the input, because a
+# called workflow cannot see its own ref. The first step below refuses the run unless the two are
+# the same string in the caller's file, so they remain one fact.
+#
+# WHAT IT ASSERTS: the four rules in contracts/consumer-register.md, via tools/check_consumer_self.py
+# read from the SAME tag as the register, so the rules and the roster cannot come from two versions.
+# And, unless turned off, that every `idfkit:unavailable` statement marker resolves in parity.toml
+# at that tag (FR-033), the way the `parity(id)` documentation macro fails a page.
+#
+# IT DOES NOT compare against the current published level. A consumer is allowed to be behind; the
+# scheduled sweep says who is. It does not read the network beyond fetching the tag.
+#
+# FAILURE MODES ARE DISTINGUISHABLE (T010). A consumer that no longer matches the register fails the
+# `self-check` step. A register that cannot be read fails `Read the register at the tag`, with an
+# annotation saying so, and nothing ever falls back to a branch or a copy on disk.
+
+name: check-consumer
+
+on:
+  workflow_call:
+    inputs:
+      governance_level:
+        description: The governance-YYYY.N tag of idfkit-conformance, identical to the @ref on the caller's uses line.
+        required: true
+        type: string
+      statements:
+        description: Also resolve every idfkit:unavailable statement marker against parity.toml at the tag.
+        required: false
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  self-check:
+    name: consumer register
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      LEVEL: ${{ inputs.governance_level }}
+      CALLER: ${{ github.workflow_ref }}
+    steps:
+      - name: Refuse anything but a governance tag
+        run: |
+          if [[ ! "$LEVEL" =~ ^governance-[0-9]{4}\.[0-9]+$ ]]; then
+            echo "::error title=Not a governance tag::'$LEVEL' is not governance-YYYY.N. The register is read at an immutable tag, never a branch (FR-002)."
+            exit 2
+          fi
+
+      - name: Check out this consumer
+        uses: actions/checkout@v4
+        with:
+          path: consumer
+          persist-credentials: false
+
+      - name: The tag on uses and the tag passed in are one fact
+        run: |
+          # github.workflow_ref names the CALLER's workflow: owner/repo/<path>@<ref>.
+          path="${CALLER#*/*/}"
+          path="${path%@*}"
+          if ! grep -Eq "idfkit-conformance/\.github/workflows/check-consumer\.yml@${LEVEL//./\\.}([[:space:]]|$)" "consumer/$path"; then
+            echo "::error file=$path,title=Two pins::$path passes governance_level=$LEVEL but does not call check-consumer.yml@$LEVEL. State the tag once on uses: and once as the input, identically."
+            exit 2
+          fi
+
+      - name: Read the register at the tag
+        id: register
+        uses: actions/checkout@v4
+        with:
+          repository: idfkit/idfkit-conformance
+          ref: refs/tags/${{ inputs.governance_level }}
+          path: governance
+          persist-credentials: false
+
+      - name: Say so when the register could not be read
+        if: failure() && steps.register.outcome == 'failure'
+        run: |
+          echo "::error title=Register unreadable::governance/consumers.toml could not be read at $LEVEL. This is not a mismatch and not a pass: nothing was checked. The tag must exist in idfkit/idfkit-conformance; nothing falls back to a branch."
+          exit 2
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Self-check
+        run: >-
+          python governance/tools/check_consumer_self.py
+          --register governance/governance/consumers.toml
+          --repository "$GITHUB_REPOSITORY"
+          --root consumer
+          --governance-level "$LEVEL"
+
+      - name: Statement markers resolve
+        if: inputs.statements
+        run: >-
+          python governance/tools/surface_statements.py check
+          --root consumer
+          --parity governance/governance/parity.toml

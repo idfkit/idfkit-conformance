@@ -1,0 +1,156 @@
+# Rehearse one consumer against an unpublished candidate of one library (contracts/rehearsal.md).
+#
+# Every consumer that is not only teaching calls this from its own `rehearse-candidate.yml`, at a
+# pinned governance tag, and both libraries fan it out to every consumer with `rehearse-all.yml`:
+#
+#     jobs:
+#       rehearse:
+#         uses: idfkit/idfkit-conformance/.github/workflows/rehearse.yml@governance-2026.18
+#         with:
+#           governance_level: governance-2026.18
+#           consumer: idfkit-mcp
+#           library: python
+#           candidate_ref: <a commit, branch or tag in the library's repository>
+#
+# ON DEMAND ONLY. It is dispatched by a maintainer, never run on a consumer's pull requests, so a
+# failure it finds in the LIBRARY can never block unrelated work in the consumer (FR-013). A
+# continuous rehearsal would spend most of its life reporting on no candidate, and it would put the
+# library's failures in the consumer's merge queue, which is how a rehearsal gets turned off.
+#
+# WHAT IT NEVER DOES. It never edits the consumer's pyproject.toml, uv.lock, package.json or
+# package-lock.json, and tools/rehearse.py fails the run if any of them is dirty afterwards (FR-010).
+# It never falls back to the published level: no candidate, or a candidate that cannot be fetched or
+# built, fails the run and says which (FR-012). It rehearses one library and leaves the other at the
+# consumer's declared level (FR-014).
+#
+# THE CANDIDATE IS BUILT HERE, from a ref in the library's own repository, with the library's own
+# commands: `uv build --wheel` for the first language, and for the second the same `npm ci`,
+# `npx tsc --build` and `npm pack --workspaces` that idfkit-js/publish.yml runs whenever it is not
+# publishing. The commit it was built from is the candidate's identity in the report.
+
+name: rehearse
+
+on:
+  workflow_call:
+    inputs:
+      governance_level:
+        description: The governance-YYYY.N tag, identical to the @ref on the caller's uses line.
+        required: true
+        type: string
+      consumer:
+        description: The consumer's id in governance/consumers.toml.
+        required: true
+        type: string
+      library:
+        description: python or javascript. One library per rehearsal.
+        required: true
+        type: string
+      candidate_ref:
+        description: A commit, branch or tag in the library's repository. Required, and never defaulted.
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  rehearse:
+    name: rehearse ${{ inputs.consumer }} (${{ inputs.library }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      LEVEL: ${{ inputs.governance_level }}
+      LIBRARY: ${{ inputs.library }}
+      CANDIDATE_REF: ${{ inputs.candidate_ref }}
+    steps:
+      - name: Refuse a rehearsal with nothing to rehearse
+        run: |
+          if [[ ! "$LEVEL" =~ ^governance-[0-9]{4}\.[0-9]+$ ]]; then
+            echo "::error title=Not a governance tag::'$LEVEL' is not governance-YYYY.N (FR-002)."; exit 2
+          fi
+          case "$LIBRARY" in
+            python) echo "LIBRARY_REPOSITORY=idfkit/idfkit" >> "$GITHUB_ENV" ;;
+            javascript) echo "LIBRARY_REPOSITORY=idfkit/idfkit-js" >> "$GITHUB_ENV" ;;
+            *) echo "::error::library must be python or javascript, not '$LIBRARY'."; exit 2 ;;
+          esac
+          if [ -z "${CANDIDATE_REF// }" ]; then
+            echo "::error title=No candidate::No candidate_ref was given. A rehearsal against nothing would test the published level and report a pass that means nothing (FR-012)."
+            exit 3
+          fi
+
+      - name: Check out the consumer
+        uses: actions/checkout@v4
+        with:
+          path: consumer
+          persist-credentials: false
+
+      - name: Read the register at the tag
+        uses: actions/checkout@v4
+        with:
+          repository: idfkit/idfkit-conformance
+          ref: refs/tags/${{ inputs.governance_level }}
+          path: governance
+          persist-credentials: false
+
+      - name: Fetch the candidate
+        id: fetch
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.LIBRARY_REPOSITORY }}
+          ref: ${{ inputs.candidate_ref }}
+          path: candidate
+          persist-credentials: false
+
+      - name: Say so when the candidate could not be fetched
+        if: failure() && steps.fetch.outcome == 'failure'
+        run: |
+          echo "::error title=Candidate unreachable::$CANDIDATE_REF could not be fetched from $LIBRARY_REPOSITORY. Nothing was rehearsed, and nothing falls back to the published level (FR-012)."
+          exit 3
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: astral-sh/setup-uv@v7
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Build the candidate
+        working-directory: candidate
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/candidate"
+          echo "CANDIDATE_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+          if [ "$LIBRARY" = python ]; then
+            uv build --wheel --out-dir "$RUNNER_TEMP/candidate"
+          else
+            npm ci --no-audit --no-fund
+            npx tsc --build
+            npm pack --workspaces --pack-destination "$RUNNER_TEMP/candidate"
+          fi
+          ls -l "$RUNNER_TEMP/candidate"
+
+      # The type check runs before the tests, and tools/rehearse.py reports them in that order. The
+      # ordering is the substance of FR-011, not a preference: the writing rename narrows a name
+      # that keeps importing, and only a type checker sees every call that relied on the old form.
+      - name: Rehearse
+        run: >-
+          python governance/tools/rehearse.py
+          --register governance/governance/consumers.toml
+          --naming governance/governance/naming.toml
+          --consumer "${{ inputs.consumer }}"
+          --library "$LIBRARY"
+          --candidate "$RUNNER_TEMP/candidate"
+          --candidate-sha "$CANDIDATE_SHA"
+          --root consumer
+          --report "$RUNNER_TEMP/rehearsal.json"
+
+      - name: Keep the report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rehearsal-${{ inputs.consumer }}-${{ inputs.library }}
+          path: ${{ runner.temp }}/rehearsal.json
+          if-no-files-found: ignore
