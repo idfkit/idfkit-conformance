@@ -414,17 +414,16 @@ formatting_note = "Packages idfkit-mcp and idfkit-lsp for an editor and writes n
     form = "exact"
     package = "idfkit-mcp"
     via = "idfkit-mcp"
-    # Unpinned, and cannot be pinned yet: idfkit-lsp has never been published to the package index,
-    # so there is no version to name and today this path resolves nothing at all.
+    # Pinned since idfkit-lsp's first release to the package index (0.2.0, 2026-09-11); until then
+    # this path named no version and resolved nothing on a clean machine (idfkit-plugin#17). The
+    # entry also passes `--prerelease=allow` after the pin, because idfkit-lsp depends on a
+    # pre-release of idfkit and uv takes a pre-release for an indirect dependency only when told.
     [[consumer.libraries.declared_at]]
     path = ".lsp.json"
     locator = "idfkit.args[1]"
-    form = "range"
+    form = "exact"
     package = "idfkit-lsp"
     via = "idfkit-lsp"
-    [consumer.libraries.lag]
-    kind = "not-yet"
-    issue = "https://github.com/idfkit/idfkit-plugin/issues/17"
 
   [[consumer.rehearsal]]
   library = "python"
