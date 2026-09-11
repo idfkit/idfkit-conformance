@@ -39,6 +39,38 @@ def test_tarball_names_map_to_packages() -> None:
     assert _package_of_tarball("idfkit-0.0.0.tgz") == "idfkit"
 
 
+def _pack(directory: Path, filename: str, dependencies: dict[str, str]) -> str:
+    import io
+    import json
+    import tarfile
+
+    path = directory / filename
+    body = json.dumps({"dependencies": dependencies}).encode()
+    with tarfile.open(path, "w:gz") as archive:
+        info = tarfile.TarInfo("package/package.json")
+        info.size = len(body)
+        archive.addfile(info, io.BytesIO(body))
+    return str(path)
+
+
+def test_a_candidate_installs_its_own_closure_and_nothing_unreached(tmp_path: Path) -> None:
+    import json
+
+    from rehearse import _tarballs_for
+
+    files = [
+        _pack(tmp_path, "idfkit-core-0.0.0.tgz", {"@idfkit/schemas": "0.0.0"}),
+        _pack(tmp_path, "idfkit-schemas-0.0.0.tgz", {}),
+        _pack(tmp_path, "idfkit-language-0.0.0.tgz", {}),
+        _pack(tmp_path, "idfkit-types-v26-1-0.0.0.tgz", {}),
+        _pack(tmp_path, "idfkit-0.0.0.tgz", {"@idfkit/core": "0.0.0", "@idfkit/schemas": "0.0.0"}),
+    ]
+    manifest = tmp_path / "package.json"
+    manifest.write_text(json.dumps({"dependencies": {"@idfkit/core": "0.2.0", "@idfkit/language": "0.2.0"}}))
+    names = sorted(Path(f).name for f in _tarballs_for(manifest, files))
+    assert names == ["idfkit-core-0.0.0.tgz", "idfkit-language-0.0.0.tgz", "idfkit-schemas-0.0.0.tgz"]
+
+
 def test_a_wheel_candidate_is_found_and_named(tmp_path: Path) -> None:
     (tmp_path / "idfkit-1.0.0rc4-py3-none-any.whl").write_bytes(b"")
     candidate = find_candidate(tmp_path, "python", "f709abdf")

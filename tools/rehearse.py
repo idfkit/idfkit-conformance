@@ -32,6 +32,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tarfile
 import tempfile
 import tomllib
 from collections.abc import Sequence
@@ -178,10 +179,33 @@ def _package_of_tarball(filename: str) -> str:
     return "idfkit" if stem == "idfkit" else "@idfkit/" + stem.removeprefix("idfkit-")
 
 
+def _tarball_dependencies(filename: str) -> set[str]:
+    """The runtime dependencies a packed tarball declares, read from its own package.json."""
+    with tarfile.open(filename, "r:gz") as archive:
+        member = archive.extractfile("package/package.json")
+        if member is None:
+            return set()
+        return set((json.loads(member.read()).get("dependencies") or {}).keys())
+
+
 def _tarballs_for(manifest: Path, files: Sequence[str]) -> list[str]:
-    """Only the candidate's packages this consumer depends on. One release: installed together."""
-    dependencies = set((json.loads(manifest.read_text(encoding="utf-8")).get("dependencies") or {}).keys())
-    return [f for f in files if _package_of_tarball(f) in dependencies]
+    """The candidate's packages this consumer needs: what it depends on, and what those depend on.
+
+    The closure matters because a candidate's packages pin each other at the candidate's own
+    version, which exists nowhere but in these tarballs. Installing `@idfkit/core` alone sends npm to
+    the registry for the `@idfkit/schemas` it pins, and the second acceptance run failed exactly
+    that way on the lsp model server, which depends on core but not directly on schemas. Packages
+    nothing reaches (the type packages, the facade for a scoped consumer) stay out.
+    """
+    by_package = {_package_of_tarball(f): f for f in files}
+    wanted = set((json.loads(manifest.read_text(encoding="utf-8")).get("dependencies") or {}).keys()) & set(by_package)
+    frontier = list(wanted)
+    while frontier:
+        for dependency in _tarball_dependencies(by_package[frontier.pop()]) & set(by_package):
+            if dependency not in wanted:
+                wanted.add(dependency)
+                frontier.append(dependency)
+    return [by_package[p] for p in sorted(wanted)]
 
 
 def rehearse_javascript(rehearsal: Rehearsal, root: Path, candidate: Candidate, baseline: bool) -> list[Check]:
