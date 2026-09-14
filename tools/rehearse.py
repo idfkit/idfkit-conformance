@@ -174,9 +174,13 @@ def rehearse_python(rehearsal: Rehearsal, root: Path, candidate: Candidate, base
 
 
 def _package_of_tarball(filename: str) -> str:
-    """`idfkit-core-0.0.0.tgz` is `@idfkit/core`; `idfkit-0.0.0.tgz` is the shared name."""
+    """`idfkit-core-0.0.0.tgz` is `@idfkit/core`; `idfkit-idfkit-0.0.0.tgz` is the shared name, `@idfkit/idfkit`.
+
+    npm packs a scoped package as `<scope>-<name>-<version>.tgz`, and every package in the candidate is
+    in the `@idfkit` scope, the facade included, so one rule names them all.
+    """
     stem = re.sub(r"-\d+\.\d+\.\d+[^/]*\.tgz$", "", Path(filename).name)
-    return "idfkit" if stem == "idfkit" else "@idfkit/" + stem.removeprefix("idfkit-")
+    return "@idfkit/" + stem.removeprefix("idfkit-")
 
 
 def _tarball_dependencies(filename: str) -> set[str]:

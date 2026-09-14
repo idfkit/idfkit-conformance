@@ -408,7 +408,7 @@ typescript = "partial"
 differences = """
 Installation differs, and the difference is deliberate. `pip install idfkit` installs weather and
 its station index unconditionally, because Python extras gate dependencies rather than files, so a
-Python reader has weather whether or not they wanted it. `npm install idfkit` installs neither:
+Python reader has weather whether or not they wanted it. `npm install @idfkit/idfkit` installs neither:
 weather is an opt-in peer there, added with `npm install @idfkit/weather`. Both libraries ship
 their own index once installed and neither retrieves one to get started (FR-043, FR-075,
 research R11). A JavaScript reader who follows a weather page without installing that package

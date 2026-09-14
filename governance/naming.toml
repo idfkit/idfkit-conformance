@@ -2105,7 +2105,7 @@ rename_count = { python = 0, typescript = 0 }
 # ---------------------------------------------------------------------------
 #
 # The Python originals are in idfkit/src/idfkit/schedules/. Reserved for the eventual port:
-# `@idfkit/schedules` at subpath `idfkit/schedules`, recorded below.
+# `@idfkit/schedules` at subpath `@idfkit/idfkit/schedules`, recorded below.
 
 [[entry]]
 concept    = "evaluate a schedule"
@@ -4335,7 +4335,7 @@ rename_count = { python = 0, typescript = 0 }
 # Reserved package names and entry points (FR-077)
 # ---------------------------------------------------------------------------
 #
-# REGISTRATION ONLY. No package is built by this feature, and the `idfkit` facade's export map gains
+# REGISTRATION ONLY. No package is built by this feature, and the `@idfkit/idfkit` facade's export map gains
 # NO entry for any of these: an export map entry that resolves to nothing breaks a clean install,
 # which is worse than the name being unreserved.
 #
@@ -4350,7 +4350,7 @@ rename_count = { python = 0, typescript = 0 }
 [[reserved_package]]
 capability   = "schedules"
 npm_package  = "@idfkit/schedules"
-subpath      = "idfkit/schedules"
+subpath      = "@idfkit/idfkit/schedules"
 mirrors      = ["idfkit.schedules"]
 tier         = 2
 built        = false
@@ -4363,7 +4363,7 @@ cannot be named `@idfkit/schedule` or `@idfkit/scheduling` by whoever writes it 
 [[reserved_package]]
 capability   = "geometry, geometry builders, surface matching, zoning"
 npm_package  = "@idfkit/geometry"
-subpath      = "idfkit/geometry"
+subpath      = "@idfkit/idfkit/geometry"
 mirrors      = ["idfkit.geometry", "idfkit.geometry_builders", "idfkit.surface_matching", "idfkit.zoning"]
 tier         = 2
 built        = false

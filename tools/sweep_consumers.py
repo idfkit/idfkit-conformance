@@ -49,6 +49,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from consumers import (  # noqa: E402
     _MANIFEST_NAMES,
     DELIVERED_PACKAGES,
+    FACADE_PACKAGE,
     GOVERNED_PACKAGES,
     OUT_OF_SCOPE_PACKAGES,
     SKIP_DIRECTORIES,
@@ -271,7 +272,7 @@ def facade_mapping(registry: Registry) -> dict[str, dict[str, str]]:
     declared anywhere: declaring it again would be R2's mistake in a second place. Empty while the
     shared name has no published version, which is the state on npm today.
     """
-    document = registry.npm("idfkit")
+    document = registry.npm(FACADE_PACKAGE)
     mapping: dict[str, dict[str, str]] = {}
     for version, manifest in (document.get("versions") or {}).items():
         pins = {k: v for k, v in (manifest.get("dependencies") or {}).items() if k in GOVERNED_PACKAGES["javascript"]}

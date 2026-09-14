@@ -322,7 +322,7 @@ def test_resolve_every_locator_form() -> None:
 
 def test_the_second_language_is_one_release_for_agreement() -> None:
     core = Declaration("package.json", 'dependencies["@idfkit/core"]', "exact")
-    facade = Declaration("package.json", 'dependencies["idfkit"]', "exact")
+    facade = Declaration("package.json", 'dependencies["@idfkit/idfkit"]', "exact")
     assert agreement_key(core, "javascript") == agreement_key(facade, "javascript")
     mcp = Declaration(".mcp.json", "mcpServers.idfkit.args[0]", "exact", package="idfkit-mcp")
     lsp = Declaration(".lsp.json", "idfkit.args[1]", "exact", package="idfkit-lsp")
@@ -330,9 +330,23 @@ def test_the_second_language_is_one_release_for_agreement() -> None:
 
 
 def test_an_optional_peer_does_not_decide_the_door() -> None:
-    manifest = json.dumps({"dependencies": {"@idfkit/core": "0.2.0"}, "peerDependencies": {"idfkit": "0.0.0"}})
+    manifest = json.dumps({"dependencies": {"@idfkit/core": "0.2.0"}, "peerDependencies": {"@idfkit/idfkit": "0.0.0"}})
     assert detected_entry_point(detect_text("model-server/package.json", manifest)) == "scoped"
-    assert detected_entry_point(detect_text("package.json", json.dumps({"dependencies": {"idfkit": "1.0.0"}}))) == "shared-name"
+    assert detected_entry_point(detect_text("package.json", json.dumps({"dependencies": {"@idfkit/idfkit": "1.0.0"}}))) == "shared-name"
+
+
+def test_the_facade_is_the_shared_name_door_although_it_is_scoped() -> None:
+    # npm refused the unscoped `idfkit`, so the facade is `@idfkit/idfkit`. Its scope is the
+    # components' scope, and a prefix test would put a facade consumer on the scoped door.
+    detected = detect_text("package.json", json.dumps({"dependencies": {"@idfkit/idfkit": "1.0.0"}}))
+    assert [d.package for d in detected] == ["@idfkit/idfkit"]
+    assert detected_entry_point(detected) == "shared-name"
+    assert detected_entry_point(detect_text("package.json", json.dumps({"dependencies": {"@idfkit/core": "1.0.0"}}))) == "scoped"
+
+
+def test_an_unscoped_idfkit_in_an_npm_manifest_is_no_governed_package() -> None:
+    # Not the Python library, which no package.json installs, and no longer the facade.
+    assert detect_text("package.json", json.dumps({"dependencies": {"idfkit": "1.0.0"}})) == []
 
 
 # ── The self-check ───────────────────────────────────────────────────────────────────────────────
@@ -405,10 +419,10 @@ def test_self_rule_4_a_new_declaration_the_register_does_not_name(tmp_path: Path
 
 
 def test_self_rule_4_the_door_changed(tmp_path: Path) -> None:
-    manifest = json.dumps({"dependencies": {"idfkit": "0.3.0"}, "devDependencies": {"@idfkit/engine": "1"}})
+    manifest = json.dumps({"dependencies": {"@idfkit/idfkit": "0.3.0"}, "devDependencies": {"@idfkit/engine": "1"}})
     data = _valid()
     _consumer(data, "editor")["libraries"][0]["declared_at"] = [
-        {"path": "package.json", "locator": 'dependencies["idfkit"]', "form": "exact"}
+        {"path": "package.json", "locator": 'dependencies["@idfkit/idfkit"]', "form": "exact"}
     ]
     root = _checkout(tmp_path, {"package.json": manifest})
     findings = check_self(Register.from_toml(data), "idfkit/editor", root)

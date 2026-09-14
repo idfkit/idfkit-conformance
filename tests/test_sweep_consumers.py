@@ -47,7 +47,7 @@ class FakeRegistry:
     def npm(self, package: str) -> Mapping[str, Any]:
         if package == "@idfkit/core":
             return {"dist-tags": {"latest": "0.2.0", "next": "0.3.0-rc.3"}, "versions": {"0.2.0": {}, "0.3.0-rc.3": {}}}
-        if package == "idfkit":
+        if package == "@idfkit/idfkit":
             return self.facade
         return {}
 
@@ -80,7 +80,7 @@ def _register() -> Register:
                             "library": "javascript",
                             "entry_point": "shared-name",
                             "means": "direct",
-                            "declared_at": [{"path": "package.json", "locator": 'dependencies["idfkit"]', "form": "exact"}],
+                            "declared_at": [{"path": "package.json", "locator": 'dependencies["@idfkit/idfkit"]', "form": "exact"}],
                         }
                     ],
                 },
@@ -121,7 +121,7 @@ def _org(**extra: dict[str, str] | None) -> FakeSource:
             "package.json": json.dumps({"dependencies": {"@idfkit/core": "^0.2.0"}}),
             "package-lock.json": json.dumps({"packages": {"node_modules/@idfkit/core": {"version": "0.2.0"}}}),
         },
-        "o/facade": {"package.json": json.dumps({"dependencies": {"idfkit": "1.0.0"}})},
+        "o/facade": {"package.json": json.dumps({"dependencies": {"@idfkit/idfkit": "1.0.0"}})},
         "o/server": {"pyproject.toml": '[project]\ndependencies = ["idfkit==1.0.0rc4"]\n'},
         "o/hosted": {},
         "o/plugin": {".mcp.json": json.dumps({"mcpServers": {"idfkit": {"command": "uvx", "args": ["idfkit-mcp@0.9.3"]}}})},

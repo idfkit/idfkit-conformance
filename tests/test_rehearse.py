@@ -36,7 +36,8 @@ def test_red_then_green_is_the_consumer_and_not_a_pass() -> None:
 def test_tarball_names_map_to_packages() -> None:
     assert _package_of_tarball("/tmp/idfkit-core-0.0.0.tgz") == "@idfkit/core"
     assert _package_of_tarball("idfkit-language-0.3.0-rc.3.tgz") == "@idfkit/language"
-    assert _package_of_tarball("idfkit-0.0.0.tgz") == "idfkit"
+    # npm packs `@idfkit/idfkit` as `idfkit-idfkit-<version>.tgz`, the scope folded into the name.
+    assert _package_of_tarball("idfkit-idfkit-0.0.0.tgz") == "@idfkit/idfkit"
 
 
 def _pack(directory: Path, filename: str, dependencies: dict[str, str]) -> str:
@@ -63,12 +64,29 @@ def test_a_candidate_installs_its_own_closure_and_nothing_unreached(tmp_path: Pa
         _pack(tmp_path, "idfkit-schemas-0.0.0.tgz", {}),
         _pack(tmp_path, "idfkit-language-0.0.0.tgz", {}),
         _pack(tmp_path, "idfkit-types-v26-1-0.0.0.tgz", {}),
-        _pack(tmp_path, "idfkit-0.0.0.tgz", {"@idfkit/core": "0.0.0", "@idfkit/schemas": "0.0.0"}),
+        _pack(tmp_path, "idfkit-idfkit-0.0.0.tgz", {"@idfkit/core": "0.0.0", "@idfkit/schemas": "0.0.0"}),
     ]
     manifest = tmp_path / "package.json"
     manifest.write_text(json.dumps({"dependencies": {"@idfkit/core": "0.2.0", "@idfkit/language": "0.2.0"}}))
     names = sorted(Path(f).name for f in _tarballs_for(manifest, files))
     assert names == ["idfkit-core-0.0.0.tgz", "idfkit-language-0.0.0.tgz", "idfkit-schemas-0.0.0.tgz"]
+
+
+def test_a_facade_consumer_installs_the_facade_and_what_it_pins(tmp_path: Path) -> None:
+    import json
+
+    from rehearse import _tarballs_for
+
+    files = [
+        _pack(tmp_path, "idfkit-core-0.0.0.tgz", {"@idfkit/schemas": "0.0.0"}),
+        _pack(tmp_path, "idfkit-schemas-0.0.0.tgz", {}),
+        _pack(tmp_path, "idfkit-language-0.0.0.tgz", {}),
+        _pack(tmp_path, "idfkit-idfkit-0.0.0.tgz", {"@idfkit/core": "0.0.0", "@idfkit/schemas": "0.0.0"}),
+    ]
+    manifest = tmp_path / "package.json"
+    manifest.write_text(json.dumps({"dependencies": {"@idfkit/idfkit": "0.2.0"}}))
+    names = sorted(Path(f).name for f in _tarballs_for(manifest, files))
+    assert names == ["idfkit-core-0.0.0.tgz", "idfkit-idfkit-0.0.0.tgz", "idfkit-schemas-0.0.0.tgz"]
 
 
 def test_a_wheel_candidate_is_found_and_named(tmp_path: Path) -> None:
