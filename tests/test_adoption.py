@@ -62,17 +62,17 @@ def test_the_second_language_proceeds_while_the_first_is_mid_adoption() -> None:
 
 def test_one_release_moves_both_doors_together() -> None:
     manifest = {
-        "dependencies": {"@idfkit/core": "0.2.0", "@idfkit/language": "0.2.0", "idfkit": "0.2.0", "react": "18"},
-        "peerDependencies": {"idfkit": "0.0.0"},
+        "dependencies": {"@idfkit/core": "0.2.0", "@idfkit/language": "0.2.0", "@idfkit/idfkit": "0.2.0", "react": "18"},
+        "peerDependencies": {"@idfkit/idfkit": "0.0.0"},
     }
     planned = plan_javascript(manifest, "0.3.0")
-    assert planned["dependencies"] == {"@idfkit/core": "0.3.0", "@idfkit/language": "0.3.0", "idfkit": "0.3.0", "react": "18"}
-    assert planned["peerDependencies"] == {"idfkit": "0.0.0"}
+    assert planned["dependencies"] == {"@idfkit/core": "0.3.0", "@idfkit/language": "0.3.0", "@idfkit/idfkit": "0.3.0", "react": "18"}
+    assert planned["peerDependencies"] == {"@idfkit/idfkit": "0.0.0"}
     assert half_adopted(planned) == []
 
 
 def test_a_release_cannot_be_half_adopted() -> None:
-    assert half_adopted({"dependencies": {"@idfkit/core": "0.3.0", "idfkit": "0.2.0"}}) == ["@idfkit/core@0.3.0", "idfkit@0.2.0"]
+    assert half_adopted({"dependencies": {"@idfkit/core": "0.3.0", "@idfkit/idfkit": "0.2.0"}}) == ["@idfkit/core@0.3.0", "@idfkit/idfkit@0.2.0"]
 
 
 def test_waves_refuse_a_cycle() -> None:

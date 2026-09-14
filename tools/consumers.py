@@ -56,11 +56,16 @@ FORMATTING_ANSWERS = frozenset({"yes", "no", "inherited", "not-applicable"})
 #: release across every workspace package at one version (`npm version --workspaces` in
 #: idfkit-js/publish.yml), so the shared name and every scoped package carry the same number for the
 #: same release. That is what makes FR-039's "one level across both doors" an observation.
+#:
+#: The second language's facade is `@idfkit/idfkit`, not `idfkit`: npm's similarity filter refused the
+#: unscoped name (2026-09-14). It sits inside the `@idfkit` scope beside the components, so the
+#: shared-name door is told apart from the scoped one by this exact name, never by the scope prefix.
+FACADE_PACKAGE = "@idfkit/idfkit"
 GOVERNED_PACKAGES: Mapping[str, frozenset[str]] = {
     "python": frozenset({"idfkit"}),
-    "javascript": frozenset({"idfkit", "@idfkit/core", "@idfkit/schemas", "@idfkit/weather", "@idfkit/language"}),
+    "javascript": frozenset({FACADE_PACKAGE, "@idfkit/core", "@idfkit/schemas", "@idfkit/weather", "@idfkit/language"}),
 }
-SCOPED_PACKAGES = GOVERNED_PACKAGES["javascript"] - {"idfkit"}
+SCOPED_PACKAGES = GOVERNED_PACKAGES["javascript"] - {FACADE_PACKAGE}
 
 #: Placed outside the unification by the constitution. Recorded where a consumer resolves them, so a
 #: coordinated bump can see them, and acted on by no gate (FR-041).
@@ -484,7 +489,9 @@ def iter_manifests(root: Path) -> Iterator[Path]:
 def detect_text(path: str, text: str) -> list[Detected]:
     """Every dependency on a package this register cares about, in one manifest's text."""
     name = path.rsplit("/", 1)[-1]
-    interesting = GOVERNED_PACKAGES["python"] | GOVERNED_PACKAGES["javascript"] | OUT_OF_SCOPE_PACKAGES | set(DELIVERED_PACKAGES)
+    # An npm manifest is read for npm names only. `idfkit` there is not the Python library, and since the
+    # facade moved into the scope it is not the facade either.
+    interesting = GOVERNED_PACKAGES["javascript"] | OUT_OF_SCOPE_PACKAGES | set(DELIVERED_PACKAGES)
     found: list[Detected] = []
     try:
         document = parse_document(path, text)
@@ -535,12 +542,12 @@ def detected_entry_point(detections: Sequence[Detected]) -> str | None:
     """Which door a second-language manifest came through, read from what it depends on at run time.
 
     An optional peer on the shared name does not make a consumer a shared-name consumer: the lsp
-    model server peers on `idfkit` so that it can report what to install, and imports only scoped
+    model server peers on `@idfkit/idfkit` so that it can report what to install, and imports only scoped
     packages. What the code resolves decides the door.
     """
     runtime = {d.package for d in detections if d.section == "dependencies"}
     if runtime & SCOPED_PACKAGES:
         return "scoped"
-    if "idfkit" in runtime:
+    if FACADE_PACKAGE in runtime:
         return "shared-name"
     return None
