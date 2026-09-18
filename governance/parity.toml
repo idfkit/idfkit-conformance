@@ -936,25 +936,43 @@ names      = [
   "the vector image surface",
 ]
 
-# TypeScript: @idfkit/viewer, installed by its own name. Built outside this feature, and
-#             deliberately NOT reserved on the facade's export map or in the naming register: the
-#             renderer is not reachable through the shared install name (FR-078, data-model.md).
+# TypeScript: @idfkit/viewer WOULD be installed by its own name, and is not built. Deliberately NOT
+#             reserved on the facade's export map or in the naming register: the renderer is not
+#             reachable through the shared install name (FR-078, data-model.md).
 [[capability]]
 id         = "scene-rendering"
 title      = "Rendering a three-dimensional scene"
 tier       = "never"
 python     = "absent"
-typescript = "complete"
+typescript = "absent"
 absence_kind = "never"
 note       = """
-Delivered by @idfkit/viewer, installed by its own name like the simulation engine, and NOT reachable
-through the shared install name: no subpath, no dependency, no export-map entry, and no reserved
-name in the naming register. A reader reaches it by installing it explicitly, and the documentation
-says so rather than implying the facade carries it.
+NOT BUILT IN EITHER LANGUAGE. This row read `typescript = "complete"` from the day it was written,
+and no @idfkit/viewer has ever existed: not in idfkit-js/packages, not on the registry, and not in
+the dependencies of the consumer that would use it. The state is corrected here; the tier, the
+reasoning and the placement are unchanged, because those were decisions and only the state was an
+error.
+
+The row draws two distinctions and a reader needs both. **Not part of the shared surface**: were the
+renderer built, it would be installed by its own name like the simulation engine, with no subpath,
+no dependency, no export-map entry and no reserved name in the naming register. A reader would reach
+it by installing it explicitly, and the documentation would say so rather than implying the facade
+carries it. **Does not exist**: today there is nothing to install. The first is a decision and is
+terminal; the second is a fact about the present, and stating only the first would leave a reader
+looking for a package.
+
+`absence_kind` stays `never` because it describes this capability's relation to the shared surface,
+which is what `tier = "never"` fixes and what a constitutional amendment would be needed to move. It
+is not a forecast that no renderer will ever be written. Anyone who writes one writes it outside the
+unification, and this row does not change when they do.
 
 Python has no counterpart and is not getting one. A real-time interactive scene needs a rendering
 context that a Python process does not have, and Python's static vector output is a different
 mechanism serving a different workflow: see `svg-visualisation`. Neither is a gap in the other.
+
+Reading a model's geometry is a different capability and is governed: see `geometry-extraction`. A
+consumer drawing a scene of its own reads the coordinates from there and renders them itself, which
+is what the consumer specified against this row is doing.
 """
 # No `names`: @idfkit/viewer is deliberately absent from the naming register, which says so in
 # its reserved-package section. Registering a concept for it here would imply the shared surface
