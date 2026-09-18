@@ -206,30 +206,14 @@ expected  = '''The casing the schema declares for each choice: "Counterclockwise
 # ---------------------------------------------------------------------------
 # versions
 # ---------------------------------------------------------------------------
-
-[[divergence]]
-case      = "versions-late-version-object"
-library   = "python"
-assertion = "parse-outcome"
-issue     = "https://github.com/idfkit/idfkit/issues/185"
-observed  = '''Reading raises VersionNotFoundError: "Could not detect EnergyPlus version in file". _detect_version in idfkit/idf_parser.py slices header = content[:10240] and runs _VERSION_PATTERN over that prefix only, and get_idf_version (line 641) reads f.read(10240) the same way. The Version object in this input sits at byte 10502, so the detector never sees it. The bootstrap sweep hit this on three real example files, including RefBldgPrimarySchoolNew2004_Chicago.idf.'''
-expected  = '''Reading succeeds and the document reports version 26.1.0, wherever in the file the Version object sits. The TypeScript core detectVersion returns "26.1.0" on this same input, and ConvertInputFormat converts it without complaint. A fixed-size window is not a version detector.'''
-
-[[divergence]]
-case      = "versions-late-version-object"
-library   = "python"
-assertion = "epjson"
-issue     = "https://github.com/idfkit/idfkit/issues/185"
-observed  = '''Nothing to compare: the read raised VersionNotFoundError, so no document and no epJSON were produced. This entry is downstream of the parse-outcome entry on the same case and disappears with it.'''
-expected  = '''The epJSON equals expected.epJSON: "Version": {"Version 1": {"version_identifier": "26.1"}} alongside Building/Conformance and GlobalGeometryRules 1. That expectation is byte-identical to versions-26-1-0/expected.epJSON, so the ten-kilobyte comment header changes nothing about the document.'''
-
-[[divergence]]
-case      = "versions-late-version-object"
-library   = "python"
-assertion = "round-trip"
-issue     = "https://github.com/idfkit/idfkit/issues/185"
-observed  = '''Nothing to compare: the read raised VersionNotFoundError before any document existed to write back. Downstream of the parse-outcome entry on the same case.'''
-expected  = '''Re-parsing Python's own IDF output deep-equals the original document, Version object included.'''
+#
+# The four python entries on `versions-late-version-object` were removed on 2026-09-18, in the
+# change that fixed the detector (idfkit#210, closing idfkit#185). All four went together because
+# all four were the same refusal: the read raised, so there was no document for the epjson,
+# round-trip and preserved-text assertions to compare. Fixing the parse made all four pass at once,
+# and a passing case with an entry still standing is a failure the runner reports, so the entries
+# go with the fix rather than after it. This section is now empty, and is kept so that the next
+# version divergence has a place rather than a precedent to invent.
 
 # ---------------------------------------------------------------------------
 # preserved-text: the absence ended, and its 46 entries went with it
@@ -260,17 +244,10 @@ expected  = '''Re-parsing Python's own IDF output deep-equals the original docum
 # case surface the same two bugs a third and a fourth time, and an entry that names the issue
 # already tracking them is the honest record. Fixing 185 and 187 makes both stale together with
 # their siblings.
-
-[[divergence]]
-case      = "versions-late-version-object"
-library   = "python"
-assertion = "preserved-text"
-issue     = "https://github.com/idfkit/idfkit/issues/185"
-observed  = '''The read fails before there is anything to preserve, so the assertion has nothing to
-compare: "the input did not parse, so the library produced nothing to compare". The same refusal is
-already recorded against this case on parse-outcome, epjson and round-trip.'''
-expected  = '''The Version statement is found behind the ten-kilobyte comment header, the file is
-read, and the preserving write of it equals it byte for byte.'''
+#
+# 185 is now fixed and its entry here went with the rest of its siblings, which is what the
+# sentence above predicted. 187 is still open, so its two entries below stay. The paragraph is kept
+# rather than rewritten, because it named the condition correctly before either bug was fixed.
 
 [[divergence]]
 case      = "preserve-unterminated-final"
