@@ -734,6 +734,16 @@ Registered before it is written. The one member of this group that mutates the d
 relative surface coordinates in place and updates `GlobalGeometryRules`. It is registered with the
 extraction group because every calculation below depends on knowing which coordinate system it is
 reading.
+
+The first language's implementation of this name is wrong and is corrected by the change that lands
+the scene description above. Measured against the engine's own surface vertex report over 17 models
+and 532 surfaces, it agrees on 5 of the 17, worst case 201.98 m. It applies the building rotation to
+each surface within its own zone frame, which leaves the zone layout unrotated so that the building
+is not rotated as a rigid body, and it collects a zone's surfaces through the reference graph, which
+fenestration never matches because a window references its parent wall rather than the zone.
+
+Recorded here rather than only in the library, because a reader meets this name at its definition
+and because the register presents this function and the read-only surface above as one capability.
 """
 rename_count = { python = 0, typescript = 0 }
 
@@ -1927,6 +1937,140 @@ python     = "calculate_zone_volume"
 typescript = "calculateZoneVolume"
 kind       = "aligned"
 notes      = "Registered before it is written, with the geometry extraction group above."
+rename_count = { python = 0, typescript = 0 }
+
+# ---------------------------------------------------------------------------
+# Entries: the scene description, registered before either language implements it
+# ---------------------------------------------------------------------------
+#
+# What extraction returns. Registered ahead of both implementations for the reason FR-007 gives
+# everywhere else in this file, and for one more that is particular to this concept: it is the
+# object that crosses the boundary between a geometry package in both languages and a renderer that
+# exists in only one. A shape named by whichever side is written first is a shape the other side
+# adapts to, and an adapter reshaping one representation into another is the parallel
+# representation Principle II exists to prevent.
+#
+# New in both languages rather than ported. The first language's nearest equivalent is a private
+# dataclass behind its plotly renderer which reads none of the fields that decide where a surface
+# is; the second language has no geometry package at all. So nothing here is transcription, and the
+# names are decided before either implementation can decide them under schedule pressure.
+#
+# Specified in idfkit-unification/specs/009-geometry-extraction/data-model.md.
+
+[[entry]]
+concept    = "a model's resolved geometry"
+python     = "get_scene"
+typescript = "getScene"
+kind       = "aligned"
+notes      = """
+Registered before it is written. Takes a document, returns the scene, modifies nothing. Follows the
+`get_*` to `get*` pairing of the geometry extraction group above, which the `a zone's surfaces`
+entry also cites.
+
+One argument and no options. A filter over the result is a list operation the caller already has,
+and a viewing option would put a viewing decision in a package that does not draw.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "the resolved scene"
+python     = "Scene"
+typescript = "Scene"
+kind       = "aligned"
+notes      = """
+Registered before it is written. Carries the resolved surfaces in document order, the extent, the
+rules resolution applied, the objects it could not resolve, and the object types it did not attempt.
+
+The last two are not diagnostics. A model whose geometry is stated in a form the reader does not
+handle must be distinguishable from a model with no geometry, and the difference between them is
+the difference between telling a reader their file is unsupported and telling them it is broken.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "a resolved surface"
+python     = "ResolvedSurface"
+typescript = "ResolvedSurface"
+kind       = "aligned"
+notes      = """
+Registered before it is written. One surface in the scene: its polygon in the resolved frame, its
+area, its outward normal, the address of the object it came from, the facts a reader classifies it
+by, and for fenestration the surface it sits on.
+
+Carries the canonical object type alongside the name, because a name is not unique across types and
+a consumer that must search the document by name to discover what its user selected has been handed
+a picture rather than a view of the model.
+
+Classification values drawn from an enumerated schema field are reported in the schema's spelling
+rather than the author's. EnergyPlus matches them without regard to case and models exercise that
+freely: across the example set of EnergyPlus 26.1.0 the four surface types appear under twelve
+spellings and the five fenestration types under nine, `GLASSDOOR` and `GlassDoor` among them. A
+value outside the enumeration passes through unchanged, because a category invented for it would
+tell the reader something the model does not say.
+
+Carries no colour, palette or visibility. The first language's viewing surface is registered
+separately as excluded, and that exclusion is terminal.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "the rules resolution applied"
+python     = "AppliedRules"
+typescript = "AppliedRules"
+kind       = "aligned"
+notes      = """
+Registered before it is written. The coordinate system, the vertex entry direction, the starting
+vertex position and the building rotation, each recorded as declared by the model or defaulted.
+
+The building rotation is recorded although it has already been applied to the vertices. That is
+what makes the choice reversible: the scene's numbers are the numbers the engine computes, so the
+oracle means what it says, and a consumer wanting to draw the building unrotated under a compass
+can undo it exactly rather than reimplementing the clause most easily got wrong.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "the scene's extent"
+python     = "SceneBounds"
+typescript = "SceneBounds"
+kind       = "aligned"
+notes      = """
+Registered before it is written. The smallest box enclosing every resolved vertex, absent rather
+than degenerate when nothing resolved, so that a consumer does not frame an empty box at the origin.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "a surface that could not be resolved"
+python     = "UnresolvedObject"
+typescript = "UnresolvedObject"
+kind       = "aligned"
+notes      = """
+Registered before it is written. An object extraction attempted and could not place, with its type,
+its name and an enumerated reason.
+
+The reason is an enumeration rather than a message, so that a consumer can group on it and a
+reworded string does not change behaviour. The alternative this replaces is the first language's
+current habit of skipping such an object silently in three places, which is fine in a notebook and
+wrong everywhere else: a building drawn with a wall missing still looks like a building.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "a geometry type the reader did not attempt"
+python     = "UnattemptedType"
+typescript = "UnattemptedType"
+kind       = "aligned"
+notes      = """
+Registered before it is written. An object type present in the model that the reader does not read,
+with its count.
+
+This is the mechanism by which a deferral stays honest. The first slice of this port reads the
+detailed surface forms and not the simplified family; five of the example models state their
+geometry only in the simplified forms and hold no detailed surface at all. Without this entry those
+five report as empty, which tells a reader their file is broken rather than that this reader does
+not read it yet.
+"""
 rename_count = { python = 0, typescript = 0 }
 
 # ---------------------------------------------------------------------------
