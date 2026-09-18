@@ -1,0 +1,104 @@
+{
+  "why": [
+    "The contract between the two ring comparators. test_ring.py asserts that the Python one returns",
+    "exactly the errors this table records, and test-ring.mjs asserts the same of the JavaScript one,",
+    "so a case added here constrains both implementations.",
+    "",
+    "The ring is rotation-insensitive and orientation-SENSITIVE. That asymmetry is the whole point:",
+    "the engine renormalises every reported surface to an upper-left start, so a rotation carries no",
+    "information, while a reversal is exactly the difference the clockwise entry clause exists to",
+    "produce. A comparator that also minimised over the reversal would pass a model resolved inside",
+    "out, and checks/geometry-vertices/check.md would be asserting something it does not check.",
+    "",
+    "Coordinates are metres. The base ring is a 4 m by 3 m rectangle in the y = 0 plane, so its",
+    "sides are 3 and 4 and its diagonal is 5, and every expected error below can be read off by hand."
+  ],
+  "tolerance_m": 0.005,
+  "cases": [
+    {
+      "name": "identical",
+      "resolved": [[0, 0, 0], [0, 0, 3], [4, 0, 3], [4, 0, 0]],
+      "reported": [[0, 0, 0], [0, 0, 3], [4, 0, 3], [4, 0, 0]],
+      "error": 0.0,
+      "within_tolerance": true,
+      "note": "the trivial case, present so a comparator that always returns zero is not the only thing this table forbids"
+    },
+    {
+      "name": "rotated by one",
+      "resolved": [[0, 0, 3], [4, 0, 3], [4, 0, 0], [0, 0, 0]],
+      "reported": [[0, 0, 0], [0, 0, 3], [4, 0, 3], [4, 0, 0]],
+      "error": 0.0,
+      "within_tolerance": true,
+      "note": "the same ring starting elsewhere. THIS MUST PASS: it is what the engine's renormalisation produces"
+    },
+    {
+      "name": "rotated by two",
+      "resolved": [[4, 0, 3], [4, 0, 0], [0, 0, 0], [0, 0, 3]],
+      "reported": [[0, 0, 0], [0, 0, 3], [4, 0, 3], [4, 0, 0]],
+      "error": 0.0,
+      "within_tolerance": true
+    },
+    {
+      "name": "reversed",
+      "resolved": [[4, 0, 0], [4, 0, 3], [0, 0, 3], [0, 0, 0]],
+      "reported": [[0, 0, 0], [0, 0, 3], [4, 0, 3], [4, 0, 0]],
+      "error": 3.0,
+      "within_tolerance": false,
+      "note": "THIS MUST FAIL. The same four vertices wound the other way, best-aligned at 3 m, which is the rectangle's short side"
+    },
+    {
+      "name": "reversed and rotated",
+      "resolved": [[0, 0, 3], [0, 0, 0], [4, 0, 0], [4, 0, 3]],
+      "reported": [[0, 0, 0], [0, 0, 3], [4, 0, 3], [4, 0, 0]],
+      "error": 3.0,
+      "within_tolerance": false,
+      "note": "a reversal is still a reversal after any rotation, so rotating one cannot rescue it"
+    },
+    {
+      "name": "displaced within tolerance",
+      "resolved": [[0.003, 0, 0], [0.003, 0, 3], [4.003, 0, 3], [4.003, 0, 0]],
+      "reported": [[0, 0, 0], [0, 0, 3], [4, 0, 3], [4, 0, 0]],
+      "error": 0.003,
+      "within_tolerance": true,
+      "note": "3 mm, inside the half-of-the-last-printed-place the report can express"
+    },
+    {
+      "name": "displaced beyond tolerance",
+      "resolved": [[0.01, 0, 0], [0.01, 0, 3], [4.01, 0, 3], [4.01, 0, 0]],
+      "reported": [[0, 0, 0], [0, 0, 3], [4, 0, 3], [4, 0, 0]],
+      "error": 0.01,
+      "within_tolerance": false,
+      "note": "1 cm, which the report would have printed"
+    },
+    {
+      "name": "one vertex out",
+      "resolved": [[0, 0, 0], [0, 0, 3], [4, 0, 3], [4, 2, 0]],
+      "reported": [[0, 0, 0], [0, 0, 3], [4, 0, 3], [4, 0, 0]],
+      "error": 2.0,
+      "within_tolerance": false,
+      "note": "the error is the WORST vertex and not the mean, so one bad corner cannot be averaged away by three good ones"
+    },
+    {
+      "name": "triangle rotated",
+      "resolved": [[0, 0, 4], [3, 0, 0], [0, 0, 0]],
+      "reported": [[0, 0, 0], [0, 0, 4], [3, 0, 0]],
+      "error": 0.0,
+      "within_tolerance": true,
+      "note": "rings are not all four-sided; the corpus holds 3-sided and 4-sided surfaces and the format permits more"
+    }
+  ],
+  "rejected": [
+    {
+      "name": "different lengths",
+      "resolved": [[0, 0, 0], [0, 0, 3], [4, 0, 3]],
+      "reported": [[0, 0, 0], [0, 0, 3], [4, 0, 3], [4, 0, 0]],
+      "note": "a disagreement about the surface rather than about where it is. Comparing the three against any three of the four would report a small error for a missing corner"
+    },
+    {
+      "name": "empty",
+      "resolved": [],
+      "reported": [],
+      "note": "an empty ring has no error to report, and returning zero for it would make a surface with no vertices agree with everything"
+    }
+  ]
+}

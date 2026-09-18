@@ -18,6 +18,7 @@ criterion and is what arrived first:
 | Reading a file from disk | still open; the runners hand each library a string |
 | Retrieving weather | still open; resolving a station is not a document |
 | Computing figures from a weather file | **`weather-monthly`**, below |
+| Resolving a surface's coordinates | **`geometry-vertices`**, below |
 
 ## What a check owes
 
@@ -27,11 +28,16 @@ carries its own fixtures and its own committed expectations.
 
 **The oracle rule is the corpus's, unchanged.** An expectation is produced by something that is not
 either library. `cases/` uses `ConvertInputFormat`; `weather-monthly` uses the EnergyPlus Weather
-Converter's own summary of the same file. A check whose expectation came from a library under test
-proves nothing and does not belong here.
+Converter's own summary of the same file; `geometry-vertices` uses EnergyPlus's own report of where
+it put each surface. A check whose expectation came from a library under test proves nothing and
+does not belong here.
 
 ## Checks
 
 - **`weather-monthly`**: each library's monthly means from an EPW against the Weather Converter's
   summary of the same archive, plus the reserved-value table both libraries read. 288 comparisons
   over six stations, and one sentinel-bearing file the six cannot substitute for.
+- **`geometry-vertices`**: each library's resolved surface coordinates against the vertex report
+  EnergyPlus writes after applying the coordinate system, the zone origin, the zone's relative north
+  and the building's north axis. 295 surfaces over seven models, each model present for one
+  behaviour it isolates, compared as rings within 0.005 m.
