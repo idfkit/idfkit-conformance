@@ -50,22 +50,41 @@ Per surface, the resolved polygon against the reported polygon:
 - **Orientation preserved.** Reversing a ring is a real difference, and it is the difference the
   clockwise clause exists to produce. The comparison takes the smallest maximum vertex error over
   the cyclic rotations of the ring and never over its reversal.
-- **Tolerance 0.005 m**, derived rather than chosen. The report prints two decimals, so half the
-  last printed place is the finest agreement the authority can express. Stated here with its
-  derivation so that a later reader does not tighten it and wonder why it fails.
+- **Tolerance 0.005 m, per coordinate**, derived rather than chosen. The report prints each
+  coordinate to two decimals, so half the last printed place is the finest agreement the authority
+  can express about one number. The comparison is therefore the largest disagreement on any single
+  coordinate and **not the distance between the two points**: Euclidean distance mixes three
+  independently rounded numbers, and three coordinates each a legal 0.005 out give a distance of
+  0.00866, over the tolerance without a single coordinate disagreeing by more than the report can
+  state. That is not theoretical. Comparing by distance failed 44 of the 234 surfaces here, every
+  one of them between 0.0054 and 0.0073 m; per coordinate all 234 pass. Stated with its derivation
+  so that a later reader neither tightens it nor reaches for a distance.
 
 Fenestration additionally compares its parent surface name against the report's base surface column,
 which is how the oracle states a window's parent.
 
-## The mirrors, and why they are not in the expectations
+## The engine's own surfaces, and why they are not in the expectations
 
-EnergyPlus creates a mirrored twin of every detailed shading surface so that it shades from both
-sides, names it `Mir-<original>`, and reports it beside the original. It is the engine's own object
-and not the model's, so no extractor should produce it and `regenerate.py` drops it.
+The report describes the surfaces EnergyPlus **ended up with**, which is not the set the model
+states. Three kinds of row are the engine's rather than the model's, and no extractor should produce
+any of them.
 
-**The number dropped is written into each expectation's header** rather than left silent, so the
-exclusion is auditable from the expectation alone. Across the set it is 36 rows, and it is why the
-engine reports 331 surfaces for these seven models where 295 are under expectation.
+| row | what it is | where |
+| --- | ---------- | ----- |
+| `Mir-<name>` | a mirrored twin of a detailed shading surface, so it shades from both sides | 36 rows across the set |
+| `iz-<name>` | the reciprocal of a surface whose outside boundary condition is `Zone` rather than `Surface`: the model names the adjacent zone and the engine synthesises the other side of the wall, same vertices wound the other way | 2 rows, `lower-left-start` |
+| no vertices | `InternalMass` states a surface area and a construction and no geometry at all, and is reported with `#Sides` of zero | 14 rows across the set |
+
+**Every count is written into each expectation's header** rather than left silent, so each exclusion
+is auditable from the expectation alone.
+
+`regenerate.py` recognises the first two by the engine's own naming conventions and **deliberately
+does not parse the model** to decide what is in it. Using a library under test to shape an
+expectation is how an oracle stops being one. No fixture declares a surface under either prefix.
+
+Together they are 52 rows, and they are why the engine reports 331 surfaces for these seven models
+where 279 are under expectation. The specification's 331 was right about the report and wrong about
+what an extractor should produce.
 
 ## The fixtures
 
@@ -86,10 +105,10 @@ Each fixture is a byte-for-byte copy of the example file it came from, gzipped. 
 requested by `regenerate.py` appending the object before the run, so that a reader can diff a fixture
 against the original and find nothing.
 
-**Sizes, measured rather than asserted.** Models 87.4 kB gzipped, expectations 38.6 kB plain text,
-126 kB in total.
+**Sizes, measured rather than asserted.** Models 87.4 kB gzipped, expectations 38.1 kB plain text,
+125 kB in total.
 
-Expectations are committed as plain text and not compressed. 295 rows are readable in a diff, and a
+Expectations are committed as plain text and not compressed. 279 rows are readable in a diff, and a
 check whose expectations cannot be read is a check nobody audits. Only the models are gzipped, being
 copies of files that exist elsewhere. Gzip and not xz or brotli, for the reason `weather-monthly`
 recorded: it is the only compression both standard libraries decode, and the runners take no
@@ -97,7 +116,7 @@ dependency.
 
 **The set does not grow without a reason recorded here.** The first such reason is already on the
 record: the feature that specified this check estimated 94 kB, counting the expectations at their
-gzipped size while committing them uncompressed, and counting the engine's mirrored shading surfaces
+gzipped size while committing them uncompressed, and counting the engine's own generated surfaces
 among the 331 it expected to hold. The measured figures above are what the set actually is. Neither
 number changed the design, and the estimate is left in the specification rather than quietly
 corrected, because a check that restates its own past figures is a check whose history cannot be

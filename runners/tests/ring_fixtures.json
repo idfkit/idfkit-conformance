@@ -11,87 +11,548 @@
     "out, and checks/geometry-vertices/check.md would be asserting something it does not check.",
     "",
     "Coordinates are metres. The base ring is a 4 m by 3 m rectangle in the y = 0 plane, so its",
-    "sides are 3 and 4 and its diagonal is 5, and every expected error below can be read off by hand."
+    "sides are 3 and 4 and its diagonal is 5, and every expected error below can be read off by hand.",
+    "",
+    "The per-vertex error is the largest disagreement on any ONE COORDINATE, not the distance",
+    "between the two points. The oracle prints each coordinate to two decimals, so the tolerance is",
+    "half the last printed place of one number; Euclidean distance mixes three independent",
+    "roundings and reads 0.00866 where no coordinate is further out than the report can express.",
+    "The 'rounded in three axes' case below is the one that tells the two apart."
   ],
   "tolerance_m": 0.005,
   "cases": [
     {
       "name": "identical",
-      "resolved": [[0, 0, 0], [0, 0, 3], [4, 0, 3], [4, 0, 0]],
-      "reported": [[0, 0, 0], [0, 0, 3], [4, 0, 3], [4, 0, 0]],
+      "resolved": [
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          3
+        ],
+        [
+          4,
+          0,
+          3
+        ],
+        [
+          4,
+          0,
+          0
+        ]
+      ],
+      "reported": [
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          3
+        ],
+        [
+          4,
+          0,
+          3
+        ],
+        [
+          4,
+          0,
+          0
+        ]
+      ],
       "error": 0.0,
       "within_tolerance": true,
       "note": "the trivial case, present so a comparator that always returns zero is not the only thing this table forbids"
     },
     {
       "name": "rotated by one",
-      "resolved": [[0, 0, 3], [4, 0, 3], [4, 0, 0], [0, 0, 0]],
-      "reported": [[0, 0, 0], [0, 0, 3], [4, 0, 3], [4, 0, 0]],
+      "resolved": [
+        [
+          0,
+          0,
+          3
+        ],
+        [
+          4,
+          0,
+          3
+        ],
+        [
+          4,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0
+        ]
+      ],
+      "reported": [
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          3
+        ],
+        [
+          4,
+          0,
+          3
+        ],
+        [
+          4,
+          0,
+          0
+        ]
+      ],
       "error": 0.0,
       "within_tolerance": true,
       "note": "the same ring starting elsewhere. THIS MUST PASS: it is what the engine's renormalisation produces"
     },
     {
       "name": "rotated by two",
-      "resolved": [[4, 0, 3], [4, 0, 0], [0, 0, 0], [0, 0, 3]],
-      "reported": [[0, 0, 0], [0, 0, 3], [4, 0, 3], [4, 0, 0]],
+      "resolved": [
+        [
+          4,
+          0,
+          3
+        ],
+        [
+          4,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          3
+        ]
+      ],
+      "reported": [
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          3
+        ],
+        [
+          4,
+          0,
+          3
+        ],
+        [
+          4,
+          0,
+          0
+        ]
+      ],
       "error": 0.0,
       "within_tolerance": true
     },
     {
       "name": "reversed",
-      "resolved": [[4, 0, 0], [4, 0, 3], [0, 0, 3], [0, 0, 0]],
-      "reported": [[0, 0, 0], [0, 0, 3], [4, 0, 3], [4, 0, 0]],
+      "resolved": [
+        [
+          4,
+          0,
+          0
+        ],
+        [
+          4,
+          0,
+          3
+        ],
+        [
+          0,
+          0,
+          3
+        ],
+        [
+          0,
+          0,
+          0
+        ]
+      ],
+      "reported": [
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          3
+        ],
+        [
+          4,
+          0,
+          3
+        ],
+        [
+          4,
+          0,
+          0
+        ]
+      ],
       "error": 3.0,
       "within_tolerance": false,
       "note": "THIS MUST FAIL. The same four vertices wound the other way, best-aligned at 3 m, which is the rectangle's short side"
     },
     {
       "name": "reversed and rotated",
-      "resolved": [[0, 0, 3], [0, 0, 0], [4, 0, 0], [4, 0, 3]],
-      "reported": [[0, 0, 0], [0, 0, 3], [4, 0, 3], [4, 0, 0]],
+      "resolved": [
+        [
+          0,
+          0,
+          3
+        ],
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          4,
+          0,
+          0
+        ],
+        [
+          4,
+          0,
+          3
+        ]
+      ],
+      "reported": [
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          3
+        ],
+        [
+          4,
+          0,
+          3
+        ],
+        [
+          4,
+          0,
+          0
+        ]
+      ],
       "error": 3.0,
       "within_tolerance": false,
       "note": "a reversal is still a reversal after any rotation, so rotating one cannot rescue it"
     },
     {
       "name": "displaced within tolerance",
-      "resolved": [[0.003, 0, 0], [0.003, 0, 3], [4.003, 0, 3], [4.003, 0, 0]],
-      "reported": [[0, 0, 0], [0, 0, 3], [4, 0, 3], [4, 0, 0]],
+      "resolved": [
+        [
+          0.003,
+          0,
+          0
+        ],
+        [
+          0.003,
+          0,
+          3
+        ],
+        [
+          4.003,
+          0,
+          3
+        ],
+        [
+          4.003,
+          0,
+          0
+        ]
+      ],
+      "reported": [
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          3
+        ],
+        [
+          4,
+          0,
+          3
+        ],
+        [
+          4,
+          0,
+          0
+        ]
+      ],
       "error": 0.003,
       "within_tolerance": true,
       "note": "3 mm, inside the half-of-the-last-printed-place the report can express"
     },
     {
       "name": "displaced beyond tolerance",
-      "resolved": [[0.01, 0, 0], [0.01, 0, 3], [4.01, 0, 3], [4.01, 0, 0]],
-      "reported": [[0, 0, 0], [0, 0, 3], [4, 0, 3], [4, 0, 0]],
+      "resolved": [
+        [
+          0.01,
+          0,
+          0
+        ],
+        [
+          0.01,
+          0,
+          3
+        ],
+        [
+          4.01,
+          0,
+          3
+        ],
+        [
+          4.01,
+          0,
+          0
+        ]
+      ],
+      "reported": [
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          3
+        ],
+        [
+          4,
+          0,
+          3
+        ],
+        [
+          4,
+          0,
+          0
+        ]
+      ],
       "error": 0.01,
       "within_tolerance": false,
       "note": "1 cm, which the report would have printed"
     },
     {
       "name": "one vertex out",
-      "resolved": [[0, 0, 0], [0, 0, 3], [4, 0, 3], [4, 2, 0]],
-      "reported": [[0, 0, 0], [0, 0, 3], [4, 0, 3], [4, 0, 0]],
+      "resolved": [
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          3
+        ],
+        [
+          4,
+          0,
+          3
+        ],
+        [
+          4,
+          2,
+          0
+        ]
+      ],
+      "reported": [
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          3
+        ],
+        [
+          4,
+          0,
+          3
+        ],
+        [
+          4,
+          0,
+          0
+        ]
+      ],
       "error": 2.0,
       "within_tolerance": false,
       "note": "the error is the WORST vertex and not the mean, so one bad corner cannot be averaged away by three good ones"
     },
     {
       "name": "triangle rotated",
-      "resolved": [[0, 0, 4], [3, 0, 0], [0, 0, 0]],
-      "reported": [[0, 0, 0], [0, 0, 4], [3, 0, 0]],
+      "resolved": [
+        [
+          0,
+          0,
+          4
+        ],
+        [
+          3,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0
+        ]
+      ],
+      "reported": [
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          4
+        ],
+        [
+          3,
+          0,
+          0
+        ]
+      ],
       "error": 0.0,
       "within_tolerance": true,
       "note": "rings are not all four-sided; the corpus holds 3-sided and 4-sided surfaces and the format permits more"
+    },
+    {
+      "name": "rounded in three axes",
+      "resolved": [
+        [
+          0.003,
+          0.003,
+          0.003
+        ],
+        [
+          0.003,
+          0.003,
+          3.003
+        ],
+        [
+          4.003,
+          0.003,
+          3.003
+        ],
+        [
+          4.003,
+          0.003,
+          0.003
+        ]
+      ],
+      "reported": [
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          3
+        ],
+        [
+          4,
+          0,
+          3
+        ],
+        [
+          4,
+          0,
+          0
+        ]
+      ],
+      "error": 0.003,
+      "within_tolerance": true,
+      "note": "THE DISCRIMINATING CASE. Euclidean distance calls this 0.0052 and fails it; per coordinate it is 0.003 and passes. Every coordinate is inside what two printed decimals can express, so there is no disagreement to report"
     }
   ],
   "rejected": [
     {
       "name": "different lengths",
-      "resolved": [[0, 0, 0], [0, 0, 3], [4, 0, 3]],
-      "reported": [[0, 0, 0], [0, 0, 3], [4, 0, 3], [4, 0, 0]],
+      "resolved": [
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          3
+        ],
+        [
+          4,
+          0,
+          3
+        ]
+      ],
+      "reported": [
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          3
+        ],
+        [
+          4,
+          0,
+          3
+        ],
+        [
+          4,
+          0,
+          0
+        ]
+      ],
       "note": "a disagreement about the surface rather than about where it is. Comparing the three against any three of the four would report a small error for a missing corner"
     },
     {

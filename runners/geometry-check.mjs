@@ -75,11 +75,23 @@ export class Unusable extends Error {}
 // The ring comparison
 // ---------------------------------------------------------------------------
 
-/** Euclidean distance between two vertices. */
-export function distance(one, other) {
-  let total = 0;
-  for (let axis = 0; axis < 3; axis += 1) total += (one[axis] - other[axis]) ** 2;
-  return Math.sqrt(total);
+/**
+ * The largest disagreement on any one coordinate, not the distance between the two points.
+ *
+ * PER COORDINATE, BECAUSE THAT IS WHAT THE ORACLE STATES.
+ *
+ * The report prints each coordinate to two decimals, so the tolerance is half the last printed
+ * place of ONE NUMBER. Euclidean distance mixes three independently rounded numbers into one
+ * figure, and three coordinates each a legal 0.005 out give a distance of 0.00866: over the
+ * tolerance without a single coordinate disagreeing by more than the report can express.
+ *
+ * Measured rather than reasoned. Comparing by distance failed 44 of 234 surfaces in the fixture
+ * set, every one of them between 0.0054 and 0.0073 m. Comparing per coordinate passes all 234.
+ */
+export function vertexError(one, other) {
+  let worst = 0;
+  for (let axis = 0; axis < 3; axis += 1) worst = Math.max(worst, Math.abs(one[axis] - other[axis]));
+  return worst;
 }
 
 /**
@@ -99,7 +111,7 @@ export function ringError(resolved, reported) {
   for (let shift = 0; shift < count; shift += 1) {
     let worst = 0;
     for (let at = 0; at < count; at += 1) {
-      worst = Math.max(worst, distance(resolved[(at + shift) % count], reported[at]));
+      worst = Math.max(worst, vertexError(resolved[(at + shift) % count], reported[at]));
     }
     best = Math.min(best, worst);
   }

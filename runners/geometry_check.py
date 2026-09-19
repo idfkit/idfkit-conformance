@@ -51,8 +51,8 @@ import argparse
 import csv
 import gzip
 import importlib
-import math
 import sys
+import tempfile
 from dataclasses import dataclass, field as dataclass_field
 from pathlib import Path
 from typing import Final, Iterator, Sequence
@@ -115,9 +115,22 @@ class Report:
 # ---------------------------------------------------------------------------
 
 
-def distance(one: Vertex, other: Vertex) -> float:
-    """Euclidean distance between two vertices."""
-    return math.sqrt(sum((a - b) ** 2 for a, b in zip(one, other, strict=True)))
+def vertex_error(one: Vertex, other: Vertex) -> float:
+    """The largest disagreement on any one coordinate, not the distance between the two points.
+
+    PER COORDINATE, BECAUSE THAT IS WHAT THE ORACLE STATES.
+
+    The report prints each coordinate to two decimals, so the tolerance below is half the last
+    printed place of ONE NUMBER. Euclidean distance mixes three independently rounded numbers into
+    one figure, and three coordinates each a legal 0.005 out give a distance of 0.00866: over the
+    tolerance without a single coordinate disagreeing by more than the report can express.
+
+    Measured rather than reasoned. Comparing by distance failed 44 of 234 surfaces in the fixture
+    set, every one of them between 0.0054 and 0.0073 m, which is inside that bound and outside the
+    tolerance. Comparing per coordinate passes all 234. The rule under test was never what those
+    failures were about.
+    """
+    return max(abs(a - b) for a, b in zip(one, other, strict=True))
 
 
 def ring_error(resolved: Sequence[Vertex], reported: Sequence[Vertex]) -> float:
@@ -133,7 +146,7 @@ def ring_error(resolved: Sequence[Vertex], reported: Sequence[Vertex]) -> float:
         raise ValueError("an empty ring has no error to report")
     count = len(resolved)
     return min(
-        max(distance(resolved[(at + shift) % count], reported[at]) for at in range(count))
+        max(vertex_error(resolved[(at + shift) % count], reported[at]) for at in range(count))
         for shift in range(count)
     )
 
@@ -222,21 +235,27 @@ def library_module(library: Path):
 def extract(module, model: str) -> list[Extracted]:
     """Resolve one model's geometry with the library under test.
 
-    UNIMPLEMENTED ON PURPOSE, and loudly.
+    The adapter, and only the adapter. Everything the comparison needs is read out of the library's
+    own scene type here, so that the two runners compare a shape the corpus owns rather than one
+    library's spelling.
 
-    The capability this check exists for does not ship yet in either language. Writing the
-    comparison first means the rule is established against committed evidence rather than against
-    whatever the first implementation happens to produce, which is the order the corpus already uses
-    for cases. What is missing here is only the adapter from the library's own scene type to
-    ``Extracted``; everything above and below this function is complete and under test.
-
-    It raises rather than returning an empty list. An empty list would make every fixture compare
-    nothing and the run report success, which is the failure mode a check must never have.
+    The library reads a document from a path, so the committed fixture is written to a temporary
+    file. That is not this check exercising the library's file reading, which the corpus tracks as
+    a separate gap; it is the shortest way to hand it the text.
     """
-    raise Unusable(
-        "the library's scene extraction is not wired into this runner yet. "
-        "This runner is complete apart from this call; see checks/geometry-vertices/check.md"
-    )
+    with tempfile.TemporaryDirectory(prefix="geometry-vertices-") as scratch:
+        path = Path(scratch) / "model.idf"
+        path.write_text(model, encoding=ENCODING)
+        scene = module.get_scene(module.load_idf(path))
+
+    return [
+        Extracted(
+            name=surface.name,
+            vertices=tuple((v.x, v.y, v.z) for v in surface.polygon.vertices),
+            parent_surface=surface.parent_surface or "",
+        )
+        for surface in scene.surfaces
+    ]
 
 
 # ---------------------------------------------------------------------------
