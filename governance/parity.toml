@@ -605,7 +605,8 @@ names      = [
   "the retained source structure",
 ]
 
-# Python: Vector3D, Polygon3D, calculate_surface_area, calculate_surface_azimuth,
+# Python: Vector3D, Polygon3D, get_scene, Scene, ResolvedSurface, AppliedRules, SceneBounds,
+#         UnresolvedObject, UnattemptedType, calculate_surface_area, calculate_surface_azimuth,
 #         calculate_surface_tilt, calculate_zone_floor_area, calculate_zone_ceiling_area,
 #         calculate_zone_height, calculate_zone_volume, polygon_area_2d, polygon_contains_2d,
 #         polygon_intersection_2d, polygon_difference_2d
@@ -630,6 +631,13 @@ names      = [
   "a surface's azimuth",
   "a zone's floor area",
   "a zone's volume",
+  "a model's resolved geometry",
+  "the resolved scene",
+  "a resolved surface",
+  "the rules resolution applied",
+  "the scene's extent",
+  "a surface that could not be resolved",
+  "a geometry type the reader did not attempt",
 ]
 
 # Python: set_wwr, rotate_building, translate_building, scale_building, bounding_box,
