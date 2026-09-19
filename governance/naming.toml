@@ -2047,7 +2047,11 @@ typescript = "UnresolvedObject"
 kind       = "aligned"
 notes      = """
 Registered before it is written. An object extraction attempted and could not place, with its type,
-its name and an enumerated reason.
+its name, an enumerated reason, and the name it pointed at when the reason is a dangling reference.
+
+That last is carried because a reason alone tells a consumer how to group the failure and does not
+tell the reader which wall to go and find. It is absent when nothing was pointed at, as for an
+object whose vertex list is too short.
 
 The reason is an enumeration rather than a message, so that a consumer can group on it and a
 reworded string does not change behaviour. The alternative this replaces is the first language's
