@@ -182,6 +182,11 @@ Stated here rather than left implied, alongside the corpus's other declared cove
   `simplified-only-unread` checks that a library **says so** rather than looking empty, which is the
   whole of the coverage here. Resolving them needs its own rule set, its own fixtures and its own
   oracle rows.
+- **The three per-class detailed forms.** `Wall:Detailed`, `Floor:Detailed` and
+  `RoofCeiling:Detailed` state explicit vertices and would resolve by the rule this check already
+  proves. No fixture holds one, so nothing here constrains them and a library must report them as
+  not attempted rather than read them. Promoting them means a fixture and its oracle rows first,
+  which is the cheapest gap in this list to close.
 - **Models the engine cannot run.** Expectations are generated offline, so a model that will not run
   is a model not chosen. Of 27 sampled while specifying this, 17 produced a report; the failures
   have identifiable causes rather than being arbitrary, being `HVACTemplate:*` without the expansion
