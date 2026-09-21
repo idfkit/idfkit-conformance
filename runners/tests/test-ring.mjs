@@ -20,7 +20,7 @@ import { dirname, join } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-import { TOLERANCE_M, ringError } from '../geometry-check.mjs';
+import { TOLERANCE_M, indexError, ringError } from '../geometry-check.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const TABLE = JSON.parse(readFileSync(join(HERE, 'ring_fixtures.json'), 'utf8'));
@@ -70,4 +70,22 @@ test('a rotation passes and its reversal does not', () => {
 
   assert.ok(ringError(rotated, ring) < 1e-9);
   assert.ok(ringError(reversed, ring) > TOLERANCE_M);
+});
+
+test('the index comparison sees a rotation the ring comparison does not', () => {
+  /*
+   * What `--without starting-vertex` rests on, asserted here rather than only on a fixture.
+   *
+   * The ring comparison exists because the engine renormalises every surface it reports to begin at
+   * its upper-left corner while a faithful extractor keeps the author's order, so the two agree on
+   * the polygon and differ on where it starts. Comparing by index is the same thing as demanding
+   * the extractor reproduce the engine's starting vertex, and this is what that demand costs on one
+   * four-metre wall. On the committed model that declares a lower-left start it is 17.59 m.
+   */
+  const ring = vertices(TABLE.cases[0].reported);
+  const rotated = [...ring.slice(1), ring[0]];
+
+  assert.ok(ringError(rotated, ring) < 1e-9);
+  assert.ok(indexError(rotated, ring) > TOLERANCE_M);
+  assert.ok(indexError(ring, ring) < 1e-9);
 });

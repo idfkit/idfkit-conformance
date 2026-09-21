@@ -125,44 +125,108 @@ read.
 ## The guards
 
 A check that only passes proves less than one that is shown to fail. Each clause of the resolution
-rule has a guard that removes it and names the fixture that then fails, and one guard works the other
-way. The first is implemented; the rest land together, and the shape is fixed here so the check
-documents its own coverage rather than asserting it.
+rule has a guard that removes it and names the fixture that then fails, and a fourth guard works the
+other way round. All four are implemented in both runners and every magnitude below is measured
+rather than asserted.
 
-| guard | fails on | by | state |
-| ----- | -------- | -- | ----- |
-| remove the coordinate system clause | `world-nonzero-zone-origin` | the zone origin applied where the engine does not apply it | to come |
-| remove the building rotation clause | `north-axis-multizone` | the building not rotated as a rigid body | to come |
-| remove the vertex entry direction clause | `clockwise-entry` | 4.0000 m, every one of its 8 surfaces | `--without entry-direction` |
-| **add** a starting-vertex normalisation | `lower-left-start` | the author's order discarded to match a reporting convention | to come |
-
-A guard removes its clause from the library's **output** rather than from its source, because the
-corpus cannot reach into either library and has to ask the same question of both. For the vertex
-entry direction that undoing is exact: the clause reverses a ring while holding its first vertex, so
-applying it twice is applying it never. `runners/tests/guard_fixtures.json` is the table both guards
-are driven over, and it is what holds the two to the same clause while the JavaScript runner's
-library call is still unwritten.
+| guard | removes | fails on | by | over |
+| ----- | ------- | -------- | -- | ---- |
+| `--without coordinate-system` | clause one, so the zone origin is applied where the model declares `World` | `world-nonzero-zone-origin` | **201.9800 m** | 78 of its 99 surfaces |
+| `--without north-axis` | clause two, so the building is not turned by its north axis | `north-axis-multizone` | **22.5571 m** | all 34 of its surfaces |
+| `--without entry-direction` | clause three, so a clockwise ring is not wound back | `clockwise-entry` | **4.0000 m** | all 8 of its surfaces |
+| `--without starting-vertex` | the ring comparison's insensitivity to where a ring starts | `lower-left-start` | **17.5900 m** | all 41 of its surfaces |
 
 ```bash
-python runners/geometry_check.py --library /path/to/idfkit --without entry-direction
+python runners/geometry_check.py --library /path/to/idfkit --without north-axis
+node runners/geometry-check.mjs --library /path/to/idfkit-js --without north-axis
 ```
 
-A guarded run reverses the verdict and requires three things, the last two being the ones a weaker
-guard would skip: the named fixture must fail, it must fail by at least the magnitude recorded above
-so that a clause reduced to a rounding difference cannot pass as one that matters, and **no other
-fixture may fail**, because a clause firing on a model that declared no such thing is a different
-bug wearing this one's clothes. Exit 0 when the guard holds, 1 when the clause turned out not to
-matter, which is the finding worth reporting.
+Both runners print the same transcript for the same guard, magnitudes included.
+
+### How a guard removes a clause
+
+From the library's **output**, never from its source: the corpus cannot reach into either library
+and has to ask the same question of both. Two of the three undoings are exact. The entry direction
+clause reverses a ring while holding its first vertex, so applying it twice is applying it never.
+The north axis clause is a rotation about the world origin, and a rotation is exactly invertible.
+
+The coordinate system clause is the one that is undone by **applying** something rather than by
+reversing it: a library that never wrote the clause applies the zone origin whatever the model
+declares, so the guard adds the origin back on the models that declare `World`. That makes it exact
+on those models and a no-op on the others, which is why it is applied only where `World` is
+declared: applying it on a model already resolved under `Relative` would measure a double shift, a
+third answer neither library would ever give.
+
+Two things that guard does not do, both because the fixture set does not exercise them and both
+recorded here rather than left to a reader of the source:
+
+- It does not apply the zone's `direction_of_relative_north`, which clause one also governs. No
+  model in the set declares `World` and carries a non-zero zone rotation, so a branch for it would
+  be an untested path standing in for a proof.
+- It does not move a surface the library placed in no zone. Twenty-one of the ninety-nine surfaces
+  in `world-nonzero-zone-origin` are `Shading:Zone:Detailed`, which resolve against the zone of the
+  surface they are attached to and which a scene reports with no zone of their own. The guard moves
+  the other seventy-eight, which is enough at 201.98 m. Under-reaching can only make a guard harder
+  to satisfy, which is why it is the safe direction to err in here.
+
+`runners/tests/guard_fixtures.json` is the table both runners' guards are driven over, and it is
+what holds the two to the same clause. It carries 15 cases across the four clauses, and each case
+states both halves of a guard: whether the clause is in scope for that model, and what removing it
+produces.
+
+### Which fixtures may fail under a guard
+
+Not "only the named one", and the reason is a measurement. A clause fires wherever the model
+declares the condition it reads, and **two fixtures declare a non-zero building north axis**:
+`north-axis-multizone` at 158.434 degrees and `clockwise-entry` at 45. Removing clause two fails
+both, the second by 5.7100 m, and that is the clause doing its job in a second model rather than a
+second bug.
+
+So each guard states which models it applies to, reading the library's own declaration of the model
+rather than a second parse by the runner: a library that misreads its own declaration then leaves
+its guard a visible no-op instead of a quiet pass. A guarded run requires three things, the last two
+being the ones a weaker guard would skip:
+
+1. the named fixture must fail;
+2. it must fail by **at least the magnitude recorded above**, so that a clause reduced to a rounding
+   difference cannot pass as one that matters;
+3. **no fixture the clause never touched may fail**, because a clause firing on a model that
+   declared no such thing is a different bug wearing this one's clothes.
+
+A fixture the clause did touch is allowed to fail and is named in the transcript as expected
+company. Exit 0 when the guard holds, 1 when the clause turned out not to matter, which is the
+finding worth reporting.
 
 **The set holds one model declaring clockwise entry and the specification says two.** The 4.0000 m
 above is measured on the one that is committed, `clockwise-entry`, over all eight of its surfaces.
 Three of the 726 geometry-bearing example models declare it, so a second fixture is available to
 whoever wants the criterion met as written; nothing else here depends on the count.
 
-**The last one is deliberate and must stay failing.** Normalising the extractor's starting vertex to
-match the engine's will look like an improvement to a future maintainer, because it makes a
-comparison simpler. It makes extraction lossy for no reader's benefit, and `lower-left-start` is in
-the set for exactly that. Read this paragraph before touching it.
+### The fourth guard is deliberate and must stay failing
+
+Read this section before touching it. It is here because the change it blocks will look like an
+improvement.
+
+`--without starting-vertex` is not like the other three. It removes a clause of the **comparison**
+rather than of the resolution rule, so the library's answer is left exactly as it came: the guard
+compares vertex one against vertex one instead of taking the smallest error over the ring's
+rotations. That is the same thing as requiring the extractor's first vertex to be the engine's,
+because an index comparison is exactly that requirement written as arithmetic.
+
+`lower-left-start` then fails by **17.5900 m on all 41 of its surfaces**, and not one of those
+surfaces is in the wrong place. The model declares `LowerLeftCorner`; the engine renormalises every
+surface it reports to begin at the upper-left corner; the rings are the same rings, rotated.
+
+The tempting change is to normalise the extractor's starting vertex to match the engine's, which
+makes the comparison a single pass instead of a rotation search and makes this guard's failure go
+away. **Do not.** It discards the author's own vertex order to reproduce a reporting convention,
+which makes extraction lossy for no reader's benefit, and the specification that asked for this
+capability asked for the author's order to survive it. `lower-left-start` is in the fixture set for
+exactly this and for nothing else, and this guard is the only thing standing between that
+requirement and a maintainer who is sure they are cleaning something up.
+
+Eleven of the 726 geometry-bearing example models declare a starting corner other than the upper
+left, so the cost of the change is not confined to one fixture.
 
 ## Regenerating
 

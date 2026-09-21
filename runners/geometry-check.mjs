@@ -39,16 +39,29 @@
  *
  * THE GUARDS
  *
- * `--without <clause>` removes one clause of the resolution rule and requires that the check then
- * fail on the fixture that clause exists for. A check that has only ever passed is half a check,
- * and this is the half that asks. The clause is removed on the output rather than inside the
- * library, because the corpus cannot reach into either library's source and must ask the same
- * question of both. For the entry direction that undoing is exact: the clause reverses a ring while
- * holding its head, which is its own inverse.
+ * `--without <clause>` removes one clause and requires that the check then fail on the fixture that
+ * clause exists for. A check that has only ever passed is half a check, and this is the half that
+ * asks. The clause is removed on the output rather than inside the library, because the corpus
+ * cannot reach into either library's source and must ask the same question of both.
  *
- * A guarded run reverses the verdict. It exits 0 when the named fixture fails by at least the
- * recorded magnitude and every other fixture still passes, and 1 when the clause turned out not to
- * matter, which is the finding worth reporting.
+ * Four clauses, and the fourth is not like the other three. `coordinate-system`, `north-axis` and
+ * `entry-direction` are clauses of the RESOLUTION rule, and removing one changes what the library
+ * is taken to have returned. `starting-vertex` is a clause of the COMPARISON: it drops the
+ * rotation-insensitivity of the ring comparison, which is the same thing as requiring the
+ * extractor's first vertex to be the engine's. It is the one guard that must go on failing, and
+ * `checks/geometry-vertices/check.md` says at length why.
+ *
+ * WHICH FIXTURES MAY FAIL UNDER A GUARD
+ *
+ * Not "only the named one". A clause fires wherever the model declares the condition it reads, and
+ * two fixtures declare a non-zero building north axis. So each guard says which models it APPLIES
+ * to, reading the library's own declaration, and the verdict is that the named fixture must fail by
+ * at least the recorded magnitude and no fixture the clause never touched may fail at all. A
+ * fixture the clause did touch is allowed to fail and is reported as expected company, because that
+ * is the clause doing its job in a second model rather than a second bug.
+ *
+ * A guarded run reverses the verdict. It exits 0 when that holds, and 1 when the clause turned out
+ * not to matter, which is the finding worth reporting.
  *
  * NO NETWORK, and no dependency. The fixtures are committed gzipped and decompressed here with
  * `node:zlib`, which is the only compression both standard libraries hold.
@@ -131,48 +144,165 @@ export function ringError(resolved, reported) {
   return best;
 }
 
+/**
+ * The same comparison with the rotation search removed: vertex one against vertex one.
+ *
+ * NOT THE CHECK'S COMPARISON, and never reached except under `--without starting-vertex`. It is
+ * here to be the wrong answer, because requiring the extractor's first vertex to be the engine's is
+ * exactly what comparing by index requires, and the fixture set carries a model that proves what
+ * that costs.
+ */
+export function indexError(resolved, reported) {
+  if (resolved.length !== reported.length) {
+    throw new RangeError(`${resolved.length} vertices against ${reported.length}`);
+  }
+  if (resolved.length === 0) throw new RangeError('an empty ring has no error to report');
+  let worst = 0;
+  for (let at = 0; at < resolved.length; at += 1) {
+    worst = Math.max(worst, vertexError(resolved[at], reported[at]));
+  }
+  return worst;
+}
+
 // ---------------------------------------------------------------------------
 // The guards
 // ---------------------------------------------------------------------------
 
 /**
+ * One extraction with every ring replaced, and everything else carried through.
+ *
+ * An extraction is `{ surfaces, entryDirection, coordinateSystem, startingVertexPosition,
+ * northAxis, zoneOrigins }`: the surfaces the library resolved as `{ name, vertices, parentSurface,
+ * zone }`, and what it read the model to declare. The declarations come from the library rather
+ * than from a second parse by the runner, so a library that misreads one leaves its own guard a
+ * no-op and the guard says so instead of passing.
+ */
+function mapped(extraction, move) {
+  return {
+    ...extraction,
+    surfaces: extraction.surfaces.map((surface) => ({ ...surface, vertices: move(surface) })),
+  };
+}
+
+/** What a guard that removes a clause of the comparison rather than of the rule does to it. */
+export function unchanged(extraction) {
+  return extraction;
+}
+
+/**
  * What a library that never wrote the vertex entry direction clause would have returned.
  *
  * The clause reverses a ring while holding its first vertex, so applying it twice is applying it
- * never. On a model that does not declare clockwise entry this is the identity, which is the point:
- * a clause that fires where it was not declared would show up here as a second fixture failing, and
- * the guard fails the run when one does.
+ * never, which is what makes undoing it on the output exact rather than approximate.
  *
- * An extraction is `{ surfaces, entryDirection }`: the surfaces the library resolved, and what it
- * read the model to declare. The declaration comes from the library rather than from a second parse
- * by the runner, so a library that misreads it leaves its own guard a no-op and the guard says so
- * instead of passing.
+ * THE FIRST VERTEX STAYS WHERE IT IS. Reversing the whole list would renormalise the starting
+ * vertex as a side effect, and the check's ring comparison is insensitive to where a ring starts,
+ * so nothing downstream would ever say so.
  */
 export function withoutEntryDirection(extraction) {
-  if (!extraction.entryDirection.toLowerCase().startsWith('clockwise')) return extraction;
-  return {
-    surfaces: extraction.surfaces.map((surface) => ({
-      ...surface,
-      vertices: [surface.vertices[0], ...surface.vertices.slice(1).reverse()],
-    })),
-    entryDirection: extraction.entryDirection,
-  };
+  return mapped(extraction, (surface) => [surface.vertices[0], ...surface.vertices.slice(1).reverse()]);
+}
+
+/**
+ * What a library that never read `GlobalGeometryRules`'s coordinate system would have returned.
+ *
+ * Clause one applies the zone's origin only under the relative system. A library that never wrote
+ * the condition applies it always, so on a model declaring `World` every surface comes out
+ * displaced by its zone's origin, and on one declaring `Relative` it comes out exactly where it
+ * already is. That is why this is applied only to the models that declare `World`: on the others
+ * the clause has already fired and applying it again would measure a double shift, which is a third
+ * answer neither library would ever give.
+ *
+ * TWO THINGS IT DOES NOT DO, both because the fixture set does not exercise them.
+ *
+ * It does not apply the zone's `direction_of_relative_north`, which clause one also governs. No
+ * model in the set declares `World` and carries a non-zero zone rotation, so a branch for it would
+ * be an untested path standing in for a proof.
+ *
+ * It does not move a surface the library placed in no zone. Twenty-one of the ninety-nine surfaces
+ * in `world-nonzero-zone-origin` are `Shading:Zone:Detailed`, which resolve against the zone of the
+ * surface they are attached to and which a scene reports with no zone of their own. The guard
+ * therefore moves seventy-eight of them, which is enough to make the point at 201.98 m and is less
+ * than a library without the clause would move. Under-reaching is safe here in a way that
+ * over-reaching would not be: it can only make the guard harder to satisfy.
+ */
+export function withoutCoordinateSystem(extraction) {
+  const origins = extraction.zoneOrigins ?? new Map();
+  return mapped(extraction, (surface) => {
+    const origin = surface.zone ? origins.get(surface.zone.toUpperCase()) : undefined;
+    if (origin === undefined) return surface.vertices;
+    return surface.vertices.map((v) => [v[0] + origin[0], v[1] + origin[1], v[2] + origin[2]]);
+  });
+}
+
+/**
+ * What a library that never rotated the building by its north axis would have returned.
+ *
+ * Clause two turns the whole resolved building about the world origin by the negation of
+ * `Building.north_axis`, the negation being there because EnergyPlus measures the axis clockwise
+ * from true north while a rotation turns counter-clockwise. Undoing it is turning it back, and a
+ * rotation is exactly invertible, so this undoing is as exact as the entry direction's.
+ *
+ * It is the one clause of the three that is unconditional in the rule: it fires on every model
+ * carrying a non-zero axis, and two fixtures do. Both are therefore allowed to fail under this
+ * guard, and the verdict says which one it was written for.
+ */
+export function withoutNorthAxis(extraction) {
+  const radians = (extraction.northAxis * Math.PI) / 180;
+  const cosine = Math.cos(radians);
+  const sine = Math.sin(radians);
+  return mapped(extraction, (surface) =>
+    surface.vertices.map((v) => [v[0] * cosine - v[1] * sine, v[0] * sine + v[1] * cosine, v[2]])
+  );
 }
 
 /**
  * The guards this runner implements. `geometry_check.py` names the same ones, and
- * `checks/geometry-vertices/check.md` records what each is worth.
+ * `checks/geometry-vertices/check.md` records what each is worth and on which fixture.
  *
  * `atLeastM` is a measurement and not a threshold to clear: it is how far the fixture moved when
  * the clause was first removed, recorded so that a clause quietly becoming a rounding difference is
  * a failure rather than a pass.
+ *
+ * `applies` answers, from the library's own reading of a model, whether the clause had anything to
+ * do in it. It is what separates a second fixture failing because the clause fired there too from a
+ * second fixture failing because something else is wrong.
+ *
+ * `byIndex` is set by the one guard that removes a clause of the COMPARISON instead. Its `remove`
+ * is the identity, because there is nothing wrong with what the library returned.
  */
 export const GUARDS = {
+  'coordinate-system': {
+    name: 'coordinate-system',
+    failsOn: 'world-nonzero-zone-origin',
+    atLeastM: 201.98,
+    applies: (extraction) => extraction.coordinateSystem.toLowerCase() !== 'relative',
+    remove: withoutCoordinateSystem,
+    byIndex: false,
+  },
+  'north-axis': {
+    name: 'north-axis',
+    failsOn: 'north-axis-multizone',
+    atLeastM: 22.5571,
+    applies: (extraction) => extraction.northAxis !== 0,
+    remove: withoutNorthAxis,
+    byIndex: false,
+  },
   'entry-direction': {
     name: 'entry-direction',
     failsOn: 'clockwise-entry',
     atLeastM: 4.0,
+    applies: (extraction) => extraction.entryDirection.toLowerCase().startsWith('clockwise'),
     remove: withoutEntryDirection,
+    byIndex: false,
+  },
+  'starting-vertex': {
+    name: 'starting-vertex',
+    failsOn: 'lower-left-start',
+    atLeastM: 17.59,
+    applies: (extraction) => extraction.startingVertexPosition.toLowerCase() !== 'upperleftcorner',
+    remove: unchanged,
+    byIndex: true,
   },
 };
 
@@ -181,18 +311,31 @@ export const GUARDS = {
  *
  * Three things have to hold, and the last two are the ones a weaker guard would skip. The named
  * fixture must fail; it must fail by at least what was measured when the clause was written, so
- * that a clause reduced to noise cannot pass as one that matters; and no other fixture may fail,
- * because a clause that fires on a model that did not declare it is a different bug wearing this
- * one's clothes.
+ * that a clause reduced to noise cannot pass as one that matters; and no fixture the clause never
+ * touched may fail, because a clause firing on a model that declares no such thing is a different
+ * bug wearing this one's clothes.
+ *
+ * `appliedTo` names the fixtures whose declarations put the clause in scope. A fixture in that list
+ * failing is the clause doing its job twice and is reported as such; a fixture outside it failing
+ * is the finding.
  */
-export function guardVerdict(guard, report) {
+export function guardVerdict(guard, report, appliedTo) {
   const failures = report.failed.get(guard.failsOn) ?? 0;
   const worst = report.worst.get(guard.failsOn) ?? 0;
-  const elsewhere = [...report.failed.keys()].filter((name) => name !== guard.failsOn).sort();
+  const inScope = new Set(appliedTo);
+  const alongside = [...report.failed.keys()].filter((n) => n !== guard.failsOn && inScope.has(n)).sort();
+  const untouched = [...report.failed.keys()].filter((n) => !inScope.has(n)).sort();
 
   console.log(`  guard       ${guard.name}: the clause removed, ${guard.failsOn} expected to fail`);
+  console.log(`     in scope: ${[...inScope].sort().join(', ') || 'no fixture declares it'}`);
   console.log(`     ${guard.failsOn}: ${failures} comparisons disagree, worst ${worst.toFixed(4)} m`);
-  if (elsewhere.length > 0) console.log(`     also failing: ${elsewhere.join(', ')}`);
+  for (const name of alongside) {
+    const seen = (report.worst.get(name) ?? 0).toFixed(4);
+    console.log(`     ${name}: ${report.failed.get(name)} disagree, worst ${seen} m, and it declares it too`);
+  }
+  if (untouched.length > 0) {
+    console.log(`     also failing, untouched by the clause: ${untouched.join(', ')}`);
+  }
   console.log('');
 
   if (failures === 0) {
@@ -209,16 +352,18 @@ export function guardVerdict(guard, report) {
     );
     return 1;
   }
-  if (elsewhere.length > 0) {
+  if (untouched.length > 0) {
     console.error(
       `GUARD DID NOT HOLD: removing the ${guard.name} clause also fails ` +
-        `${elsewhere.join(', ')}, which declares no such thing.`
+        `${untouched.join(', ')}, which declares no such thing.`
     );
     return 1;
   }
+  const company = alongside.length > 0 ? `, along with ${alongside.join(', ')}, which declares it too` : '';
   console.log(
     `GUARD HOLDS: without the ${guard.name} clause, ${guard.failsOn} is ${worst.toFixed(4)} m from ` +
-      `the engine over ${failures} comparisons, and no other fixture changes its verdict.`
+      `the engine over ${failures} comparisons${company}, and no fixture the clause never touched ` +
+      'changes its verdict.'
   );
   return 0;
 }
@@ -350,8 +495,8 @@ async function importLibrary(root) {
  * document, read with the same defaults as `load_idf` uses, so the two runners hand their libraries
  * the same thing.
  *
- * It returns `{ surfaces, entryDirection }`, the shape the guards above take: `surfaces` of
- * `{ name, vertices, parentSurface }` and `entryDirection` as the library read it from the model.
+ * It returns the shape the guards above take: `surfaces` of `{ name, vertices, parentSurface, zone }`
+ * and the four declarations the library read from the model, plus each zone's origin.
  */
 async function extract(library, model) {
   const schema = await library.node.schemaFor(library.core.getIdfVersion(model));
@@ -363,9 +508,34 @@ async function extract(library, model) {
       name: surface.name,
       vertices: surface.polygon.vertices.map((vertex) => [vertex.x, vertex.y, vertex.z]),
       parentSurface: surface.parentSurface ?? '',
+      zone: surface.zone,
     })),
     entryDirection: scene.applied.vertexEntryDirection,
+    coordinateSystem: scene.applied.coordinateSystem,
+    startingVertexPosition: scene.applied.startingVertexPosition,
+    northAxis: scene.applied.northAxis,
+    zoneOrigins: zoneOrigins(document),
   };
+}
+
+/**
+ * Each zone's declared origin, keyed by upper-cased name.
+ *
+ * Read from the document rather than from the scene because a scene names each surface's zone and
+ * not that zone's origin, and the coordinate system guard needs the origin. It is still the
+ * library's own parse of the file: the runner asks the document it was handed for three numeric
+ * fields and does not read the text itself.
+ */
+function zoneOrigins(document) {
+  const found = new Map();
+  for (const zone of document.all('Zone').toArray()) {
+    found.set(String(zone.name).toUpperCase(), [
+      Number(zone.get('x_origin') ?? 0) || 0,
+      Number(zone.get('y_origin') ?? 0) || 0,
+      Number(zone.get('z_origin') ?? 0) || 0,
+    ]);
+  }
+  return found;
 }
 
 // ---------------------------------------------------------------------------
@@ -387,8 +557,14 @@ function measured(report, fixture, error) {
   report.worst.set(fixture, Math.max(report.worst.get(fixture) ?? 0, error));
 }
 
-/** Compare one model's resolved surfaces against the engine's report of the same model. */
-function compareFixture(name, extracted, report) {
+/**
+ * Compare one model's resolved surfaces against the engine's report of the same model.
+ *
+ * `byIndex` is the starting-vertex guard and nothing else. An unguarded run always compares as a
+ * ring, and `check.md` records why the option to do otherwise exists only to be shown failing.
+ */
+function compareFixture(name, extracted, report, byIndex = false) {
+  const compare = byIndex ? indexError : ringError;
   const reported = new Map(expectation(name).map((surface) => [surface.name.toUpperCase(), surface]));
   for (const surface of extracted) {
     const against = reported.get(surface.name.toUpperCase());
@@ -398,7 +574,7 @@ function compareFixture(name, extracted, report) {
     }
     let error;
     try {
-      error = ringError(surface.vertices, against.vertices);
+      error = compare(surface.vertices, against.vertices);
     } catch (reason) {
       fail(report, name, `${surface.name} ${reason.message}`);
       continue;
@@ -469,15 +645,22 @@ async function main(argv) {
   console.log(`  check       ${CHECK_DIR}`);
   console.log('');
 
+  const appliedTo = [];
   for (const fixture of committed) {
     const name = fixture.replace(/\.idf\.gz$/, '');
     report.notes.push(`${name}: ${provenance(name).engine ?? 'engine unrecorded'}`);
     let extraction = await extract(library, modelText(fixture));
-    if (guard !== undefined) extraction = guard.remove(extraction);
-    compareFixture(name, extraction.surfaces, report);
+    if (guard !== undefined && guard.applies(extraction)) {
+      // Only where the model declares the condition the clause reads. Removing a clause from a
+      // model that never triggered it would measure a second wrong answer, not this one.
+      appliedTo.push(name);
+      extraction = guard.remove(extraction);
+    }
+    compareFixture(name, extraction.surfaces, report, guard !== undefined && guard.byIndex);
   }
 
-  console.log(`  vertices    ${committed.length} fixtures, ring comparison within ${TOLERANCE_M} m`);
+  const shape = guard !== undefined && guard.byIndex ? 'vertex by vertex' : 'ring comparison';
+  console.log(`  vertices    ${committed.length} fixtures, ${shape} within ${TOLERANCE_M} m`);
   if (args.verbose) for (const note of report.notes) console.log(`     ${note}`);
   console.log('');
 
@@ -498,7 +681,7 @@ async function main(argv) {
     return 1;
   }
 
-  if (guard !== undefined) return guardVerdict(guard, report);
+  if (guard !== undefined) return guardVerdict(guard, report, appliedTo);
 
   if (report.failures.length > 0) {
     console.error(

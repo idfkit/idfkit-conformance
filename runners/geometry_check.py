@@ -37,16 +37,29 @@ it.
 
 THE GUARDS
 
-``--without <clause>`` removes one clause of the resolution rule and requires that the check then
-fail on the fixture that clause exists for. A check that has only ever passed is half a check, and
-this is the half that asks. The clause is removed on the output rather than inside the library,
-because the corpus cannot reach into either library's source and must ask the same question of both.
-For the entry direction that undoing is exact: the clause reverses a ring while holding its head,
-which is its own inverse.
+``--without <clause>`` removes one clause and requires that the check then fail on the fixture that
+clause exists for. A check that has only ever passed is half a check, and this is the half that
+asks. The clause is removed on the output rather than inside the library, because the corpus cannot
+reach into either library's source and must ask the same question of both.
 
-A guarded run reverses the verdict. It exits 0 when the named fixture fails by at least the recorded
-magnitude and every other fixture still passes, and 1 when the clause turned out not to matter, which
-is the finding worth reporting.
+Four clauses, and the fourth is not like the other three. ``coordinate-system``, ``north-axis`` and
+``entry-direction`` are clauses of the RESOLUTION rule, and removing one changes what the library is
+taken to have returned. ``starting-vertex`` is a clause of the COMPARISON: it drops the
+rotation-insensitivity of the ring comparison, which is the same thing as requiring the extractor's
+first vertex to be the engine's. It is the one guard that must go on failing, and
+``checks/geometry-vertices/check.md`` says at length why.
+
+WHICH FIXTURES MAY FAIL UNDER A GUARD
+
+Not "only the named one". A clause fires wherever the model declares the condition it reads, and two
+fixtures declare a non-zero building north axis. So each guard says which models it APPLIES to,
+reading the library's own declaration, and the verdict is that the named fixture must fail by at
+least the recorded magnitude and no fixture the clause never touched may fail at all. A fixture the
+clause did touch is allowed to fail and is reported as expected company, because that is the clause
+doing its job in a second model rather than a second bug.
+
+A guarded run reverses the verdict. It exits 0 when that holds, and 1 when the clause turned out not
+to matter, which is the finding worth reporting.
 
 NO NETWORK, and no dependency. The fixtures are committed gzipped and decompressed here with the
 standard library ``gzip``, which is the only compression both standard libraries hold.
@@ -64,11 +77,12 @@ import argparse
 import csv
 import gzip
 import importlib
+import math
 import sys
 import tempfile
 from dataclasses import dataclass, field as dataclass_field
 from pathlib import Path
-from typing import Callable, Final, Iterator, Sequence
+from typing import Callable, Final, Iterator, Mapping, Sequence
 
 RUNNERS_DIR: Final = Path(__file__).resolve().parent
 REPO_ROOT: Final = RUNNERS_DIR.parent
@@ -111,20 +125,31 @@ class Extracted:
     name: str
     vertices: tuple[Vertex, ...]
     parent_surface: str
+    #: The zone the library placed this surface in, empty for a surface it placed in no zone. The
+    #: coordinate system guard needs it to know which origin clause one would have applied.
+    zone: str = ""
 
 
 @dataclass(frozen=True, slots=True)
 class Extraction:
     """One model as the library resolved it: its surfaces, and what it read the model to declare.
 
-    The declaration is here because a guard needs it. Undoing a clause means knowing whether the
-    clause fired, and the honest source for that is the library's own reading of the model rather
-    than a second parse by the runner: a library that misreads the declaration then leaves its own
-    guard a no-op, and the guard says so instead of passing.
+    The declarations are here because the guards need them. Undoing a clause means knowing whether
+    the clause fired, and the honest source for that is the library's own reading of the model
+    rather than a second parse by the runner: a library that misreads a declaration then leaves its
+    own guard a no-op, and the guard says so instead of passing.
+
+    ``zone_origins`` is the one thing here the library's scene does not state, because a scene names
+    each surface's zone and not that zone's origin. It is read from the document the library parsed,
+    which is still the library's reading of the file and not the runner's own parser.
     """
 
     surfaces: tuple[Extracted, ...]
     entry_direction: str
+    coordinate_system: str = "Relative"
+    starting_vertex_position: str = "UpperLeftCorner"
+    north_axis: float = 0.0
+    zone_origins: Mapping[str, Vertex] = dataclass_field(default_factory=dict)
 
 
 @dataclass(slots=True)
@@ -191,73 +216,206 @@ def ring_error(resolved: Sequence[Vertex], reported: Sequence[Vertex]) -> float:
     )
 
 
+def index_error(resolved: Sequence[Vertex], reported: Sequence[Vertex]) -> float:
+    """The same comparison with the rotation search removed: vertex one against vertex one.
+
+    NOT THE CHECK'S COMPARISON, and never reached except under ``--without starting-vertex``. It is
+    here to be the wrong answer, because requiring the extractor's first vertex to be the engine's
+    is exactly what comparing by index requires, and the fixture set carries a model that proves
+    what that costs.
+    """
+    if len(resolved) != len(reported):
+        raise ValueError(f"{len(resolved)} vertices against {len(reported)}")
+    if not resolved:
+        raise ValueError("an empty ring has no error to report")
+    return max(vertex_error(one, other) for one, other in zip(resolved, reported, strict=True))
+
+
 # ---------------------------------------------------------------------------
 # The guards
 # ---------------------------------------------------------------------------
+
+
+def _mapped(extraction: Extraction, move: Callable[[Extracted], tuple[Vertex, ...]]) -> Extraction:
+    """One extraction with every ring replaced, and everything else carried through."""
+    return Extraction(
+        surfaces=tuple(
+            Extracted(
+                name=surface.name,
+                vertices=move(surface),
+                parent_surface=surface.parent_surface,
+                zone=surface.zone,
+            )
+            for surface in extraction.surfaces
+        ),
+        entry_direction=extraction.entry_direction,
+        coordinate_system=extraction.coordinate_system,
+        starting_vertex_position=extraction.starting_vertex_position,
+        north_axis=extraction.north_axis,
+        zone_origins=extraction.zone_origins,
+    )
+
+
+def unchanged(extraction: Extraction) -> Extraction:
+    """What a guard that removes a clause of the comparison rather than of the rule does to it."""
+    return extraction
 
 
 def without_entry_direction(extraction: Extraction) -> Extraction:
     """What a library that never wrote the vertex entry direction clause would have returned.
 
     The clause reverses a ring while holding its first vertex, so applying it twice is applying it
-    never. On a model that does not declare clockwise entry this is the identity, which is the
-    point: a clause that fires where it was not declared would show up here as a second fixture
-    failing, and the guard fails the run when one does.
+    never, which is what makes undoing it on the output exact rather than approximate.
+
+    THE FIRST VERTEX STAYS WHERE IT IS. Reversing the whole list would renormalise the starting
+    vertex as a side effect, and the check's ring comparison is insensitive to where a ring starts,
+    so nothing downstream would ever say so.
     """
-    if not extraction.entry_direction.casefold().startswith("clockwise"):
-        return extraction
-    return Extraction(
-        surfaces=tuple(
-            Extracted(
-                name=surface.name,
-                vertices=(surface.vertices[0], *reversed(surface.vertices[1:])),
-                parent_surface=surface.parent_surface,
-            )
-            for surface in extraction.surfaces
+    return _mapped(extraction, lambda surface: (surface.vertices[0], *reversed(surface.vertices[1:])))
+
+
+def without_coordinate_system(extraction: Extraction) -> Extraction:
+    """What a library that never read ``GlobalGeometryRules``'s coordinate system would have returned.
+
+    Clause one applies the zone's origin only under the relative system. A library that never wrote
+    the condition applies it always, so on a model declaring ``World`` every surface comes out
+    displaced by its zone's origin, and on one declaring ``Relative`` it comes out exactly where it
+    already is. That is why this is applied only to the models that declare ``World``: on the others
+    the clause has already fired and applying it again would measure a double shift, which is a
+    third answer neither library would ever give.
+
+    TWO THINGS IT DOES NOT DO, both because the fixture set does not exercise them.
+
+    It does not apply the zone's ``direction_of_relative_north``, which clause one also governs. No
+    model in the set declares ``World`` and carries a non-zero zone rotation, so a branch for it
+    would be an untested path standing in for a proof.
+
+    It does not move a surface the library placed in no zone. Twenty-one of the ninety-nine surfaces
+    in ``world-nonzero-zone-origin`` are ``Shading:Zone:Detailed``, which resolve against the zone of
+    the surface they are attached to and which a scene reports with no zone of their own. The guard
+    therefore moves seventy-eight of them, which is enough to make the point at 201.98 m and is less
+    than a library without the clause would move. Under-reaching is safe here in a way that
+    over-reaching would not be: it can only make the guard harder to satisfy.
+    """
+    origins = extraction.zone_origins
+
+    def moved(surface: Extracted) -> tuple[Vertex, ...]:
+        origin = origins.get(surface.zone.upper()) if surface.zone else None
+        if origin is None:
+            return surface.vertices
+        return tuple((x + origin[0], y + origin[1], z + origin[2]) for x, y, z in surface.vertices)
+
+    return _mapped(extraction, moved)
+
+
+def without_north_axis(extraction: Extraction) -> Extraction:
+    """What a library that never rotated the building by its north axis would have returned.
+
+    Clause two turns the whole resolved building about the world origin by the negation of
+    ``Building.north_axis``, the negation being there because EnergyPlus measures the axis clockwise
+    from true north while a rotation turns counter-clockwise. Undoing it is turning it back, and a
+    rotation is exactly invertible, so this undoing is as exact as the entry direction's.
+
+    It is the one clause of the three that is unconditional in the rule: it fires on every model
+    carrying a non-zero axis, and two fixtures do. Both are therefore allowed to fail under this
+    guard, and the verdict says which one it was written for.
+    """
+    radians = math.radians(extraction.north_axis)
+    cosine, sine = math.cos(radians), math.sin(radians)
+    return _mapped(
+        extraction,
+        lambda surface: tuple(
+            (x * cosine - y * sine, x * sine + y * cosine, z) for x, y, z in surface.vertices
         ),
-        entry_direction=extraction.entry_direction,
     )
 
 
 @dataclass(frozen=True, slots=True)
 class Guard:
-    """One clause removed from the resolution rule, and the fixture that must then fail.
+    """One clause removed, and the fixture that must then fail.
 
     ``at_least_m`` is a measurement and not a threshold to clear: it is how far the fixture moved
     when the clause was first removed, recorded so that a clause quietly becoming a rounding
     difference is a failure rather than a pass.
+
+    ``applies`` answers, from the library's own reading of a model, whether the clause had anything
+    to do in it. It is what separates a second fixture failing because the clause fired there too
+    from a second fixture failing because something else is wrong, and it is read from the library
+    rather than from a second parse so that a library misreading its own declaration leaves its
+    guard a visible no-op instead of a quiet pass.
+
+    ``by_index`` is set by the one guard that removes a clause of the COMPARISON instead. Its
+    ``remove`` is the identity, because there is nothing wrong with what the library returned.
     """
 
     name: str
     fails_on: str
     at_least_m: float
-    remove: Callable[[Extraction], Extraction]
+    applies: Callable[[Extraction], bool]
+    remove: Callable[[Extraction], Extraction] = unchanged
+    by_index: bool = False
 
 
 #: The guards this runner implements. ``geometry-check.mjs`` names the same ones, and
-#: ``checks/geometry-vertices/check.md`` records what each is worth.
+#: ``checks/geometry-vertices/check.md`` records what each is worth and on which fixture.
 GUARDS: Final[dict[str, Guard]] = {
-    "entry-direction": Guard("entry-direction", "clockwise-entry", 4.0, without_entry_direction),
+    "coordinate-system": Guard(
+        name="coordinate-system",
+        fails_on="world-nonzero-zone-origin",
+        at_least_m=201.98,
+        applies=lambda extraction: extraction.coordinate_system.casefold() != "relative",
+        remove=without_coordinate_system,
+    ),
+    "north-axis": Guard(
+        name="north-axis",
+        fails_on="north-axis-multizone",
+        at_least_m=22.5571,
+        applies=lambda extraction: extraction.north_axis != 0.0,
+        remove=without_north_axis,
+    ),
+    "entry-direction": Guard(
+        name="entry-direction",
+        fails_on="clockwise-entry",
+        at_least_m=4.0,
+        applies=lambda extraction: extraction.entry_direction.casefold().startswith("clockwise"),
+        remove=without_entry_direction,
+    ),
+    "starting-vertex": Guard(
+        name="starting-vertex",
+        fails_on="lower-left-start",
+        at_least_m=17.59,
+        applies=lambda extraction: extraction.starting_vertex_position.casefold() != "upperleftcorner",
+        by_index=True,
+    ),
 }
 
 
-def guard_verdict(guard: Guard, report: Report) -> int:
+def guard_verdict(guard: Guard, report: Report, applied_to: Sequence[str]) -> int:
     """Whether the clause is load-bearing: report it, and return the run's exit code.
 
     Three things have to hold, and the last two are the ones a weaker guard would skip. The named
     fixture must fail; it must fail by at least what was measured when the clause was written, so
-    that a clause reduced to noise cannot pass as one that matters; and no other fixture may fail,
-    because a clause that fires on a model that did not declare it is a different bug wearing this
-    one's clothes.
+    that a clause reduced to noise cannot pass as one that matters; and no fixture the clause never
+    touched may fail, because a clause firing on a model that declares no such thing is a different
+    bug wearing this one's clothes.
+
+    ``applied_to`` names the fixtures whose declarations put the clause in scope. A fixture in that
+    list failing is the clause doing its job twice and is reported as such; a fixture outside it
+    failing is the finding.
     """
     failures = report.failed.get(guard.fails_on, 0)
     worst = report.worst.get(guard.fails_on, 0.0)
-    elsewhere = sorted(name for name in report.failed if name != guard.fails_on)
+    in_scope = set(applied_to)
+    alongside = sorted(name for name in report.failed if name != guard.fails_on and name in in_scope)
+    untouched = sorted(name for name in report.failed if name not in in_scope)
 
     print(f"  guard       {guard.name}: the clause removed, {guard.fails_on} expected to fail")
+    print(f"     in scope: {', '.join(sorted(in_scope)) or 'no fixture declares it'}")
     print(f"     {guard.fails_on}: {failures} comparisons disagree, worst {worst:.4f} m")
-    if elsewhere:
-        print(f"     also failing: {', '.join(elsewhere)}")
+    for name in alongside:
+        print(f"     {name}: {report.failed[name]} disagree, worst {report.worst[name]:.4f} m, and it declares it too")
+    if untouched:
+        print(f"     also failing, untouched by the clause: {', '.join(untouched)}")
     print("")
 
     if failures == 0:
@@ -274,16 +432,18 @@ def guard_verdict(guard: Guard, report: Report) -> int:
             file=sys.stderr,
         )
         return 1
-    if elsewhere:
+    if untouched:
         print(
             f"GUARD DID NOT HOLD: removing the {guard.name} clause also fails "
-            f"{', '.join(elsewhere)}, which declares no such thing.",
+            f"{', '.join(untouched)}, which declares no such thing.",
             file=sys.stderr,
         )
         return 1
+    company = f", along with {', '.join(alongside)}, which declares it too" if alongside else ""
     print(
         f"GUARD HOLDS: without the {guard.name} clause, {guard.fails_on} is {worst:.4f} m from the "
-        f"engine over {failures} comparisons, and no other fixture changes its verdict."
+        f"engine over {failures} comparisons{company}, and no fixture the clause never touched "
+        "changes its verdict."
     )
     return 0
 
@@ -383,7 +543,9 @@ def extract(module, model: str) -> Extraction:
     with tempfile.TemporaryDirectory(prefix="geometry-vertices-") as scratch:
         path = Path(scratch) / "model.idf"
         path.write_text(model, encoding=ENCODING)
-        scene = module.get_scene(module.load_idf(path))
+        doc = module.load_idf(path)
+        scene = module.get_scene(doc)
+        origins = zone_origins(doc)
 
     return Extraction(
         surfaces=tuple(
@@ -391,11 +553,36 @@ def extract(module, model: str) -> Extraction:
                 name=surface.name,
                 vertices=tuple((v.x, v.y, v.z) for v in surface.polygon.vertices),
                 parent_surface=surface.parent_surface or "",
+                zone=surface.zone,
             )
             for surface in scene.surfaces
         ),
         entry_direction=scene.applied.vertex_entry_direction,
+        coordinate_system=scene.applied.coordinate_system,
+        starting_vertex_position=scene.applied.starting_vertex_position,
+        north_axis=scene.applied.north_axis,
+        zone_origins=origins,
     )
+
+
+def zone_origins(doc) -> dict[str, Vertex]:
+    """Each zone's declared origin, keyed by upper-cased name.
+
+    Read from the document rather than from the scene because a scene names each surface's zone and
+    not that zone's origin, and the coordinate system guard needs the origin. It is still the
+    library's own parse of the file: the runner asks the document it was handed for three numeric
+    fields and does not read the text itself.
+    """
+    if "Zone" not in doc:
+        return {}
+    found: dict[str, Vertex] = {}
+    for zone in doc["Zone"]:
+        found[zone.name.upper()] = (
+            float(zone.data.get("x_origin") or 0.0),
+            float(zone.data.get("y_origin") or 0.0),
+            float(zone.data.get("z_origin") or 0.0),
+        )
+    return found
 
 
 # ---------------------------------------------------------------------------
@@ -403,8 +590,13 @@ def extract(module, model: str) -> Extraction:
 # ---------------------------------------------------------------------------
 
 
-def compare_fixture(name: str, extracted: Sequence[Extracted], report: Report) -> None:
-    """Compare one model's resolved surfaces against the engine's report of the same model."""
+def compare_fixture(name: str, extracted: Sequence[Extracted], report: Report, by_index: bool = False) -> None:
+    """Compare one model's resolved surfaces against the engine's report of the same model.
+
+    ``by_index`` is the starting-vertex guard and nothing else. An unguarded run always compares as
+    a ring, and ``check.md`` records why the option to do otherwise exists only to be shown failing.
+    """
+    compare = index_error if by_index else ring_error
     reported = {surface.name.upper(): surface for surface in expectation(name)}
     for surface in extracted:
         against = reported.get(surface.name.upper())
@@ -412,7 +604,7 @@ def compare_fixture(name: str, extracted: Sequence[Extracted], report: Report) -
             report.fail(name, f"{surface.name} was resolved and the engine reports no such surface")
             continue
         try:
-            error = ring_error(surface.vertices, against.vertices)
+            error = compare(surface.vertices, against.vertices)
         except ValueError as reason:
             report.fail(name, f"{surface.name} {reason}")
             continue
@@ -453,15 +645,20 @@ def main(argv: list[str] | None = None) -> int:
     print(f"  check       {CHECK_DIR}")
     print("")
 
+    applied_to: list[str] = []
     for fixture in committed:
         name = fixture.name.removesuffix(".idf.gz")
         report.notes.append(f"{name}: {provenance(name).get('engine', 'engine unrecorded')}")
         extraction = extract(library, model_text(fixture))
-        if guard is not None:
+        if guard is not None and guard.applies(extraction):
+            # Only where the model declares the condition the clause reads. Removing a clause from
+            # a model that never triggered it would measure a second wrong answer, not this one.
+            applied_to.append(name)
             extraction = guard.remove(extraction)
-        compare_fixture(name, extraction.surfaces, report)
+        compare_fixture(name, extraction.surfaces, report, by_index=guard is not None and guard.by_index)
 
-    print(f"  vertices    {len(committed)} fixtures, ring comparison within {TOLERANCE_M} m")
+    shape = "vertex by vertex" if guard is not None and guard.by_index else "ring comparison"
+    print(f"  vertices    {len(committed)} fixtures, {shape} within {TOLERANCE_M} m")
     if args.verbose:
         for note in report.notes:
             print(f"     {note}")
@@ -486,7 +683,7 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     if guard is not None:
-        return guard_verdict(guard, report)
+        return guard_verdict(guard, report, applied_to)
 
     if report.failures:
         print(

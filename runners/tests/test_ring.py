@@ -76,3 +76,20 @@ def test_a_rotation_passes_and_its_reversal_does_not() -> None:
 
     assert geometry_check.ring_error(rotated, ring) == pytest.approx(0.0)
     assert geometry_check.ring_error(reversed_ring, ring) > geometry_check.TOLERANCE_M
+
+
+def test_the_index_comparison_sees_a_rotation_the_ring_comparison_does_not() -> None:
+    """What ``--without starting-vertex`` rests on, asserted here rather than only on a fixture.
+
+    The ring comparison exists because the engine renormalises every surface it reports to begin at
+    its upper-left corner while a faithful extractor keeps the author's order, so the two agree on
+    the polygon and differ on where it starts. Comparing by index is the same thing as demanding the
+    extractor reproduce the engine's starting vertex, and this is what that demand costs on one
+    four-metre wall. On the committed model that declares a lower-left start it is 17.59 m.
+    """
+    ring = vertices(TABLE["cases"][0]["reported"])
+    rotated = ring[1:] + ring[:1]
+
+    assert geometry_check.ring_error(rotated, ring) == pytest.approx(0.0)
+    assert geometry_check.index_error(rotated, ring) > geometry_check.TOLERANCE_M
+    assert geometry_check.index_error(ring, ring) == pytest.approx(0.0)

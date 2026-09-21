@@ -1,130 +1,270 @@
 {
   "why": [
-    "The contract between the two guards. test_guard.py asserts that the Python removal of the",
-    "vertex entry direction clause produces exactly the rings this table records, and",
-    "test-guard.mjs asserts the same of the JavaScript one, so a case added here constrains both.",
+    "The contract between the two guards. test_guard.py asserts that the Python removal of each",
+    "clause produces exactly the rings this table records, and test-guard.mjs asserts the same of",
+    "the JavaScript one, so a case added here constrains both.",
     "",
-    "The guard exists because a check that has only ever passed is half a check. It removes the",
+    "The guards exist because a check that has only ever passed is half a check. Each removes a",
     "clause from the library's OUTPUT rather than from its source, because the corpus cannot reach",
-    "into either library and must ask the same question of both. For this clause the undoing is",
-    "exact: the clause reverses a ring while holding its first vertex, so applying it twice is",
-    "applying it never.",
+    "into either library and must ask the same question of both.",
     "",
-    "The table matters most for JavaScript, where the runner's library call is not wired up yet.",
-    "Until it is, this is the only thing asserting that the two guards remove the same clause.",
+    "Each clause carries two things a case exercises. APPLIES answers, from the library's own",
+    "reading of a model, whether the clause had anything to do in it; a clause is removed only",
+    "where it applies, because removing it from a model that never triggered it would measure a",
+    "second wrong answer rather than this one. REMOVE is the undoing itself.",
     "",
     "THE FIRST VERTEX STAYS WHERE IT IS in every reversed case below. A guard that reversed the",
     "whole list would renormalise the starting vertex as a side effect, the check's ring comparison",
     "is insensitive to where a ring starts, and the difference would therefore never be seen.",
     "",
-    "Coordinates are metres. The base ring is the 4 m by 3 m rectangle in the y = 0 plane that",
-    "ring_fixtures.json uses, so the two tables can be read side by side."
+    "Coordinates are metres, and are compared within 1e-9 m because two of the clauses are undone",
+    "by a rotation and a rotation through a right angle is not exact in binary floating point.",
+    "The base ring is the 4 m by 3 m rectangle in the y = 0 plane that ring_fixtures.json uses, so",
+    "the two tables can be read side by side."
   ],
-  "clause": "entry-direction",
-  "guard": {
-    "fails_on": "clockwise-entry",
-    "at_least_m": 4.0,
-    "note": [
-      "Measured on the committed fixture with the clause removed: all eight surfaces disagree and",
-      "the worst is 4.0000 m. The guard requires at least this, so that a clause reduced to a",
-      "rounding difference fails rather than passes."
-    ]
-  },
-  "cases": [
-    {
-      "name": "a declared clockwise model is wound back",
-      "entry_direction": "ClockWise",
-      "surfaces": [
+  "tolerance_m": 1e-9,
+  "clauses": {
+    "coordinate-system": {
+      "guard": {
+        "fails_on": "world-nonzero-zone-origin",
+        "at_least_m": 201.98,
+        "note": [
+          "Measured on the committed fixture with the clause removed: 78 of its 99 surfaces",
+          "disagree and the worst is 201.9800 m, which is the x origin of its third zone. The",
+          "other 21 are Shading:Zone:Detailed, which a scene reports with no zone of its own, so",
+          "the guard leaves them where they are and under-reaches on purpose."
+        ]
+      },
+      "cases": [
         {
-          "name": "W1",
-          "parent_surface": "",
-          "vertices": [[0, 0, 3], [0, 0, 0], [4, 0, 0], [4, 0, 3]]
-        }
-      ],
-      "expected": [
+          "name": "a world model is displaced by the origin its zones declare",
+          "applies": true,
+          "declares": { "coordinate_system": "World" },
+          "zone_origins": { "ZONE 1": [1.98, 4.58, 0] },
+          "surfaces": [
+            { "name": "W1", "parent_surface": "", "zone": "Zone 1", "vertices": [[0, 0, 3], [0, 0, 0], [4, 0, 0], [4, 0, 3]] }
+          ],
+          "expected": [
+            { "name": "W1", "parent_surface": "", "zone": "Zone 1", "vertices": [[1.98, 4.58, 3], [1.98, 4.58, 0], [5.98, 4.58, 0], [5.98, 4.58, 3]] }
+          ],
+          "note": "The zone is matched without regard to case, as EnergyPlus matches a name."
+        },
         {
-          "name": "W1",
-          "parent_surface": "",
-          "vertices": [[0, 0, 3], [4, 0, 3], [4, 0, 0], [0, 0, 0]]
+          "name": "a relative model is out of the clause's scope",
+          "applies": false,
+          "declares": { "coordinate_system": "Relative" },
+          "zone_origins": { "ZONE 1": [1.98, 4.58, 0] },
+          "surfaces": [
+            { "name": "W1", "parent_surface": "", "zone": "Zone 1", "vertices": [[0, 0, 3], [0, 0, 0], [4, 0, 0], [4, 0, 3]] }
+          ],
+          "expected": [
+            { "name": "W1", "parent_surface": "", "zone": "Zone 1", "vertices": [[0, 0, 3], [0, 0, 0], [4, 0, 0], [4, 0, 3]] }
+          ],
+          "note": "The clause has already fired here, and applying it again would measure a double shift that neither library would ever produce."
+        },
+        {
+          "name": "a surface the library placed in no zone is left where it is",
+          "applies": true,
+          "declares": { "coordinate_system": "World" },
+          "zone_origins": { "ZONE 1": [1.98, 4.58, 0] },
+          "surfaces": [
+            { "name": "S1", "parent_surface": "", "zone": "", "vertices": [[0, 0, 3], [0, 0, 0], [4, 0, 0], [4, 0, 3]] }
+          ],
+          "expected": [
+            { "name": "S1", "parent_surface": "", "zone": "", "vertices": [[0, 0, 3], [0, 0, 0], [4, 0, 0], [4, 0, 3]] }
+          ],
+          "note": "Site and building shading belong to no zone, and zone shading is reported with none either. The guard under-reaches rather than guessing."
+        },
+        {
+          "name": "a zone the model does not hold moves nothing",
+          "applies": true,
+          "declares": { "coordinate_system": "World" },
+          "zone_origins": {},
+          "surfaces": [
+            { "name": "W1", "parent_surface": "", "zone": "Zone 9", "vertices": [[0, 0, 3], [0, 0, 0], [4, 0, 0], [4, 0, 3]] }
+          ],
+          "expected": [
+            { "name": "W1", "parent_surface": "", "zone": "Zone 9", "vertices": [[0, 0, 3], [0, 0, 0], [4, 0, 0], [4, 0, 3]] }
+          ],
+          "note": "An absent origin is not a zero origin invented for the occasion; it is a surface the guard has nothing to say about."
         }
-      ],
-      "note": "The head is held and the tail reversed: the same ring from the same corner, the other way."
+      ]
     },
-    {
-      "name": "the engine's own spelling is matched without regard to case",
-      "entry_direction": "clockwise",
-      "surfaces": [
+    "north-axis": {
+      "guard": {
+        "fails_on": "north-axis-multizone",
+        "at_least_m": 22.5571,
+        "note": [
+          "Measured on the committed fixture with the clause removed: all 34 surfaces disagree and",
+          "the worst is 22.5571 m at an axis of 158.434 degrees. clockwise-entry declares 45",
+          "degrees and fails alongside it at 5.7100 m, which is the clause doing its job in a",
+          "second model rather than a second bug, and the verdict says so."
+        ]
+      },
+      "cases": [
         {
-          "name": "W1",
-          "parent_surface": "",
-          "vertices": [[0, 0, 3], [0, 0, 0], [4, 0, 0], [4, 0, 3]]
-        }
-      ],
-      "expected": [
+          "name": "a quarter turn is turned back",
+          "applies": true,
+          "declares": { "north_axis": 90 },
+          "surfaces": [
+            { "name": "W1", "parent_surface": "", "zone": "Zone 1", "vertices": [[0, 0, 3], [0, 0, 0], [4, 0, 0], [4, 0, 3]] }
+          ],
+          "expected": [
+            { "name": "W1", "parent_surface": "", "zone": "Zone 1", "vertices": [[0, 0, 3], [0, 0, 0], [0, 4, 0], [0, 4, 3]] }
+          ],
+          "note": "The clause turns the building by the negation of the axis, so undoing it turns by the axis itself."
+        },
         {
-          "name": "W1",
-          "parent_surface": "",
-          "vertices": [[0, 0, 3], [4, 0, 3], [4, 0, 0], [0, 0, 0]]
+          "name": "a half turn is turned back",
+          "applies": true,
+          "declares": { "north_axis": 180 },
+          "surfaces": [
+            { "name": "W1", "parent_surface": "", "zone": "Zone 1", "vertices": [[0, 0, 3], [0, 0, 0], [4, 0, 0], [4, 0, 3]] }
+          ],
+          "expected": [
+            { "name": "W1", "parent_surface": "", "zone": "Zone 1", "vertices": [[0, 0, 3], [0, 0, 0], [-4, 0, 0], [-4, 0, 3]] }
+          ],
+          "note": "Height is untouched: the rotation is about the vertical, so z is carried through whatever the angle."
+        },
+        {
+          "name": "an unrotated building is out of the clause's scope",
+          "applies": false,
+          "declares": { "north_axis": 0 },
+          "surfaces": [
+            { "name": "W1", "parent_surface": "", "zone": "Zone 1", "vertices": [[0, 0, 3], [0, 0, 0], [4, 0, 0], [4, 0, 3]] }
+          ],
+          "expected": [
+            { "name": "W1", "parent_surface": "", "zone": "Zone 1", "vertices": [[0, 0, 3], [0, 0, 0], [4, 0, 0], [4, 0, 3]] }
+          ],
+          "note": "The identity case, and the one that makes a fixture failing under this guard a real finding rather than arithmetic noise."
+        },
+        {
+          "name": "the turn is about the world origin and not about the surface",
+          "applies": true,
+          "declares": { "north_axis": 90 },
+          "surfaces": [
+            { "name": "W1", "parent_surface": "", "zone": "Zone 1", "vertices": [[10, 0, 0], [14, 0, 0], [14, 0, 3]] }
+          ],
+          "expected": [
+            { "name": "W1", "parent_surface": "", "zone": "Zone 1", "vertices": [[0, 10, 0], [0, 14, 0], [0, 14, 3]] }
+          ],
+          "note": "A surface away from the origin moves as well as turns, which is the whole difference between rotating the building and rotating each surface in place."
         }
-      ],
-      "note": "EnergyPlus matches these values without regard to case and the example set holds several spellings."
+      ]
     },
-    {
-      "name": "a declared counter-clockwise model is left alone",
-      "entry_direction": "CounterClockWise",
-      "surfaces": [
+    "entry-direction": {
+      "guard": {
+        "fails_on": "clockwise-entry",
+        "at_least_m": 4.0,
+        "note": [
+          "Measured on the committed fixture with the clause removed: all eight surfaces disagree",
+          "and the worst is 4.0000 m. The guard requires at least this, so that a clause reduced to",
+          "a rounding difference fails rather than passes."
+        ]
+      },
+      "involution": true,
+      "holds_the_head": true,
+      "cases": [
         {
-          "name": "W1",
-          "parent_surface": "",
-          "vertices": [[0, 0, 3], [0, 0, 0], [4, 0, 0], [4, 0, 3]]
-        }
-      ],
-      "expected": [
+          "name": "a declared clockwise model is wound back",
+          "applies": true,
+          "declares": { "entry_direction": "ClockWise" },
+          "surfaces": [
+            { "name": "W1", "parent_surface": "", "zone": "Zone 1", "vertices": [[0, 0, 3], [0, 0, 0], [4, 0, 0], [4, 0, 3]] }
+          ],
+          "expected": [
+            { "name": "W1", "parent_surface": "", "zone": "Zone 1", "vertices": [[0, 0, 3], [4, 0, 3], [4, 0, 0], [0, 0, 0]] }
+          ],
+          "note": "The head is held and the tail reversed: the same ring from the same corner, the other way."
+        },
         {
-          "name": "W1",
-          "parent_surface": "",
-          "vertices": [[0, 0, 3], [0, 0, 0], [4, 0, 0], [4, 0, 3]]
+          "name": "the engine's own spelling is matched without regard to case",
+          "applies": true,
+          "declares": { "entry_direction": "clockwise" },
+          "surfaces": [
+            { "name": "W1", "parent_surface": "", "zone": "Zone 1", "vertices": [[0, 0, 3], [0, 0, 0], [4, 0, 0], [4, 0, 3]] }
+          ],
+          "expected": [
+            { "name": "W1", "parent_surface": "", "zone": "Zone 1", "vertices": [[0, 0, 3], [4, 0, 3], [4, 0, 0], [0, 0, 0]] }
+          ],
+          "note": "EnergyPlus matches these values without regard to case and the example set holds several spellings."
+        },
+        {
+          "name": "a declared counter-clockwise model is out of the clause's scope",
+          "applies": false,
+          "declares": { "entry_direction": "CounterClockWise" },
+          "surfaces": [
+            { "name": "W1", "parent_surface": "", "zone": "Zone 1", "vertices": [[0, 0, 3], [0, 0, 0], [4, 0, 0], [4, 0, 3]] }
+          ],
+          "expected": [
+            { "name": "W1", "parent_surface": "", "zone": "Zone 1", "vertices": [[0, 0, 3], [0, 0, 0], [4, 0, 0], [4, 0, 3]] }
+          ],
+          "note": "The identity case, and the one that makes a second fixture failing under the guard a real finding."
+        },
+        {
+          "name": "a triangle reverses as a triangle",
+          "applies": true,
+          "declares": { "entry_direction": "ClockWise" },
+          "surfaces": [
+            { "name": "T1", "parent_surface": "", "zone": "Zone 1", "vertices": [[0, 0, 3], [0, 0, 0], [4, 0, 0]] }
+          ],
+          "expected": [
+            { "name": "T1", "parent_surface": "", "zone": "Zone 1", "vertices": [[0, 0, 3], [4, 0, 0], [0, 0, 0]] }
+          ],
+          "note": "Three vertices is the shortest ring a resolved surface can have."
+        },
+        {
+          "name": "what a surface carries besides its ring is carried through",
+          "applies": true,
+          "declares": { "entry_direction": "ClockWise" },
+          "surfaces": [
+            { "name": "W1Window", "parent_surface": "W1", "zone": "Zone 1", "vertices": [[1, 0, 2], [1, 0, 1], [2, 0, 1], [2, 0, 2]] }
+          ],
+          "expected": [
+            { "name": "W1Window", "parent_surface": "W1", "zone": "Zone 1", "vertices": [[1, 0, 2], [2, 0, 2], [2, 0, 1], [1, 0, 1]] }
+          ],
+          "note": "The guard removes one clause of the placement rule and nothing else; the parent is still compared."
         }
-      ],
-      "note": "The identity case, and the one that makes a second fixture failing under the guard a real finding."
+      ]
     },
-    {
-      "name": "a triangle reverses as a triangle",
-      "entry_direction": "ClockWise",
-      "surfaces": [
+    "starting-vertex": {
+      "guard": {
+        "fails_on": "lower-left-start",
+        "at_least_m": 17.59,
+        "note": [
+          "The one guard that removes a clause of the COMPARISON rather than of the resolution",
+          "rule, so its removal leaves the library's answer alone and every case below is an",
+          "identity. Measured on the committed fixture compared vertex by vertex instead of as a",
+          "ring: all 41 surfaces disagree and the worst is 17.5900 m. THIS GUARD MUST GO ON",
+          "FAILING; checks/geometry-vertices/check.md says at length why."
+        ]
+      },
+      "cases": [
         {
-          "name": "T1",
-          "parent_surface": "",
-          "vertices": [[0, 0, 3], [0, 0, 0], [4, 0, 0]]
-        }
-      ],
-      "expected": [
+          "name": "a model declaring a lower-left start is in the clause's scope",
+          "applies": true,
+          "declares": { "starting_vertex_position": "LowerLeftCorner" },
+          "surfaces": [
+            { "name": "W1", "parent_surface": "", "zone": "Zone 1", "vertices": [[0, 0, 3], [0, 0, 0], [4, 0, 0], [4, 0, 3]] }
+          ],
+          "expected": [
+            { "name": "W1", "parent_surface": "", "zone": "Zone 1", "vertices": [[0, 0, 3], [0, 0, 0], [4, 0, 0], [4, 0, 3]] }
+          ],
+          "note": "In scope and unchanged. What the guard removes is the rotation search in the comparison, not anything the library did."
+        },
         {
-          "name": "T1",
-          "parent_surface": "",
-          "vertices": [[0, 0, 3], [4, 0, 0], [0, 0, 0]]
+          "name": "a model declaring the engine's own corner is out of the clause's scope",
+          "applies": false,
+          "declares": { "starting_vertex_position": "UpperLeftCorner" },
+          "surfaces": [
+            { "name": "W1", "parent_surface": "", "zone": "Zone 1", "vertices": [[0, 0, 3], [0, 0, 0], [4, 0, 0], [4, 0, 3]] }
+          ],
+          "expected": [
+            { "name": "W1", "parent_surface": "", "zone": "Zone 1", "vertices": [[0, 0, 3], [0, 0, 0], [4, 0, 0], [4, 0, 3]] }
+          ],
+          "note": "The engine reports every surface from its upper-left corner, so a model already declaring that corner has nothing for this guard to find."
         }
-      ],
-      "note": "Three vertices is the shortest ring a resolved surface can have."
-    },
-    {
-      "name": "what a surface carries besides its ring is carried through",
-      "entry_direction": "ClockWise",
-      "surfaces": [
-        {
-          "name": "W1Window",
-          "parent_surface": "W1",
-          "vertices": [[1, 0, 2], [1, 0, 1], [2, 0, 1], [2, 0, 2]]
-        }
-      ],
-      "expected": [
-        {
-          "name": "W1Window",
-          "parent_surface": "W1",
-          "vertices": [[1, 0, 2], [2, 0, 2], [2, 0, 1], [1, 0, 1]]
-        }
-      ],
-      "note": "The guard removes one clause of the placement rule and nothing else; the parent is still compared."
+      ]
     }
-  ]
+  }
 }
