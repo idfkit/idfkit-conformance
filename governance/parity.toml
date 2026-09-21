@@ -609,15 +609,28 @@ names      = [
 #         calculate_surface_tilt, calculate_zone_floor_area, calculate_zone_ceiling_area,
 #         calculate_zone_height, calculate_zone_volume, polygon_area_2d, polygon_contains_2d,
 #         polygon_intersection_2d, polygon_difference_2d
-# Reserved for the eventual port: @idfkit/geometry at subpath idfkit/geometry (FR-077).
+# TypeScript: Vector3D, Polygon3D, getScene (@idfkit/geometry, reserved at subpath
+#             idfkit/geometry per FR-077 and not yet carrying one).
 [[capability]]
 id         = "geometry-extraction"
 title      = "Reading geometry from a model"
 tier       = "tier-2"
 python     = "complete"
-typescript = "absent"
-absence_kind = "not-yet"
-issue      = "https://github.com/idfkit/idfkit-js/issues/13"
+typescript = "partial"
+differences = """
+TypeScript carries the vector, the polygon and the resolved scene. `getScene` places every detailed
+surface a model states and reports what it could not place and what it did not attempt, so a reader
+who wants a model's geometry has it in both languages.
+
+What it does not carry is the per-object calculation surface Python spells as free functions over an
+IDF object: a zone's origin and its rotation, a surface's area, tilt and azimuth read from the
+object rather than from a polygon, a zone's floor area, ceiling area, height and volume, and the
+two-dimensional polygon predicates. Python's `translate_to_world` has no counterpart either, and
+will not have the same one: it resolves by mutating the document, where `getScene` resolves into a
+value and leaves the model alone.
+"""
+difference_kind = "not-yet"
+difference_issue = "https://github.com/idfkit/idfkit-js/issues/13"
 names      = [
   "three-dimensional vector",
   "three-dimensional polygon",

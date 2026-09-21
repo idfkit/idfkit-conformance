@@ -300,6 +300,14 @@ function provenance(name) {
  */
 async function importLibrary(root) {
   const resolved = resolve(root);
+  // The import specifier each entry stands for, so the message names what a reader would install
+  // rather than the key this object happens to use. `node` is a subpath of `@idfkit/core`, not a
+  // package of its own, and saying `@idfkit/core` for it sends a reader looking for the wrong file.
+  const SPECIFIER = {
+    geometry: '@idfkit/geometry',
+    core: '@idfkit/core',
+    node: '@idfkit/core/node',
+  };
   const wanted = {
     geometry: join(resolved, 'packages', 'geometry', 'dist', 'index.js'),
     core: join(resolved, 'packages', 'core', 'dist', 'index.js'),
@@ -308,7 +316,7 @@ async function importLibrary(root) {
   for (const [name, path] of Object.entries(wanted)) {
     if (existsSync(path)) continue;
     throw new Unusable(
-      `no built ${name === 'geometry' ? '@idfkit/geometry' : '@idfkit/core'} under ${resolved}. ` +
+      `no built ${SPECIFIER[name]} under ${resolved}. ` +
         `Looked for ${path}.\n` +
         '  Build the checkout with `npm run build`, or `npx tsc --build`.\n' +
         '  geometry-check.mjs drives the JavaScript library; use ' +
