@@ -213,25 +213,36 @@ export function withoutEntryDirection(extraction) {
  * the clause has already fired and applying it again would measure a double shift, which is a third
  * answer neither library would ever give.
  *
- * TWO THINGS IT DOES NOT DO, both because the fixture set does not exercise them.
+ * THE ORIGIN IS ROTATED BEFORE IT IS ADDED, and that is not a flourish. Clause one runs before
+ * clause two, so a library missing clause one returns `R(v + o)` where `R` is the building
+ * rotation, while this function is handed `R(v)` and can only add. `R(v + o)` is `R(v) + R(o)`, so
+ * the origin is turned by the same angle first. Adding it unturned is exact only when the model's
+ * north axis is zero, which all three of the fixtures declaring `World` happen to be; at an axis of
+ * 45 degrees on a zone origin of (1.98, 4.58) it is 2.74 m wrong, and it would have been a silently
+ * approximate guard rather than an exact one.
  *
- * It does not apply the zone's `direction_of_relative_north`, which clause one also governs. No
- * model in the set declares `World` and carries a non-zero zone rotation, so a branch for it would
- * be an untested path standing in for a proof.
+ * ONE THING IT DOES NOT DO, because the fixture set does not exercise it. It does not apply the
+ * zone's `direction_of_relative_north`, which clause one also governs. No model in the set declares
+ * `World` and carries a non-zero zone rotation, so a branch for it would be an untested path
+ * standing in for a proof.
  *
- * It does not move a surface the library placed in no zone. Twenty-one of the ninety-nine surfaces
- * in `world-nonzero-zone-origin` are `Shading:Zone:Detailed`, which resolve against the zone of the
- * surface they are attached to and which a scene reports with no zone of their own. The guard
- * therefore moves seventy-eight of them, which is enough to make the point at 201.98 m and is less
- * than a library without the clause would move. Under-reaching is safe here in a way that
- * over-reaching would not be: it can only make the guard harder to satisfy.
+ * AND ONE IT CANNOT DO. It does not move a surface the library placed in no zone. Twenty-one of the
+ * ninety-nine surfaces in `world-nonzero-zone-origin` are `Shading:Zone:Detailed`, which resolve
+ * against the zone of the surface they are attached to and which a scene reports with no zone of
+ * their own. The guard therefore moves seventy-eight of them, which is enough to make the point at
+ * 201.98 m and is less than a library without the clause would move. Under-reaching is safe here in
+ * a way that over-reaching would not be: it can only make the guard harder to satisfy.
  */
 export function withoutCoordinateSystem(extraction) {
   const origins = extraction.zoneOrigins ?? new Map();
+  const radians = (-extraction.northAxis * Math.PI) / 180;
+  const cosine = Math.cos(radians);
+  const sine = Math.sin(radians);
   return mapped(extraction, (surface) => {
     const origin = surface.zone ? origins.get(surface.zone.toUpperCase()) : undefined;
     if (origin === undefined) return surface.vertices;
-    return surface.vertices.map((v) => [v[0] + origin[0], v[1] + origin[1], v[2] + origin[2]]);
+    const turned = [origin[0] * cosine - origin[1] * sine, origin[0] * sine + origin[1] * cosine, origin[2]];
+    return surface.vertices.map((v) => [v[0] + turned[0], v[1] + turned[1], v[2] + turned[2]]);
   });
 }
 
@@ -515,6 +526,12 @@ async function extract(library, model) {
     startingVertexPosition: scene.applied.startingVertexPosition,
     northAxis: scene.applied.northAxis,
     zoneOrigins: zoneOrigins(document),
+    // What the library could not place, and what it says it did not attempt. Both are here so that
+    // a surface going missing is a failure rather than one fewer comparison: without them the check
+    // only ever asks about the surfaces a library chose to return, which is the one question a
+    // library that dropped a wall would answer correctly.
+    unresolved: scene.unresolved.map((item) => `${item.objectType} ${item.name}: ${item.reason}`),
+    unattempted: scene.unattempted.map((item) => [item.objectType, item.count]),
   };
 }
 
@@ -563,15 +580,17 @@ function measured(report, fixture, error) {
  * `byIndex` is the starting-vertex guard and nothing else. An unguarded run always compares as a
  * ring, and `check.md` records why the option to do otherwise exists only to be shown failing.
  */
-function compareFixture(name, extracted, report, byIndex = false) {
+function compareFixture(name, extraction, report, byIndex = false) {
   const compare = byIndex ? indexError : ringError;
   const reported = new Map(expectation(name).map((surface) => [surface.name.toUpperCase(), surface]));
-  for (const surface of extracted) {
+  const matched = new Set();
+  for (const surface of extraction.surfaces) {
     const against = reported.get(surface.name.toUpperCase());
     if (against === undefined) {
       fail(report, name, `${surface.name} was resolved and the engine reports no such surface`);
       continue;
     }
+    matched.add(surface.name.toUpperCase());
     let error;
     try {
       error = compare(surface.vertices, against.vertices);
@@ -600,16 +619,65 @@ function compareFixture(name, extracted, report, byIndex = false) {
       );
     }
   }
+
+  for (const line of extraction.unresolved ?? []) report.unresolved.push(`${name}: ${line}`);
+  accountForTheRest(name, extraction, reported, matched, report);
+}
+
+/**
+ * Fail when the engine reports a surface the library neither resolved nor accounted for.
+ *
+ * WITHOUT THIS THE CHECK CANNOT FAIL ON AN OMISSION, which is the cheapest regression there is. The
+ * comparison walks the surfaces the library returned and looks each one up in the expectation, so a
+ * library that dropped a wall compares one fewer surface and passes: delete one from
+ * `north-axis-multizone` and the run reports 233 green comparisons instead of 234 and exits 0. The
+ * engine's report is the authority on what is in the model, so it is the side that has to be
+ * exhausted.
+ *
+ * ONE EXEMPTION, AND IT IS DERIVED RATHER THAN NAMED. A library that reports unattempted types is
+ * saying the model holds geometry this slice does not read, and the engine reported those surfaces
+ * anyway. `simplified-only-unread` is such a model: 45 reported surfaces against 43 unattempted
+ * objects, which is not an accounting error but the engine's own expansion, since a `Shading:Fin`
+ * becomes two surfaces and the model holds two of them. Counting objects against surfaces there
+ * would mean teaching this check the engine's expansion rules, which is exactly the knowledge
+ * `regenerate.py` refuses to hold. So the rule asks its question only of a model the library
+ * attempted in full, which is six of the seven fixtures and every one of the 234 surfaces the check
+ * actually compares.
+ */
+function accountForTheRest(name, extraction, reported, matched, report) {
+  if ((extraction.unattempted ?? []).length > 0) return;
+  const missing = [...reported.entries()]
+    .filter(([key]) => !matched.has(key))
+    .map(([, surface]) => surface.name)
+    .sort();
+  for (const absent of missing) {
+    fail(report, name, `the engine reports ${absent} and the library resolved no such surface`);
+  }
 }
 
 // ---------------------------------------------------------------------------
 
+/**
+ * The value a flag takes, or an unusable run.
+ *
+ * A flag written with no value after it must not read as the flag being absent: `--without` with
+ * nothing after it would otherwise run the UNGUARDED check and exit 0, which reads as a guard that
+ * held. `geometry_check.py` gets this from argparse; this is the same refusal.
+ */
+function value(argv, at, flag) {
+  const given = argv[at];
+  if (given === undefined || given.startsWith('--')) {
+    throw new Unusable(`${flag} expects one argument`);
+  }
+  return given;
+}
+
 function parseArgs(argv) {
   const args = { library: undefined, verbose: false, without: undefined };
   for (let i = 0; i < argv.length; i += 1) {
-    if (argv[i] === '--library') args.library = argv[++i];
+    if (argv[i] === '--library') args.library = value(argv, ++i, '--library');
     else if (argv[i] === '--verbose') args.verbose = true;
-    else if (argv[i] === '--without') args.without = argv[++i];
+    else if (argv[i] === '--without') args.without = value(argv, ++i, '--without');
     else throw new Unusable(`unknown argument ${JSON.stringify(argv[i])}`);
   }
   if (args.without !== undefined && !(args.without in GUARDS)) {
@@ -650,13 +718,16 @@ async function main(argv) {
     const name = fixture.replace(/\.idf\.gz$/, '');
     report.notes.push(`${name}: ${provenance(name).engine ?? 'engine unrecorded'}`);
     let extraction = await extract(library, modelText(fixture));
-    if (guard !== undefined && guard.applies(extraction)) {
-      // Only where the model declares the condition the clause reads. Removing a clause from a
-      // model that never triggered it would measure a second wrong answer, not this one.
+    // Only where the model declares the condition the clause reads. Removing a clause from a model
+    // that never triggered it would measure a second wrong answer, not this one, and a fixture out
+    // of scope must be judged exactly as an unguarded run judges it: that is what makes a failure
+    // there a foreign bug rather than this guard's own doing.
+    const inScope = guard !== undefined && guard.applies(extraction);
+    if (inScope) {
       appliedTo.push(name);
       extraction = guard.remove(extraction);
     }
-    compareFixture(name, extraction.surfaces, report, guard !== undefined && guard.byIndex);
+    compareFixture(name, extraction, report, inScope && guard.byIndex);
   }
 
   const shape = guard !== undefined && guard.byIndex ? 'vertex by vertex' : 'ring comparison';

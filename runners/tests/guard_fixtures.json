@@ -50,6 +50,19 @@
           "note": "The zone is matched without regard to case, as EnergyPlus matches a name."
         },
         {
+          "name": "the origin is turned by the building axis before it is added",
+          "applies": true,
+          "declares": { "coordinate_system": "World", "north_axis": 45 },
+          "zone_origins": { "ZONE 1": [1.98, 4.58, 0] },
+          "surfaces": [
+            { "name": "W1", "parent_surface": "", "zone": "Zone 1", "vertices": [[0, 0, 3], [0, 0, 0], [4, 0, 0], [4, 0, 3]] }
+          ],
+          "expected": [
+            { "name": "W1", "parent_surface": "", "zone": "Zone 1", "vertices": [[4.638620484584, 1.838477631085, 3], [4.638620484584, 1.838477631085, 0], [8.638620484584, 1.838477631085, 0], [8.638620484584, 1.838477631085, 3]] }
+          ],
+          "note": "Clause one runs before clause two, so a library missing it returns R(v + o) while the guard is handed R(v) and can only add. R(v + o) is R(v) + R(o), so the origin is turned first. Adding it unturned is 2.74 m wrong here and exactly right on every committed fixture, all three of which declare World with a zero axis."
+        },
+        {
           "name": "a relative model is out of the clause's scope",
           "applies": false,
           "declares": { "coordinate_system": "Relative" },

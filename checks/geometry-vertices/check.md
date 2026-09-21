@@ -63,6 +63,25 @@ Per surface, the resolved polygon against the reported polygon:
 Fenestration additionally compares its parent surface name against the report's base surface column,
 which is how the oracle states a window's parent.
 
+**And the engine's side is exhausted, not just the library's.** The comparison walks the surfaces
+the library returned and looks each one up in the expectation, so on its own it cannot fail on an
+omission: a library that dropped a wall from `north-axis-multizone` would compare 233 surfaces
+instead of 234, every one of them green, and exit 0. The engine's report is the authority on what
+the model holds, so every row in it must be matched by a resolved surface.
+
+**One exemption, derived rather than named.** A library reporting unattempted types is saying the
+model holds geometry this slice does not read, and the engine reported those surfaces anyway.
+`simplified-only-unread` is such a model: 45 reported surfaces against 43 unattempted objects, which
+is not an accounting error but the engine's own expansion, since a `Shading:Fin` becomes two
+surfaces and the model holds two of them. Counting objects against surfaces there would mean
+teaching this check the engine's expansion rules, which is the knowledge `regenerate.py` refuses to
+hold. So the rule asks its question only of a model the library attempted in full: six of the seven
+fixtures, and every one of the 234 surfaces the check compares.
+
+The `unresolved` count in the verdict line is read from the library's own scene. It is zero on all
+seven fixtures, and it is a measurement rather than a constant: a library that could not place an
+object names it there and the count says so.
+
 ## The engine's own surfaces, and why they are not in the expectations
 
 The report describes the surfaces EnergyPlus **ended up with**, which is not the set the model
@@ -157,8 +176,17 @@ on those models and a no-op on the others, which is why it is applied only where
 declared: applying it on a model already resolved under `Relative` would measure a double shift, a
 third answer neither library would ever give.
 
-Two things that guard does not do, both because the fixture set does not exercise them and both
-recorded here rather than left to a reader of the source:
+**The origin is turned by the building axis before it is added**, and that is what makes the undoing
+exact rather than nearly exact. Clause one runs before clause two, so a library missing clause one
+returns `R(v + o)` where `R` is the building rotation, while the guard is handed `R(v)` and can only
+add. `R(v + o)` is `R(v) + R(o)`, so the origin is turned by the same angle first. Adding it unturned
+is right on every committed fixture, all three of which declare `World` with a zero axis, and 2.74 m
+wrong at an axis of 45 degrees on a zone origin of (1.98, 4.58). A guard that is exact only where the
+fixture set happens to be silent is a guard that will mislead the first model that breaks the
+silence, so `runners/tests/guard_fixtures.json` carries a case at 45 degrees.
+
+Two things that guard does not do, one because the fixture set does not exercise it and one because
+the scene does not state it. Both recorded here rather than left to a reader of the source:
 
 - It does not apply the zone's `direction_of_relative_north`, which clause one also governs. No
   model in the set declares `World` and carries a non-zero zone rotation, so a branch for it would
@@ -196,6 +224,12 @@ being the ones a weaker guard would skip:
 A fixture the clause did touch is allowed to fail and is named in the transcript as expected
 company. Exit 0 when the guard holds, 1 when the clause turned out not to matter, which is the
 finding worth reporting.
+
+**A fixture out of scope is judged exactly as an unguarded run judges it.** That holds for the
+fourth guard too, which changes the comparison rather than the answer: it compares by index only on
+the models it applies to. Were it to do so everywhere, a fixture declaring an upper-left start whose
+authored order did not in fact begin there would fail and be reported as untouched by the clause,
+which would diagnose the guard's own doing as a foreign bug.
 
 **The set holds one model declaring clockwise entry and the specification says two.** The 4.0000 m
 above is measured on the one that is committed, `clockwise-entry`, over all eight of its surfaces.

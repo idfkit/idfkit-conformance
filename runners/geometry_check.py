@@ -82,7 +82,7 @@ import sys
 import tempfile
 from dataclasses import dataclass, field as dataclass_field
 from pathlib import Path
-from typing import Callable, Final, Iterator, Mapping, Sequence
+from typing import Callable, Final, Mapping, Sequence
 
 RUNNERS_DIR: Final = Path(__file__).resolve().parent
 REPO_ROOT: Final = RUNNERS_DIR.parent
@@ -150,6 +150,12 @@ class Extraction:
     starting_vertex_position: str = "UpperLeftCorner"
     north_axis: float = 0.0
     zone_origins: Mapping[str, Vertex] = dataclass_field(default_factory=dict)
+    #: What the library could not place, and what it says it did not attempt. Both are here so that
+    #: a surface going missing is a failure rather than one fewer comparison: without them the check
+    #: only ever asks about the surfaces a library chose to return, which is the one question a
+    #: library that dropped a wall would answer correctly.
+    unresolved: tuple[str, ...] = ()
+    unattempted: tuple[tuple[str, int], ...] = ()
 
 
 @dataclass(slots=True)
@@ -253,6 +259,8 @@ def _mapped(extraction: Extraction, move: Callable[[Extracted], tuple[Vertex, ..
         starting_vertex_position=extraction.starting_vertex_position,
         north_axis=extraction.north_axis,
         zone_origins=extraction.zone_origins,
+        unresolved=extraction.unresolved,
+        unattempted=extraction.unattempted,
     )
 
 
@@ -284,26 +292,36 @@ def without_coordinate_system(extraction: Extraction) -> Extraction:
     the clause has already fired and applying it again would measure a double shift, which is a
     third answer neither library would ever give.
 
-    TWO THINGS IT DOES NOT DO, both because the fixture set does not exercise them.
+    THE ORIGIN IS ROTATED BEFORE IT IS ADDED, and that is not a flourish. Clause one runs before
+    clause two, so a library missing clause one returns ``R(v + o)`` where ``R`` is the building
+    rotation, while this function is handed ``R(v)`` and can only add. ``R(v + o)`` is ``R(v) +
+    R(o)``, so the origin is turned by the same angle first. Adding it unturned is exact only when
+    the model's north axis is zero, which all three of the fixtures declaring ``World`` happen to
+    be; at an axis of 45 degrees on a zone origin of (1.98, 4.58) it is 2.74 m wrong, and it would
+    have been a silently approximate guard rather than an exact one.
 
-    It does not apply the zone's ``direction_of_relative_north``, which clause one also governs. No
-    model in the set declares ``World`` and carries a non-zero zone rotation, so a branch for it
-    would be an untested path standing in for a proof.
+    ONE THING IT DOES NOT DO, because the fixture set does not exercise it. It does not apply the
+    zone's ``direction_of_relative_north``, which clause one also governs. No model in the set
+    declares ``World`` and carries a non-zero zone rotation, so a branch for it would be an untested
+    path standing in for a proof.
 
-    It does not move a surface the library placed in no zone. Twenty-one of the ninety-nine surfaces
-    in ``world-nonzero-zone-origin`` are ``Shading:Zone:Detailed``, which resolve against the zone of
-    the surface they are attached to and which a scene reports with no zone of their own. The guard
-    therefore moves seventy-eight of them, which is enough to make the point at 201.98 m and is less
-    than a library without the clause would move. Under-reaching is safe here in a way that
-    over-reaching would not be: it can only make the guard harder to satisfy.
+    AND ONE IT CANNOT DO. It does not move a surface the library placed in no zone. Twenty-one of
+    the ninety-nine surfaces in ``world-nonzero-zone-origin`` are ``Shading:Zone:Detailed``, which
+    resolve against the zone of the surface they are attached to and which a scene reports with no
+    zone of their own. The guard therefore moves seventy-eight of them, which is enough to make the
+    point at 201.98 m and is less than a library without the clause would move. Under-reaching is
+    safe here in a way that over-reaching would not be: it can only make the guard harder to satisfy.
     """
     origins = extraction.zone_origins
+    radians = math.radians(-extraction.north_axis)
+    cosine, sine = math.cos(radians), math.sin(radians)
 
     def moved(surface: Extracted) -> tuple[Vertex, ...]:
         origin = origins.get(surface.zone.upper()) if surface.zone else None
         if origin is None:
             return surface.vertices
-        return tuple((x + origin[0], y + origin[1], z + origin[2]) for x, y, z in surface.vertices)
+        turned = (origin[0] * cosine - origin[1] * sine, origin[0] * sine + origin[1] * cosine, origin[2])
+        return tuple((x + turned[0], y + turned[1], z + turned[2]) for x, y, z in surface.vertices)
 
     return _mapped(extraction, moved)
 
@@ -413,7 +431,8 @@ def guard_verdict(guard: Guard, report: Report, applied_to: Sequence[str]) -> in
     print(f"     in scope: {', '.join(sorted(in_scope)) or 'no fixture declares it'}")
     print(f"     {guard.fails_on}: {failures} comparisons disagree, worst {worst:.4f} m")
     for name in alongside:
-        print(f"     {name}: {report.failed[name]} disagree, worst {report.worst[name]:.4f} m, and it declares it too")
+        seen = report.worst.get(name, 0.0)
+        print(f"     {name}: {report.failed[name]} disagree, worst {seen:.4f} m, and it declares it too")
     if untouched:
         print(f"     also failing, untouched by the clause: {', '.join(untouched)}")
     print("")
@@ -562,6 +581,8 @@ def extract(module, model: str) -> Extraction:
         starting_vertex_position=scene.applied.starting_vertex_position,
         north_axis=scene.applied.north_axis,
         zone_origins=origins,
+        unresolved=tuple(f"{item.object_type} {item.name}: {item.reason}" for item in scene.unresolved),
+        unattempted=tuple((item.object_type, item.count) for item in scene.unattempted),
     )
 
 
@@ -590,7 +611,7 @@ def zone_origins(doc) -> dict[str, Vertex]:
 # ---------------------------------------------------------------------------
 
 
-def compare_fixture(name: str, extracted: Sequence[Extracted], report: Report, by_index: bool = False) -> None:
+def compare_fixture(name: str, extraction: Extraction, report: Report, by_index: bool = False) -> None:
     """Compare one model's resolved surfaces against the engine's report of the same model.
 
     ``by_index`` is the starting-vertex guard and nothing else. An unguarded run always compares as
@@ -598,11 +619,13 @@ def compare_fixture(name: str, extracted: Sequence[Extracted], report: Report, b
     """
     compare = index_error if by_index else ring_error
     reported = {surface.name.upper(): surface for surface in expectation(name)}
-    for surface in extracted:
+    matched: set[str] = set()
+    for surface in extraction.surfaces:
         against = reported.get(surface.name.upper())
         if against is None:
             report.fail(name, f"{surface.name} was resolved and the engine reports no such surface")
             continue
+        matched.add(surface.name.upper())
         try:
             error = compare(surface.vertices, against.vertices)
         except ValueError as reason:
@@ -618,6 +641,43 @@ def compare_fixture(name: str, extracted: Sequence[Extracted], report: Report, b
                 f"{surface.name} names parent {surface.parent_surface!r} "
                 f"and the engine reports {against.base_surface!r}",
             )
+
+    for line in extraction.unresolved:
+        report.unresolved.append(f"{name}: {line}")
+    account_for_the_rest(name, extraction, reported, matched, report)
+
+
+def account_for_the_rest(
+    name: str,
+    extraction: Extraction,
+    reported: Mapping[str, Reported],
+    matched: set[str],
+    report: Report,
+) -> None:
+    """Fail when the engine reports a surface the library neither resolved nor accounted for.
+
+    WITHOUT THIS THE CHECK CANNOT FAIL ON AN OMISSION, which is the cheapest regression there is.
+    The comparison walks the surfaces the library returned and looks each one up in the expectation,
+    so a library that dropped a wall compares one fewer surface and passes: delete one from
+    ``north-axis-multizone`` and the run reports 233 green comparisons instead of 234 and exits 0.
+    The engine's report is the authority on what is in the model, so it is the side that has to be
+    exhausted.
+
+    ONE EXEMPTION, AND IT IS DERIVED RATHER THAN NAMED. A library that reports unattempted types is
+    saying the model holds geometry this slice does not read, and the engine reported those surfaces
+    anyway. ``simplified-only-unread`` is such a model: 45 reported surfaces against 43 unattempted
+    objects, which is not an accounting error but the engine's own expansion, since a
+    ``Shading:Fin`` becomes two surfaces and the model holds two of them. Counting objects against
+    surfaces there would mean teaching this check the engine's expansion rules, which is exactly the
+    knowledge ``regenerate.py`` refuses to hold. So the rule asks its question only of a model the
+    library attempted in full, which is six of the seven fixtures and every one of the 234 surfaces
+    the check actually compares.
+    """
+    if extraction.unattempted:
+        return
+    missing = sorted(surface.name for key, surface in reported.items() if key not in matched)
+    for absent in missing:
+        report.fail(name, f"the engine reports {absent} and the library resolved no such surface")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -650,12 +710,15 @@ def main(argv: list[str] | None = None) -> int:
         name = fixture.name.removesuffix(".idf.gz")
         report.notes.append(f"{name}: {provenance(name).get('engine', 'engine unrecorded')}")
         extraction = extract(library, model_text(fixture))
-        if guard is not None and guard.applies(extraction):
-            # Only where the model declares the condition the clause reads. Removing a clause from
-            # a model that never triggered it would measure a second wrong answer, not this one.
+        # Only where the model declares the condition the clause reads. Removing a clause from a
+        # model that never triggered it would measure a second wrong answer, not this one, and a
+        # fixture out of scope must be judged exactly as an unguarded run judges it: that is what
+        # makes a failure there a foreign bug rather than this guard's own doing.
+        in_scope = guard is not None and guard.applies(extraction)
+        if in_scope and guard is not None:
             applied_to.append(name)
             extraction = guard.remove(extraction)
-        compare_fixture(name, extraction.surfaces, report, by_index=guard is not None and guard.by_index)
+        compare_fixture(name, extraction, report, by_index=in_scope and guard is not None and guard.by_index)
 
     shape = "vertex by vertex" if guard is not None and guard.by_index else "ring comparison"
     print(f"  vertices    {len(committed)} fixtures, {shape} within {TOLERANCE_M} m")
