@@ -126,15 +126,38 @@ read.
 
 A check that only passes proves less than one that is shown to fail. Each clause of the resolution
 rule has a guard that removes it and names the fixture that then fails, and one guard works the other
-way. They are listed in full once Phase 9 lands them; the shape is fixed here so the check documents
-its own coverage rather than asserting it.
+way. The first is implemented; the rest land together, and the shape is fixed here so the check
+documents its own coverage rather than asserting it.
 
-| guard | fails on | by |
-| ----- | -------- | -- |
-| remove the coordinate system clause | `world-nonzero-zone-origin` | the zone origin applied where the engine does not apply it |
-| remove the building rotation clause | `north-axis-multizone` | the building not rotated as a rigid body |
-| remove the vertex entry direction clause | `clockwise-entry` | up to 4.0 m, with every ring reversed |
-| **add** a starting-vertex normalisation | `lower-left-start` | the author's order discarded to match a reporting convention |
+| guard | fails on | by | state |
+| ----- | -------- | -- | ----- |
+| remove the coordinate system clause | `world-nonzero-zone-origin` | the zone origin applied where the engine does not apply it | to come |
+| remove the building rotation clause | `north-axis-multizone` | the building not rotated as a rigid body | to come |
+| remove the vertex entry direction clause | `clockwise-entry` | 4.0000 m, every one of its 8 surfaces | `--without entry-direction` |
+| **add** a starting-vertex normalisation | `lower-left-start` | the author's order discarded to match a reporting convention | to come |
+
+A guard removes its clause from the library's **output** rather than from its source, because the
+corpus cannot reach into either library and has to ask the same question of both. For the vertex
+entry direction that undoing is exact: the clause reverses a ring while holding its first vertex, so
+applying it twice is applying it never. `runners/tests/guard_fixtures.json` is the table both guards
+are driven over, and it is what holds the two to the same clause while the JavaScript runner's
+library call is still unwritten.
+
+```bash
+python runners/geometry_check.py --library /path/to/idfkit --without entry-direction
+```
+
+A guarded run reverses the verdict and requires three things, the last two being the ones a weaker
+guard would skip: the named fixture must fail, it must fail by at least the magnitude recorded above
+so that a clause reduced to a rounding difference cannot pass as one that matters, and **no other
+fixture may fail**, because a clause firing on a model that declared no such thing is a different
+bug wearing this one's clothes. Exit 0 when the guard holds, 1 when the clause turned out not to
+matter, which is the finding worth reporting.
+
+**The set holds one model declaring clockwise entry and the specification says two.** The 4.0000 m
+above is measured on the one that is committed, `clockwise-entry`, over all eight of its surfaces.
+Three of the 726 geometry-bearing example models declare it, so a second fixture is available to
+whoever wants the criterion met as written; nothing else here depends on the count.
 
 **The last one is deliberate and must stay failing.** Normalising the extractor's starting vertex to
 match the engine's will look like an improvement to a future maintainer, because it makes a
@@ -168,7 +191,8 @@ node runners/geometry-check.mjs --library /path/to/idfkit-js
 
 Both take a **path**, never a language word: the runner file already fixes the language. Both exit 0
 when every comparison is green, 1 on any disagreement, and 2 when the run could not start, which is
-what a library without the capability reports rather than a failure.
+what a library without the capability reports rather than a failure. Both also take
+`--without <clause>`, which reverses the verdict and is documented under the guards above.
 
 Neither runner reads the other language's output. The corpus is where the cross-language claim is
 made, and each runner proves only its own side against the engine.

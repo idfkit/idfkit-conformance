@@ -35,6 +35,19 @@ clockwise clause exists to produce. That asymmetry is the whole point of this fu
 thing a later reader will try to simplify away; ``runners/tests/test_ring.py`` asserts both halves of
 it.
 
+THE GUARDS
+
+``--without <clause>`` removes one clause of the resolution rule and requires that the check then
+fail on the fixture that clause exists for. A check that has only ever passed is half a check, and
+this is the half that asks. The clause is removed on the output rather than inside the library,
+because the corpus cannot reach into either library's source and must ask the same question of both.
+For the entry direction that undoing is exact: the clause reverses a ring while holding its head,
+which is its own inverse.
+
+A guarded run reverses the verdict. It exits 0 when the named fixture fails by at least the recorded
+magnitude and every other fixture still passes, and 1 when the clause turned out not to matter, which
+is the finding worth reporting.
+
 NO NETWORK, and no dependency. The fixtures are committed gzipped and decompressed here with the
 standard library ``gzip``, which is the only compression both standard libraries hold.
 
@@ -55,7 +68,7 @@ import sys
 import tempfile
 from dataclasses import dataclass, field as dataclass_field
 from pathlib import Path
-from typing import Final, Iterator, Sequence
+from typing import Callable, Final, Iterator, Sequence
 
 RUNNERS_DIR: Final = Path(__file__).resolve().parent
 REPO_ROOT: Final = RUNNERS_DIR.parent
@@ -100,6 +113,20 @@ class Extracted:
     parent_surface: str
 
 
+@dataclass(frozen=True, slots=True)
+class Extraction:
+    """One model as the library resolved it: its surfaces, and what it read the model to declare.
+
+    The declaration is here because a guard needs it. Undoing a clause means knowing whether the
+    clause fired, and the honest source for that is the library's own reading of the model rather
+    than a second parse by the runner: a library that misreads the declaration then leaves its own
+    guard a no-op, and the guard says so instead of passing.
+    """
+
+    surfaces: tuple[Extracted, ...]
+    entry_direction: str
+
+
 @dataclass(slots=True)
 class Report:
     """What the run has to say when it ends."""
@@ -108,6 +135,19 @@ class Report:
     failures: list[str] = dataclass_field(default_factory=list)
     unresolved: list[str] = dataclass_field(default_factory=list)
     notes: list[str] = dataclass_field(default_factory=list)
+    #: Per fixture, how many comparisons disagreed and the worst disagreement seen. Kept per
+    #: fixture because a guard names one fixture and must not be satisfied by another one failing.
+    failed: dict[str, int] = dataclass_field(default_factory=dict)
+    worst: dict[str, float] = dataclass_field(default_factory=dict)
+
+    def fail(self, fixture: str, message: str) -> None:
+        """Record one disagreement against the fixture it was found in."""
+        self.failures.append(f"{fixture}: {message}")
+        self.failed[fixture] = self.failed.get(fixture, 0) + 1
+
+    def measured(self, fixture: str, error: float) -> None:
+        """Record one comparison's error, whether or not it was within tolerance."""
+        self.worst[fixture] = max(self.worst.get(fixture, 0.0), error)
 
 
 # ---------------------------------------------------------------------------
@@ -149,6 +189,103 @@ def ring_error(resolved: Sequence[Vertex], reported: Sequence[Vertex]) -> float:
         max(vertex_error(resolved[(at + shift) % count], reported[at]) for at in range(count))
         for shift in range(count)
     )
+
+
+# ---------------------------------------------------------------------------
+# The guards
+# ---------------------------------------------------------------------------
+
+
+def without_entry_direction(extraction: Extraction) -> Extraction:
+    """What a library that never wrote the vertex entry direction clause would have returned.
+
+    The clause reverses a ring while holding its first vertex, so applying it twice is applying it
+    never. On a model that does not declare clockwise entry this is the identity, which is the
+    point: a clause that fires where it was not declared would show up here as a second fixture
+    failing, and the guard fails the run when one does.
+    """
+    if not extraction.entry_direction.casefold().startswith("clockwise"):
+        return extraction
+    return Extraction(
+        surfaces=tuple(
+            Extracted(
+                name=surface.name,
+                vertices=(surface.vertices[0], *reversed(surface.vertices[1:])),
+                parent_surface=surface.parent_surface,
+            )
+            for surface in extraction.surfaces
+        ),
+        entry_direction=extraction.entry_direction,
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class Guard:
+    """One clause removed from the resolution rule, and the fixture that must then fail.
+
+    ``at_least_m`` is a measurement and not a threshold to clear: it is how far the fixture moved
+    when the clause was first removed, recorded so that a clause quietly becoming a rounding
+    difference is a failure rather than a pass.
+    """
+
+    name: str
+    fails_on: str
+    at_least_m: float
+    remove: Callable[[Extraction], Extraction]
+
+
+#: The guards this runner implements. ``geometry-check.mjs`` names the same ones, and
+#: ``checks/geometry-vertices/check.md`` records what each is worth.
+GUARDS: Final[dict[str, Guard]] = {
+    "entry-direction": Guard("entry-direction", "clockwise-entry", 4.0, without_entry_direction),
+}
+
+
+def guard_verdict(guard: Guard, report: Report) -> int:
+    """Whether the clause is load-bearing: report it, and return the run's exit code.
+
+    Three things have to hold, and the last two are the ones a weaker guard would skip. The named
+    fixture must fail; it must fail by at least what was measured when the clause was written, so
+    that a clause reduced to noise cannot pass as one that matters; and no other fixture may fail,
+    because a clause that fires on a model that did not declare it is a different bug wearing this
+    one's clothes.
+    """
+    failures = report.failed.get(guard.fails_on, 0)
+    worst = report.worst.get(guard.fails_on, 0.0)
+    elsewhere = sorted(name for name in report.failed if name != guard.fails_on)
+
+    print(f"  guard       {guard.name}: the clause removed, {guard.fails_on} expected to fail")
+    print(f"     {guard.fails_on}: {failures} comparisons disagree, worst {worst:.4f} m")
+    if elsewhere:
+        print(f"     also failing: {', '.join(elsewhere)}")
+    print("")
+
+    if failures == 0:
+        print(
+            f"GUARD DID NOT HOLD: {guard.fails_on} passes without the {guard.name} clause, "
+            "so nothing here proves the clause is doing anything.",
+            file=sys.stderr,
+        )
+        return 1
+    if worst < guard.at_least_m:
+        print(
+            f"GUARD DID NOT HOLD: removing the {guard.name} clause moves {guard.fails_on} by "
+            f"{worst:.4f} m, and it was worth at least {guard.at_least_m} m when it was written.",
+            file=sys.stderr,
+        )
+        return 1
+    if elsewhere:
+        print(
+            f"GUARD DID NOT HOLD: removing the {guard.name} clause also fails "
+            f"{', '.join(elsewhere)}, which declares no such thing.",
+            file=sys.stderr,
+        )
+        return 1
+    print(
+        f"GUARD HOLDS: without the {guard.name} clause, {guard.fails_on} is {worst:.4f} m from the "
+        f"engine over {failures} comparisons, and no other fixture changes its verdict."
+    )
+    return 0
 
 
 # ---------------------------------------------------------------------------
@@ -232,7 +369,7 @@ def library_module(library: Path):
         raise Unusable(f"could not import the library from {source}: {reason}") from reason
 
 
-def extract(module, model: str) -> list[Extracted]:
+def extract(module, model: str) -> Extraction:
     """Resolve one model's geometry with the library under test.
 
     The adapter, and only the adapter. Everything the comparison needs is read out of the library's
@@ -248,14 +385,17 @@ def extract(module, model: str) -> list[Extracted]:
         path.write_text(model, encoding=ENCODING)
         scene = module.get_scene(module.load_idf(path))
 
-    return [
-        Extracted(
-            name=surface.name,
-            vertices=tuple((v.x, v.y, v.z) for v in surface.polygon.vertices),
-            parent_surface=surface.parent_surface or "",
-        )
-        for surface in scene.surfaces
-    ]
+    return Extraction(
+        surfaces=tuple(
+            Extracted(
+                name=surface.name,
+                vertices=tuple((v.x, v.y, v.z) for v in surface.polygon.vertices),
+                parent_surface=surface.parent_surface or "",
+            )
+            for surface in scene.surfaces
+        ),
+        entry_direction=scene.applied.vertex_entry_direction,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -269,22 +409,22 @@ def compare_fixture(name: str, extracted: Sequence[Extracted], report: Report) -
     for surface in extracted:
         against = reported.get(surface.name.upper())
         if against is None:
-            report.failures.append(f"{name}: {surface.name} was resolved and the engine reports no such surface")
+            report.fail(name, f"{surface.name} was resolved and the engine reports no such surface")
             continue
         try:
             error = ring_error(surface.vertices, against.vertices)
         except ValueError as reason:
-            report.failures.append(f"{name}: {surface.name} {reason}")
+            report.fail(name, f"{surface.name} {reason}")
             continue
         report.compared += 1
+        report.measured(name, error)
         if error > TOLERANCE_M:
-            report.failures.append(
-                f"{name}: {surface.name} is {error:.4f} m from the engine, tolerance {TOLERANCE_M} m"
-            )
+            report.fail(name, f"{surface.name} is {error:.4f} m from the engine, tolerance {TOLERANCE_M} m")
         if surface.parent_surface and surface.parent_surface.upper() != against.base_surface.upper():
-            report.failures.append(
-                f"{name}: {surface.name} names parent {surface.parent_surface!r} "
-                f"and the engine reports {against.base_surface!r}"
+            report.fail(
+                name,
+                f"{surface.name} names parent {surface.parent_surface!r} "
+                f"and the engine reports {against.base_surface!r}",
             )
 
 
@@ -292,7 +432,13 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Run checks/geometry-vertices against the Python library.")
     parser.add_argument("--library", type=Path, required=True, help="path to an idfkit checkout")
     parser.add_argument("--verbose", action="store_true", help="name the engine each expectation came from")
+    parser.add_argument(
+        "--without",
+        choices=sorted(GUARDS),
+        help="remove one clause of the rule and require the fixture it exists for to fail",
+    )
     args = parser.parse_args(argv)
+    guard = GUARDS[args.without] if args.without else None
 
     library = library_module(args.library.expanduser().resolve())
 
@@ -310,7 +456,10 @@ def main(argv: list[str] | None = None) -> int:
     for fixture in committed:
         name = fixture.name.removesuffix(".idf.gz")
         report.notes.append(f"{name}: {provenance(name).get('engine', 'engine unrecorded')}")
-        compare_fixture(name, extract(library, model_text(fixture)), report)
+        extraction = extract(library, model_text(fixture))
+        if guard is not None:
+            extraction = guard.remove(extraction)
+        compare_fixture(name, extraction.surfaces, report)
 
     print(f"  vertices    {len(committed)} fixtures, ring comparison within {TOLERANCE_M} m")
     if args.verbose:
@@ -321,7 +470,12 @@ def main(argv: list[str] | None = None) -> int:
     for line in report.unresolved:
         print(f"  UNRESOLVED {line}")
     for line in report.failures:
-        print(f"  FAIL       {line}", file=sys.stderr)
+        # Under a guard these are the expected finding rather than the bad news, so they are not
+        # written to the error stream and are not called failures.
+        if guard is None:
+            print(f"  FAIL       {line}", file=sys.stderr)
+        else:
+            print(f"  WOULD FAIL {line}")
     print("")
 
     # A check that compared nothing has proven nothing, and must not report success for it. This is
@@ -330,6 +484,9 @@ def main(argv: list[str] | None = None) -> int:
     if report.compared == 0:
         print("FAIL: no surface was compared, so a green run would prove nothing.", file=sys.stderr)
         return 1
+
+    if guard is not None:
+        return guard_verdict(guard, report)
 
     if report.failures:
         print(

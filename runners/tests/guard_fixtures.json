@@ -1,0 +1,130 @@
+{
+  "why": [
+    "The contract between the two guards. test_guard.py asserts that the Python removal of the",
+    "vertex entry direction clause produces exactly the rings this table records, and",
+    "test-guard.mjs asserts the same of the JavaScript one, so a case added here constrains both.",
+    "",
+    "The guard exists because a check that has only ever passed is half a check. It removes the",
+    "clause from the library's OUTPUT rather than from its source, because the corpus cannot reach",
+    "into either library and must ask the same question of both. For this clause the undoing is",
+    "exact: the clause reverses a ring while holding its first vertex, so applying it twice is",
+    "applying it never.",
+    "",
+    "The table matters most for JavaScript, where the runner's library call is not wired up yet.",
+    "Until it is, this is the only thing asserting that the two guards remove the same clause.",
+    "",
+    "THE FIRST VERTEX STAYS WHERE IT IS in every reversed case below. A guard that reversed the",
+    "whole list would renormalise the starting vertex as a side effect, the check's ring comparison",
+    "is insensitive to where a ring starts, and the difference would therefore never be seen.",
+    "",
+    "Coordinates are metres. The base ring is the 4 m by 3 m rectangle in the y = 0 plane that",
+    "ring_fixtures.json uses, so the two tables can be read side by side."
+  ],
+  "clause": "entry-direction",
+  "guard": {
+    "fails_on": "clockwise-entry",
+    "at_least_m": 4.0,
+    "note": [
+      "Measured on the committed fixture with the clause removed: all eight surfaces disagree and",
+      "the worst is 4.0000 m. The guard requires at least this, so that a clause reduced to a",
+      "rounding difference fails rather than passes."
+    ]
+  },
+  "cases": [
+    {
+      "name": "a declared clockwise model is wound back",
+      "entry_direction": "ClockWise",
+      "surfaces": [
+        {
+          "name": "W1",
+          "parent_surface": "",
+          "vertices": [[0, 0, 3], [0, 0, 0], [4, 0, 0], [4, 0, 3]]
+        }
+      ],
+      "expected": [
+        {
+          "name": "W1",
+          "parent_surface": "",
+          "vertices": [[0, 0, 3], [4, 0, 3], [4, 0, 0], [0, 0, 0]]
+        }
+      ],
+      "note": "The head is held and the tail reversed: the same ring from the same corner, the other way."
+    },
+    {
+      "name": "the engine's own spelling is matched without regard to case",
+      "entry_direction": "clockwise",
+      "surfaces": [
+        {
+          "name": "W1",
+          "parent_surface": "",
+          "vertices": [[0, 0, 3], [0, 0, 0], [4, 0, 0], [4, 0, 3]]
+        }
+      ],
+      "expected": [
+        {
+          "name": "W1",
+          "parent_surface": "",
+          "vertices": [[0, 0, 3], [4, 0, 3], [4, 0, 0], [0, 0, 0]]
+        }
+      ],
+      "note": "EnergyPlus matches these values without regard to case and the example set holds several spellings."
+    },
+    {
+      "name": "a declared counter-clockwise model is left alone",
+      "entry_direction": "CounterClockWise",
+      "surfaces": [
+        {
+          "name": "W1",
+          "parent_surface": "",
+          "vertices": [[0, 0, 3], [0, 0, 0], [4, 0, 0], [4, 0, 3]]
+        }
+      ],
+      "expected": [
+        {
+          "name": "W1",
+          "parent_surface": "",
+          "vertices": [[0, 0, 3], [0, 0, 0], [4, 0, 0], [4, 0, 3]]
+        }
+      ],
+      "note": "The identity case, and the one that makes a second fixture failing under the guard a real finding."
+    },
+    {
+      "name": "a triangle reverses as a triangle",
+      "entry_direction": "ClockWise",
+      "surfaces": [
+        {
+          "name": "T1",
+          "parent_surface": "",
+          "vertices": [[0, 0, 3], [0, 0, 0], [4, 0, 0]]
+        }
+      ],
+      "expected": [
+        {
+          "name": "T1",
+          "parent_surface": "",
+          "vertices": [[0, 0, 3], [4, 0, 0], [0, 0, 0]]
+        }
+      ],
+      "note": "Three vertices is the shortest ring a resolved surface can have."
+    },
+    {
+      "name": "what a surface carries besides its ring is carried through",
+      "entry_direction": "ClockWise",
+      "surfaces": [
+        {
+          "name": "W1Window",
+          "parent_surface": "W1",
+          "vertices": [[1, 0, 2], [1, 0, 1], [2, 0, 1], [2, 0, 2]]
+        }
+      ],
+      "expected": [
+        {
+          "name": "W1Window",
+          "parent_surface": "W1",
+          "vertices": [[1, 0, 2], [2, 0, 2], [2, 0, 1], [1, 0, 1]]
+        }
+      ],
+      "note": "The guard removes one clause of the placement rule and nothing else; the parent is still compared."
+    }
+  ]
+}

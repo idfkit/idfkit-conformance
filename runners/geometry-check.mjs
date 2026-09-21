@@ -37,6 +37,19 @@
  * the thing a later reader will try to simplify away; `runners/tests/test-ring.mjs` asserts both
  * halves of it.
  *
+ * THE GUARDS
+ *
+ * `--without <clause>` removes one clause of the resolution rule and requires that the check then
+ * fail on the fixture that clause exists for. A check that has only ever passed is half a check,
+ * and this is the half that asks. The clause is removed on the output rather than inside the
+ * library, because the corpus cannot reach into either library's source and must ask the same
+ * question of both. For the entry direction that undoing is exact: the clause reverses a ring while
+ * holding its head, which is its own inverse.
+ *
+ * A guarded run reverses the verdict. It exits 0 when the named fixture fails by at least the
+ * recorded magnitude and every other fixture still passes, and 1 when the clause turned out not to
+ * matter, which is the finding worth reporting.
+ *
  * NO NETWORK, and no dependency. The fixtures are committed gzipped and decompressed here with
  * `node:zlib`, which is the only compression both standard libraries hold.
  *
@@ -116,6 +129,98 @@ export function ringError(resolved, reported) {
     best = Math.min(best, worst);
   }
   return best;
+}
+
+// ---------------------------------------------------------------------------
+// The guards
+// ---------------------------------------------------------------------------
+
+/**
+ * What a library that never wrote the vertex entry direction clause would have returned.
+ *
+ * The clause reverses a ring while holding its first vertex, so applying it twice is applying it
+ * never. On a model that does not declare clockwise entry this is the identity, which is the point:
+ * a clause that fires where it was not declared would show up here as a second fixture failing, and
+ * the guard fails the run when one does.
+ *
+ * An extraction is `{ surfaces, entryDirection }`: the surfaces the library resolved, and what it
+ * read the model to declare. The declaration comes from the library rather than from a second parse
+ * by the runner, so a library that misreads it leaves its own guard a no-op and the guard says so
+ * instead of passing.
+ */
+export function withoutEntryDirection(extraction) {
+  if (!extraction.entryDirection.toLowerCase().startsWith('clockwise')) return extraction;
+  return {
+    surfaces: extraction.surfaces.map((surface) => ({
+      ...surface,
+      vertices: [surface.vertices[0], ...surface.vertices.slice(1).reverse()],
+    })),
+    entryDirection: extraction.entryDirection,
+  };
+}
+
+/**
+ * The guards this runner implements. `geometry_check.py` names the same ones, and
+ * `checks/geometry-vertices/check.md` records what each is worth.
+ *
+ * `atLeastM` is a measurement and not a threshold to clear: it is how far the fixture moved when
+ * the clause was first removed, recorded so that a clause quietly becoming a rounding difference is
+ * a failure rather than a pass.
+ */
+export const GUARDS = {
+  'entry-direction': {
+    name: 'entry-direction',
+    failsOn: 'clockwise-entry',
+    atLeastM: 4.0,
+    remove: withoutEntryDirection,
+  },
+};
+
+/**
+ * Whether the clause is load-bearing: report it, and return the run's exit code.
+ *
+ * Three things have to hold, and the last two are the ones a weaker guard would skip. The named
+ * fixture must fail; it must fail by at least what was measured when the clause was written, so
+ * that a clause reduced to noise cannot pass as one that matters; and no other fixture may fail,
+ * because a clause that fires on a model that did not declare it is a different bug wearing this
+ * one's clothes.
+ */
+export function guardVerdict(guard, report) {
+  const failures = report.failed.get(guard.failsOn) ?? 0;
+  const worst = report.worst.get(guard.failsOn) ?? 0;
+  const elsewhere = [...report.failed.keys()].filter((name) => name !== guard.failsOn).sort();
+
+  console.log(`  guard       ${guard.name}: the clause removed, ${guard.failsOn} expected to fail`);
+  console.log(`     ${guard.failsOn}: ${failures} comparisons disagree, worst ${worst.toFixed(4)} m`);
+  if (elsewhere.length > 0) console.log(`     also failing: ${elsewhere.join(', ')}`);
+  console.log('');
+
+  if (failures === 0) {
+    console.error(
+      `GUARD DID NOT HOLD: ${guard.failsOn} passes without the ${guard.name} clause, ` +
+        'so nothing here proves the clause is doing anything.'
+    );
+    return 1;
+  }
+  if (worst < guard.atLeastM) {
+    console.error(
+      `GUARD DID NOT HOLD: removing the ${guard.name} clause moves ${guard.failsOn} by ` +
+        `${worst.toFixed(4)} m, and it was worth at least ${guard.atLeastM} m when it was written.`
+    );
+    return 1;
+  }
+  if (elsewhere.length > 0) {
+    console.error(
+      `GUARD DID NOT HOLD: removing the ${guard.name} clause also fails ` +
+        `${elsewhere.join(', ')}, which declares no such thing.`
+    );
+    return 1;
+  }
+  console.log(
+    `GUARD HOLDS: without the ${guard.name} clause, ${guard.failsOn} is ${worst.toFixed(4)} m from ` +
+      `the engine over ${failures} comparisons, and no other fixture changes its verdict.`
+  );
+  return 0;
 }
 
 // ---------------------------------------------------------------------------
@@ -210,6 +315,10 @@ async function importLibrary(root) {
  *
  * It throws rather than returning an empty array. An empty array would make every fixture compare
  * nothing and the run report success, which is the failure mode a check must never have.
+ *
+ * When it is wired up it returns `{ surfaces, entryDirection }`, the shape the guards above take:
+ * `surfaces` of `{ name, vertices, parentSurface }` and `entryDirection` as the library read it
+ * from the model.
  */
 // eslint-disable-next-line no-unused-vars
 function extract(library, model) {
@@ -223,34 +332,54 @@ function extract(library, model) {
 // The comparison
 // ---------------------------------------------------------------------------
 
+/**
+ * Record one disagreement against the fixture it was found in.
+ *
+ * Per fixture because a guard names one fixture and must not be satisfied by another one failing.
+ */
+function fail(report, fixture, message) {
+  report.failures.push(`${fixture}: ${message}`);
+  report.failed.set(fixture, (report.failed.get(fixture) ?? 0) + 1);
+}
+
+/** Record one comparison's error, whether or not it was within tolerance. */
+function measured(report, fixture, error) {
+  report.worst.set(fixture, Math.max(report.worst.get(fixture) ?? 0, error));
+}
+
 /** Compare one model's resolved surfaces against the engine's report of the same model. */
 function compareFixture(name, extracted, report) {
   const reported = new Map(expectation(name).map((surface) => [surface.name.toUpperCase(), surface]));
   for (const surface of extracted) {
     const against = reported.get(surface.name.toUpperCase());
     if (against === undefined) {
-      report.failures.push(`${name}: ${surface.name} was resolved and the engine reports no such surface`);
+      fail(report, name, `${surface.name} was resolved and the engine reports no such surface`);
       continue;
     }
     let error;
     try {
       error = ringError(surface.vertices, against.vertices);
     } catch (reason) {
-      report.failures.push(`${name}: ${surface.name} ${reason.message}`);
+      fail(report, name, `${surface.name} ${reason.message}`);
       continue;
     }
     report.compared += 1;
+    measured(report, name, error);
     if (error > TOLERANCE_M) {
-      report.failures.push(
-        `${name}: ${surface.name} is ${error.toFixed(4)} m from the engine, tolerance ${TOLERANCE_M} m`
+      fail(
+        report,
+        name,
+        `${surface.name} is ${error.toFixed(4)} m from the engine, tolerance ${TOLERANCE_M} m`
       );
     }
     if (
       surface.parentSurface &&
       surface.parentSurface.toUpperCase() !== against.baseSurface.toUpperCase()
     ) {
-      report.failures.push(
-        `${name}: ${surface.name} names parent ${JSON.stringify(surface.parentSurface)} ` +
+      fail(
+        report,
+        name,
+        `${surface.name} names parent ${JSON.stringify(surface.parentSurface)} ` +
           `and the engine reports ${JSON.stringify(against.baseSurface)}`
       );
     }
@@ -260,11 +389,17 @@ function compareFixture(name, extracted, report) {
 // ---------------------------------------------------------------------------
 
 function parseArgs(argv) {
-  const args = { library: undefined, verbose: false };
+  const args = { library: undefined, verbose: false, without: undefined };
   for (let i = 0; i < argv.length; i += 1) {
     if (argv[i] === '--library') args.library = argv[++i];
     else if (argv[i] === '--verbose') args.verbose = true;
+    else if (argv[i] === '--without') args.without = argv[++i];
     else throw new Unusable(`unknown argument ${JSON.stringify(argv[i])}`);
+  }
+  if (args.without !== undefined && !(args.without in GUARDS)) {
+    throw new Unusable(
+      `unknown guard ${JSON.stringify(args.without)}; this runner has ${Object.keys(GUARDS).sort().join(', ')}`
+    );
   }
   if (args.library === undefined) {
     throw new Unusable('--library <path to an idfkit-js checkout> is required');
@@ -274,12 +409,20 @@ function parseArgs(argv) {
 
 async function main(argv) {
   const args = parseArgs(argv);
+  const guard = args.without === undefined ? undefined : GUARDS[args.without];
   const library = await importLibrary(args.library);
 
   if (!existsSync(CHECK_DIR)) throw new Unusable(`${CHECK_DIR}: missing`);
   const committed = fixtures();
 
-  const report = { compared: 0, failures: [], unresolved: [], notes: [] };
+  const report = {
+    compared: 0,
+    failures: [],
+    unresolved: [],
+    notes: [],
+    failed: new Map(),
+    worst: new Map(),
+  };
 
   console.log('idfkit geometry-vertices check: JavaScript');
   console.log(`  library     ${resolve(args.library)}`);
@@ -289,7 +432,9 @@ async function main(argv) {
   for (const fixture of committed) {
     const name = fixture.replace(/\.idf\.gz$/, '');
     report.notes.push(`${name}: ${provenance(name).engine ?? 'engine unrecorded'}`);
-    compareFixture(name, extract(library, modelText(fixture)), report);
+    let extraction = extract(library, modelText(fixture));
+    if (guard !== undefined) extraction = guard.remove(extraction);
+    compareFixture(name, extraction.surfaces, report);
   }
 
   console.log(`  vertices    ${committed.length} fixtures, ring comparison within ${TOLERANCE_M} m`);
@@ -297,7 +442,12 @@ async function main(argv) {
   console.log('');
 
   for (const line of report.unresolved) console.log(`  UNRESOLVED ${line}`);
-  for (const line of report.failures) console.error(`  FAIL       ${line}`);
+  // Under a guard these are the expected finding rather than the bad news, so they are not written
+  // to the error stream and are not called failures.
+  for (const line of report.failures) {
+    if (guard === undefined) console.error(`  FAIL       ${line}`);
+    else console.log(`  WOULD FAIL ${line}`);
+  }
   console.log('');
 
   // A check that compared nothing has proven nothing, and must not report success for it. This is
@@ -307,6 +457,8 @@ async function main(argv) {
     console.error('FAIL: no surface was compared, so a green run would prove nothing.');
     return 1;
   }
+
+  if (guard !== undefined) return guardVerdict(guard, report);
 
   if (report.failures.length > 0) {
     console.error(
