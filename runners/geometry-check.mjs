@@ -287,45 +287,77 @@ function provenance(name) {
 // The library side
 // ---------------------------------------------------------------------------
 
-/** Import `@idfkit/geometry`'s build output out of the checkout `--library` named. */
+/**
+ * Import the build output of the packages this check drives, out of the checkout `--library` named.
+ *
+ * Three modules rather than one. `@idfkit/geometry` is what is under test; `@idfkit/core` parses
+ * the committed fixture text, since extraction takes a document and not a string; and
+ * `@idfkit/core/node` resolves the schema for the version the fixture declares. The Python runner
+ * needs no equivalent because one import there carries the reader, the parser and the schemas.
+ *
+ * The build output rather than the sources, because that is what a consumer installing from npm
+ * gets. A missing `dist/` is an unusable run rather than a failure.
+ */
 async function importLibrary(root) {
   const resolved = resolve(root);
-  const dist = join(resolved, 'packages', 'geometry', 'dist', 'index.js');
-  if (!existsSync(dist)) {
+  const wanted = {
+    geometry: join(resolved, 'packages', 'geometry', 'dist', 'index.js'),
+    core: join(resolved, 'packages', 'core', 'dist', 'index.js'),
+    node: join(resolved, 'packages', 'core', 'dist', 'node.js'),
+  };
+  for (const [name, path] of Object.entries(wanted)) {
+    if (existsSync(path)) continue;
     throw new Unusable(
-      `no built @idfkit/geometry under ${resolved}. Looked for ${dist}.\n` +
+      `no built ${name === 'geometry' ? '@idfkit/geometry' : '@idfkit/core'} under ${resolved}. ` +
+        `Looked for ${path}.\n` +
         '  Build the checkout with `npm run build`, or `npx tsc --build`.\n' +
         '  geometry-check.mjs drives the JavaScript library; use ' +
         "'python runners/geometry_check.py --library <path>' for idfkit."
     );
   }
-  return import(pathToFileURL(dist).href);
+
+  const library = {
+    geometry: await import(pathToFileURL(wanted.geometry).href),
+    core: await import(pathToFileURL(wanted.core).href),
+    node: await import(pathToFileURL(wanted.node).href),
+  };
+  if (typeof library.geometry.getScene !== 'function') {
+    throw new Unusable(
+      `@idfkit/geometry at ${wanted.geometry} exports no getScene(), so this runner cannot drive ` +
+        'it. The build output may be stale: rebuild the checkout.'
+    );
+  }
+  return library;
 }
 
 /**
  * Resolve one model's geometry with the library under test.
  *
- * UNIMPLEMENTED ON PURPOSE, and loudly.
+ * The adapter, and only the adapter. Everything the comparison needs is read out of the library's
+ * own scene type here, so that the two runners compare a shape the corpus owns rather than one
+ * library's spelling.
  *
- * The capability this check exists for does not ship yet in either language. Writing the comparison
- * first means the rule is established against committed evidence rather than against whatever the
- * first implementation happens to produce, which is the order the corpus already uses for cases.
- * What is missing here is only the adapter from the library's own scene type to the shape below;
- * everything around this function is complete and under test.
+ * Asynchronous where the Python runner is synchronous, and for one reason: the schema bundle is
+ * loaded from disk here and is already in memory there. The document it produces is the same
+ * document, read with the same defaults as `load_idf` uses, so the two runners hand their libraries
+ * the same thing.
  *
- * It throws rather than returning an empty array. An empty array would make every fixture compare
- * nothing and the run report success, which is the failure mode a check must never have.
- *
- * When it is wired up it returns `{ surfaces, entryDirection }`, the shape the guards above take:
- * `surfaces` of `{ name, vertices, parentSurface }` and `entryDirection` as the library read it
- * from the model.
+ * It returns `{ surfaces, entryDirection }`, the shape the guards above take: `surfaces` of
+ * `{ name, vertices, parentSurface }` and `entryDirection` as the library read it from the model.
  */
-// eslint-disable-next-line no-unused-vars
-function extract(library, model) {
-  throw new Unusable(
-    'the library\'s scene extraction is not wired into this runner yet. ' +
-      'This runner is complete apart from this call; see checks/geometry-vertices/check.md'
-  );
+async function extract(library, model) {
+  const schema = await library.node.schemaFor(library.core.getIdfVersion(model));
+  const { document } = library.core.parseIdf(model, schema);
+  const scene = library.geometry.getScene(document);
+
+  return {
+    surfaces: scene.surfaces.map((surface) => ({
+      name: surface.name,
+      vertices: surface.polygon.vertices.map((vertex) => [vertex.x, vertex.y, vertex.z]),
+      parentSurface: surface.parentSurface ?? '',
+    })),
+    entryDirection: scene.applied.vertexEntryDirection,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -432,7 +464,7 @@ async function main(argv) {
   for (const fixture of committed) {
     const name = fixture.replace(/\.idf\.gz$/, '');
     report.notes.push(`${name}: ${provenance(name).engine ?? 'engine unrecorded'}`);
-    let extraction = extract(library, modelText(fixture));
+    let extraction = await extract(library, modelText(fixture));
     if (guard !== undefined) extraction = guard.remove(extraction);
     compareFixture(name, extraction.surfaces, report);
   }
