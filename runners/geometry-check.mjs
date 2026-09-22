@@ -63,6 +63,13 @@
  * A guarded run reverses the verdict. It exits 0 when that holds, and 1 when the clause turned out
  * not to matter, which is the finding worth reporting.
  *
+ * THE TWO RESOLUTIONS THE FIRST LANGUAGE HOLDS
+ *
+ * The Python runner takes `--via translate-to-world`, which runs the same comparison against that
+ * language's mutating counterpart. This library has no such function, so this runner refuses the
+ * flag by name rather than ignoring it. Nothing else differs: an unqualified run of either prints
+ * the same transcript.
+ *
  * NO NETWORK, and no dependency. The fixtures are committed gzipped and decompressed here with
  * `node:zlib`, which is the only compression both standard libraries hold.
  *
@@ -678,7 +685,15 @@ function parseArgs(argv) {
     if (argv[i] === '--library') args.library = value(argv, ++i, '--library');
     else if (argv[i] === '--verbose') args.verbose = true;
     else if (argv[i] === '--without') args.without = value(argv, ++i, '--without');
-    else throw new Unusable(`unknown argument ${JSON.stringify(argv[i])}`);
+    // `--via` is the Python runner's flag for choosing between the read-only extraction and the
+    // mutating counterpart. This language has only the first, so the flag is refused by name
+    // rather than by falling through to "unknown argument", which would read as a typo.
+    else if (argv[i] === '--via') {
+      throw new Unusable(
+        `--via is the first language's flag: it chooses between get_scene and translate_to_world, ` +
+          `and this library has no mutating counterpart to choose`
+      );
+    } else throw new Unusable(`unknown argument ${JSON.stringify(argv[i])}`);
   }
   if (args.without !== undefined && !(args.without in GUARDS)) {
     throw new Unusable(

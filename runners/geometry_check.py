@@ -61,6 +61,16 @@ doing its job in a second model rather than a second bug.
 A guarded run reverses the verdict. It exits 0 when that holds, and 1 when the clause turned out not
 to matter, which is the finding worth reporting.
 
+THE TWO RESOLUTIONS THE FIRST LANGUAGE HOLDS
+
+``--via translate-to-world`` runs the same comparison against ``idfkit.geometry.translate_to_world``,
+the mutating counterpart that rewrites the document rather than returning a scene. It is checked
+here because the library must not hold two answers, and because it was the wrong one: the rule that
+function applied before the correction failed 60 of these 234 surfaces over four of the seven
+fixtures, worst case 40.00 m. The flag is this language's alone. ``geometry-check.mjs`` refuses it
+by name, because the second language has no mutating counterpart to choose, and an unqualified run
+prints nothing about it so that the two transcripts stay identical.
+
 NO NETWORK, and no dependency. The fixtures are committed gzipped and decompressed here with the
 standard library ``gzip``, which is the only compression both standard libraries hold.
 
@@ -548,7 +558,15 @@ def library_module(library: Path):
         raise Unusable(f"could not import the library from {source}: {reason}") from reason
 
 
-def extract(module, model: str) -> Extraction:
+#: How the library is asked to resolve a model. ``get-scene`` is the read-only extraction and is
+#: what an unqualified run means. ``translate-to-world`` is the first language's mutating
+#: counterpart, which rewrites the document rather than returning a scene, and which this check
+#: covers because the library must not hold two answers. The second language has no such function,
+#: so ``geometry-check.mjs`` refuses the flag rather than pretending to offer it.
+VIA: Final = ("get-scene", "translate-to-world")
+
+
+def extract(module, model: str, via: str = "get-scene") -> Extraction:
     """Resolve one model's geometry with the library under test.
 
     The adapter, and only the adapter. Everything the comparison needs is read out of the library's
@@ -558,13 +576,47 @@ def extract(module, model: str) -> Extraction:
     The library reads a document from a path, so the committed fixture is written to a temporary
     file. That is not this check exercising the library's file reading, which the corpus tracks as
     a separate gap; it is the shortest way to hand it the text.
+
+    UNDER ``translate-to-world`` THE SAME COMPARISON IS MADE OF A MUTATED DOCUMENT
+
+    That function rewrites the document in place and returns nothing, so the vertices are read back
+    out of the document afterwards. They are read with ``get_scene``, which is not circular here and
+    is checked rather than assumed: the mutation restates the declarations it consumed, so the
+    reread document declares the world system, a zero north axis and counter-clockwise entry, and
+    every clause of the resolution rule is a no-op on it. This function asserts exactly that before
+    trusting the reread, and reports the run unusable if it does not hold, because a reread that
+    resolved anything would be measuring the rule twice instead of the mutation once.
+
+    The DECLARATIONS reported are the ones the fixture makes, read before the mutation. The guards
+    ask what the model declared, and the model is the fixture on disk; after the mutation the
+    document declares what the mutation left behind, which would put every fixture out of every
+    guard's scope and quietly turn a guarded run into no run at all.
     """
+    if via not in VIA:
+        raise Unusable(f"{via}: not a way to resolve a model")
     with tempfile.TemporaryDirectory(prefix="geometry-vertices-") as scratch:
         path = Path(scratch) / "model.idf"
         path.write_text(model, encoding=ENCODING)
         doc = module.load_idf(path)
         scene = module.get_scene(doc)
         origins = zone_origins(doc)
+        declared = scene.applied
+        if via == "translate-to-world":
+            # ``idfkit.geometry`` rather than the package root: the mutating function is public
+            # there and is not re-exported at the top level, and reaching for the spelling the
+            # library actually has is the adapter's job.
+            mutate = getattr(getattr(module, "geometry", None), "translate_to_world", None)
+            if mutate is None:
+                raise Unusable("the library has no idfkit.geometry.translate_to_world")
+            mutate(doc)
+            scene = module.get_scene(doc)
+            neutral = scene.applied
+            if neutral.is_relative or neutral.is_clockwise or neutral.north_axis:
+                raise Unusable(
+                    "translate_to_world left the document declaring "
+                    f"{neutral.coordinate_system}/{neutral.vertex_entry_direction}/"
+                    f"{neutral.north_axis}, so reading it back would resolve it a second time"
+                )
 
     return Extraction(
         surfaces=tuple(
@@ -576,10 +628,10 @@ def extract(module, model: str) -> Extraction:
             )
             for surface in scene.surfaces
         ),
-        entry_direction=scene.applied.vertex_entry_direction,
-        coordinate_system=scene.applied.coordinate_system,
-        starting_vertex_position=scene.applied.starting_vertex_position,
-        north_axis=scene.applied.north_axis,
+        entry_direction=declared.vertex_entry_direction,
+        coordinate_system=declared.coordinate_system,
+        starting_vertex_position=declared.starting_vertex_position,
+        north_axis=declared.north_axis,
         zone_origins=origins,
         unresolved=tuple(f"{item.object_type} {item.name}: {item.reason}" for item in scene.unresolved),
         unattempted=tuple((item.object_type, item.count) for item in scene.unattempted),
@@ -689,6 +741,12 @@ def main(argv: list[str] | None = None) -> int:
         choices=sorted(GUARDS),
         help="remove one clause of the rule and require the fixture it exists for to fail",
     )
+    parser.add_argument(
+        "--via",
+        choices=VIA,
+        default="get-scene",
+        help="which resolution to check: the read-only extraction, or the mutating counterpart",
+    )
     args = parser.parse_args(argv)
     guard = GUARDS[args.without] if args.without else None
 
@@ -703,13 +761,17 @@ def main(argv: list[str] | None = None) -> int:
     print("idfkit geometry-vertices check: Python")
     print(f"  library     {args.library.expanduser().resolve()}")
     print(f"  check       {CHECK_DIR}")
+    # Printed only when it is not the default, so an unqualified run's transcript stays identical
+    # to the second language's, which is what the two runners promise each other.
+    if args.via != "get-scene":
+        print(f"  via         {args.via}")
     print("")
 
     applied_to: list[str] = []
     for fixture in committed:
         name = fixture.name.removesuffix(".idf.gz")
         report.notes.append(f"{name}: {provenance(name).get('engine', 'engine unrecorded')}")
-        extraction = extract(library, model_text(fixture))
+        extraction = extract(library, model_text(fixture), args.via)
         # Only where the model declares the condition the clause reads. Removing a clause from a
         # model that never triggered it would measure a second wrong answer, not this one, and a
         # fixture out of scope must be judged exactly as an unguarded run judges it: that is what

@@ -295,6 +295,35 @@ what a library without the capability reports rather than a failure. Both also t
 Neither runner reads the other language's output. The corpus is where the cross-language claim is
 made, and each runner proves only its own side against the engine.
 
+### The first language's second resolution
+
+The first language holds two functions that resolve geometry. `get_scene` returns a scene and leaves
+the document alone; `idfkit.geometry.translate_to_world` rewrites the document in place. The Python
+runner takes `--via` so that the same comparison can be made of either:
+
+```bash
+python runners/geometry_check.py --library /path/to/idfkit --via translate-to-world
+```
+
+A library holding two answers to one question is the thing this check exists to stop, and this one
+was holding the wrong one. The rule `translate_to_world` applied before it was corrected failed **60
+of these 234 surfaces** over four of the seven fixtures, worst case **40.00 m**, and left
+`clockwise-entry` unreadable by declaring the world system while leaving clockwise entry in place.
+Both paths now pass all 234.
+
+Under `--via translate-to-world` the runner reads the vertices back out of the mutated document,
+which is sound only because the mutation restates the declarations it consumed: the reread document
+declares the world system, a zero north axis and counter-clockwise entry, so every clause of the
+rule is a no-op on it. The runner asserts that before trusting the reread and reports the run
+unusable otherwise, because a reread that resolved anything would measure the rule twice instead of
+the mutation once. The **declarations** it reports to the guards are the fixture's own, read before
+the mutation; after it they are what the mutation left behind, which would put every fixture out of
+every guard's scope and turn a guarded run into no run at all.
+
+The flag is the first language's alone. `geometry-check.mjs` refuses it by name and exits 2, because
+the second language has no mutating counterpart to choose. An unqualified run of either prints
+nothing about it, so the two transcripts stay identical.
+
 ## What this check does not cover
 
 Stated here rather than left implied, alongside the corpus's other declared coverage gaps.
