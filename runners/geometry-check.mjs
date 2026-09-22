@@ -695,7 +695,11 @@ function parseArgs(argv) {
       );
     } else throw new Unusable(`unknown argument ${JSON.stringify(argv[i])}`);
   }
-  if (args.without !== undefined && !(args.without in GUARDS)) {
+  // `Object.hasOwn` and not `in`: `in` walks the prototype chain, so `--without constructor` and
+  // `--without toString` passed this check and then crashed on `guard.applies` with a stack trace
+  // and exit 1, which reads as a guard that did not hold. `geometry_check.py` gets this from
+  // argparse's `choices`; this is the same refusal.
+  if (args.without !== undefined && !Object.hasOwn(GUARDS, args.without)) {
     throw new Unusable(
       `unknown guard ${JSON.stringify(args.without)}; this runner has ${Object.keys(GUARDS).sort().join(', ')}`
     );

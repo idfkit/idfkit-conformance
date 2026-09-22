@@ -338,6 +338,26 @@ Stated here rather than left implied, alongside the corpus's other declared cove
   proves. No fixture holds one, so nothing here constrains them and a library must report them as
   not attempted rather than read them. Promoting them means a fixture and its oracle rows first,
   which is the cheapest gap in this list to close.
+- **Detached shading.** No fixture holds a `Shading:Site:Detailed` or a
+  `Shading:Building:Detailed`, and the 21 detailed shading surfaces in `world-nonzero-zone-origin`
+  are all `Shading:Zone:Detailed`. Both libraries read the detached forms, so this is a gap in the
+  oracle and not in the slice, and it is the gap where the rule is least obvious: the two objects
+  carry identical fields and the schema separates them on one sentence, site shading being "fixed in
+  space" and building shading "relative to the current building". The north axis therefore turns the
+  building form and not the site form, which is a conditional clause two that no row here measures.
+
+  That reading was put to the engine rather than trusted: one square from (50, 0) to (60, 0),
+  entered twice into `north-axis-multizone` under each type, run through EnergyPlus 26.1.0.
+  The site form comes back where it was authored and the building form comes back at (-46.50,
+  -18.38) to (-55.80, -22.05), turned by the model's 158.434 degree axis, and the engine labels the
+  two `Detached Shading:Fixed` and `Detached Shading:Building` in its own report. So the rule is
+  measured; what is missing is a **committed** row asserting it.
+
+  Closing that needs a model carrying both, and **no shipped example file does**. Twenty of them
+  hold detached shading and every one declares a north axis of zero, which is why this check
+  reported the rule green while the libraries had it wrong. A fixture here is a byte-for-byte copy
+  of an example model, so closing this gap means either finding such a model in a later EnergyPlus
+  release or deciding that this check may carry one authored fixture and recording why.
 - **Models the engine cannot run.** Expectations are generated offline, so a model that will not run
   is a model not chosen. Of 27 sampled while specifying this, 17 produced a report; the failures
   have identifiable causes rather than being arbitrary, being `HVACTemplate:*` without the expansion

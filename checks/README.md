@@ -39,5 +39,7 @@ does not belong here.
   over six stations, and one sentinel-bearing file the six cannot substitute for.
 - **`geometry-vertices`**: each library's resolved surface coordinates against the vertex report
   EnergyPlus writes after applying the coordinate system, the zone origin, the zone's relative north
-  and the building's north axis. 279 surfaces over seven models, each model present for one
-  behaviour it isolates, compared as rings within 0.005 m per coordinate.
+  and the building's north axis. 234 comparisons over seven models, each model present for one
+  behaviour it isolates, compared as rings within 0.005 m per coordinate. 279 surfaces are under
+  expectation; the 45 of `simplified-only-unread` are reported by the engine and read by neither
+  library, which is what that fixture is for.
