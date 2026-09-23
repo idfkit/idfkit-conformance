@@ -12,6 +12,10 @@ expected/
 .ruff_cache/
 .pytest_cache/
 sweep-report.local.json
+# tools/sweep_consumers.py writes this at the repo root and sweep-consumers.yml uploads it
+# as a build artifact. A committed copy states the governance level it was read at, so a
+# local run's copy would assert a level nobody cut.
+consumer-report.json
 
 # The weather check commits its expectations; the bare `expected/` above would swallow them.
 !checks/**/expected/
