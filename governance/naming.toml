@@ -31,7 +31,7 @@
 
 [register]
 schema_version = "1"
-governs = ["idfkit", "@idfkit/core", "@idfkit/weather", "@idfkit/language"]
+governs = ["idfkit", "@idfkit/core", "@idfkit/geometry", "@idfkit/weather", "@idfkit/language"]
 renders_to = "idfkit-developers/docs/explanation/naming-map.md"
 read_at = "a pinned governance-YYYY.N tag of idfkit-conformance, never the default branch"
 review = "a maintainer of the other language, enforced by CODEOWNERS in both repositories"
@@ -4510,13 +4510,23 @@ npm_package  = "@idfkit/geometry"
 subpath      = "@idfkit/idfkit/geometry"
 mirrors      = ["idfkit.geometry", "idfkit.geometry_builders", "idfkit.surface_matching", "idfkit.zoning"]
 tier         = 2
-built        = false
+built        = true
 export_map_entry = false
 notes = """
 One reserved package against four Python modules, deliberately. The four are one capability from a
 user's point of view, and splitting them into four npm packages would make the JavaScript side
 harder to install than the Python side for no gain. The geometry-extraction names registered above
 are the first slice this package will carry.
+
+BUILT, as of the change that landed geometry extraction in the second language. The package holds
+that slice and nothing else: `Vector3D`, `Polygon3D` and the scene, and none of the authoring names
+the capability line above reserves. `@idfkit/geometry` is therefore in the `governs` list at the top
+of this file, and the naming gate holds its public surface to the entries above like any other
+governed package.
+
+`export_map_entry` stays false, and that is a decision rather than a lag. The facade's export map
+gains an entry when a consumer comes through the shared install name for geometry; the consumer
+register records that the waiting consumer declares the scoped package directly.
 """
 
 # NOT RESERVED, and the absence is a decision rather than an oversight.

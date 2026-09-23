@@ -22,6 +22,10 @@ on:
       # it is indexed by `manifest.json`. Without this line a pull request touching only a
       # check runs no job at all in this repository.
       - "checks/**"
+      # The runners carry the code a check's claim is made in, and `runners/tests/` carries the
+      # tests that prove each guard is removed exactly as the shared table records. Without this
+      # line a pull request touching only a runner runs no job at all in this repository.
+      - "runners/**"
       - "tools/**"
       - "tests/**"
       - ".github/workflows/**"
@@ -63,6 +67,28 @@ jobs:
         run: |
           python -m pip install --quiet pytest==9.1.1
           python -m pytest tests -q
+
+      # `runners/tests/` is the same argument one directory over: a guard that removes a clause
+      # incorrectly, or not at all, would report every clause load-bearing and prove nothing. These
+      # decode `runners/tests/guard_fixtures.json` and `ring_fixtures.json`, which are the contract
+      # between the two runners' guards, and they import neither library.
+      - name: Test the runners' guards and ring comparison
+        run: python -m pytest runners/tests -q
+
+      # The second language's half of the same contract, against the same tables. Named files
+      # rather than the directory, because `node --test <dir>` is resolved as a module by some Node
+      # versions and the directory also holds the Python half. All three, not two: `test-compare`
+      # carries 117 of the 202 and leaving it out would run the smaller half of the mirror.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Test the JavaScript runner's guards, ring comparison and value comparison
+        run: |
+          node --test \
+            runners/tests/test-compare.mjs \
+            runners/tests/test-guard.mjs \
+            runners/tests/test-ring.mjs
 
       # The case manifest is the corpus's own index. A case that does not agree with it reaches a
       # runner as an unexplained error rather than a failed assertion, so this loads the whole

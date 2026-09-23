@@ -609,15 +609,28 @@ names      = [
 #         calculate_surface_tilt, calculate_zone_floor_area, calculate_zone_ceiling_area,
 #         calculate_zone_height, calculate_zone_volume, polygon_area_2d, polygon_contains_2d,
 #         polygon_intersection_2d, polygon_difference_2d
-# Reserved for the eventual port: @idfkit/geometry at subpath idfkit/geometry (FR-077).
+# TypeScript: Vector3D, Polygon3D, getScene (@idfkit/geometry, reserved at subpath
+#             idfkit/geometry per FR-077 and not yet carrying one).
 [[capability]]
 id         = "geometry-extraction"
 title      = "Reading geometry from a model"
 tier       = "tier-2"
 python     = "complete"
-typescript = "absent"
-absence_kind = "not-yet"
-issue      = "https://github.com/idfkit/idfkit-js/issues/13"
+typescript = "partial"
+differences = """
+TypeScript carries the vector, the polygon and the resolved scene. `getScene` places every detailed
+surface a model states and reports what it could not place and what it did not attempt, so a reader
+who wants a model's geometry has it in both languages.
+
+What it does not carry is the per-object calculation surface Python spells as free functions over an
+IDF object: a zone's origin and its rotation, a surface's area, tilt and azimuth read from the
+object rather than from a polygon, a zone's floor area, ceiling area, height and volume, and the
+two-dimensional polygon predicates. Python's `translate_to_world` has no counterpart either, and
+will not have the same one: it resolves by mutating the document, where `getScene` resolves into a
+value and leaves the model alone.
+"""
+difference_kind = "not-yet"
+difference_issue = "https://github.com/idfkit/idfkit-js/issues/13"
 names      = [
   "three-dimensional vector",
   "three-dimensional polygon",
@@ -630,6 +643,17 @@ names      = [
   "a surface's azimuth",
   "a zone's floor area",
   "a zone's volume",
+  # The scene description, which both languages now carry. Listed here rather than under a row of
+  # its own because it is not a second capability: it is what "reading geometry from a model" means
+  # once a reader can ask where a surface is without editing the model to find out. Without these
+  # seven the ledger claims a capability whose module nothing owns, which is the gate's own finding.
+  "a model's resolved geometry",
+  "the resolved scene",
+  "a resolved surface",
+  "the rules resolution applied",
+  "the scene's extent",
+  "a surface that could not be resolved",
+  "a geometry type the reader did not attempt",
 ]
 
 # Python: set_wwr, rotate_building, translate_building, scale_building, bounding_box,
@@ -944,17 +968,27 @@ id         = "scene-rendering"
 title      = "Rendering a three-dimensional scene"
 tier       = "never"
 python     = "absent"
-typescript = "complete"
+typescript = "absent"
 absence_kind = "never"
 note       = """
-Delivered by @idfkit/viewer, installed by its own name like the simulation engine, and NOT reachable
-through the shared install name: no subpath, no dependency, no export-map entry, and no reserved
-name in the naming register. A reader reaches it by installing it explicitly, and the documentation
-says so rather than implying the facade carries it.
+To be delivered by @idfkit/viewer, installed by its own name like the simulation engine, and NOT
+reachable through the shared install name: no subpath, no dependency, no export-map entry, and no
+reserved name in the naming register. A reader would reach it by installing it explicitly, and the
+documentation says so rather than implying the facade carries it.
 
-Python has no counterpart and is not getting one. A real-time interactive scene needs a rendering
-context that a Python process does not have, and Python's static vector output is a different
-mechanism serving a different workflow: see `svg-visualisation`. Neither is a gap in the other.
+@idfkit/viewer DOES NOT EXIST. This row read `typescript = "complete"` until the change that landed
+geometry extraction, and no such package is in `idfkit-js/packages`, published or unpublished. The
+distinction matters more here than the word "unreachable" carries on its own: a reader meeting only
+this row would otherwise conclude that a renderer is a `npm install` away, and a specification
+waiting on one would be waiting on a claim rather than on a package. Nothing in feature 009 depends
+on this row's value, and nothing waiting on a renderer may.
+
+The single `absence_kind` covers two absences of different character, and the file has one field for
+it. Python's absence is terminal: a real-time interactive scene needs a rendering context that a
+Python process does not have, and Python's static vector output is a different mechanism serving a
+different workflow, `svg-visualisation`. Neither is a gap in the other. TypeScript's absence is
+merely present-tense, and the `never` this row carries is the one its tier already states: this
+capability is not part of the shared surface in either language, whoever builds it and whenever.
 """
 # No `names`: @idfkit/viewer is deliberately absent from the naming register, which says so in
 # its reserved-package section. Registering a concept for it here would imply the shared surface
