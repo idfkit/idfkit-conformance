@@ -63,7 +63,9 @@ FORMATTING_ANSWERS = frozenset({"yes", "no", "inherited", "not-applicable"})
 FACADE_PACKAGE = "@idfkit/idfkit"
 GOVERNED_PACKAGES: Mapping[str, frozenset[str]] = {
     "python": frozenset({"idfkit"}),
-    "javascript": frozenset({FACADE_PACKAGE, "@idfkit/core", "@idfkit/schemas", "@idfkit/weather", "@idfkit/language"}),
+    "javascript": frozenset(
+        {FACADE_PACKAGE, "@idfkit/core", "@idfkit/schemas", "@idfkit/weather", "@idfkit/language", "@idfkit/geometry"}
+    ),
 }
 SCOPED_PACKAGES = GOVERNED_PACKAGES["javascript"] - {FACADE_PACKAGE}
 
