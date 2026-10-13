@@ -9,6 +9,27 @@ This directory holds the two files that fix the shared vocabulary of `idfkit` (P
 | `parity.toml` | The parity ledger: every capability, its tier, and whether each language implements it completely, partially, or not at all | `idfkit-developers/docs/explanation/parity.md` |
 | `consumers.toml` | The consumer register: every project in the workspace that resolves either library or teaches a reader to install one, where each one's level is written, and any deliberate or temporary lag | `idfkit-developers/docs/explanation/consumers.md` |
 
+A fourth file joins them (feature 012):
+
+| File | What it records | Read by |
+| ---- | --------------- | ------- |
+| `energyplus.toml` | The version roster: every project that carries content depending on the EnergyPlus version, what must be observable before each may adopt a release, the steps each performs with their class and verification, and where each states the latest release | `tools/energyplus/roster.py`, and through it the watch, the sweep and each project's adoption workflow |
+
+The version roster never states an EnergyPlus version. The supported set is read from the location
+`[roster].supported_at` names, so an adoption changes nothing in the file and cuts no governance
+tag. A tag is cut when the roster itself changes: a project is added, a statement moves, a step
+changes class. A project's adoption workflow reads the roster at the tag on its `uses:` line. The
+watch and the sweep run inside this repository and read the working tree, which is the same single
+exception `sweep-consumers.yml` has. `tools/energyplus/check_roster.py` is the only thing that may
+call the file well formed, and `energyplus/README.md` describes the adoption procedure.
+
+idfkit-engine appears in the version roster and remains `out_of_scope` in the consumer register.
+The two registers answer different questions. The consumer register records which library level a
+project resolves, and the engine resolves neither library. The version roster records which
+EnergyPlus releases a project carries content for, and the engine carries content for exactly one
+release per published asset package. Folding one register into the other would force the engine
+through a rule written to exclude it.
+
 None of the three is written by hand in a library. All are written here, released under a tag, and
 read from that tag by whatever needs them.
 
@@ -35,7 +56,7 @@ This repository publishes two independent series of immutable git tags.
 | Series | Governs | Declared by |
 | ------ | ------- | ----------- |
 | `conformance-YYYY.N` | The corpus level: one state of the case set under `cases/`, plus `manifest.json` and `known-divergence.toml` | `[tool.idfkit.conformance] level` in `idfkit/pyproject.toml`, `idfkit.conformance` in `idfkit-js/packages/core/package.json` |
-| `governance-YYYY.N` | This directory: `naming.toml`, `parity.toml` and `consumers.toml` | `[tool.idfkit.governance] level` in `idfkit/pyproject.toml`, `idfkit.governance` in `idfkit-js/packages/core/package.json` |
+| `governance-YYYY.N` | This directory: `naming.toml`, `parity.toml`, `consumers.toml` and `energyplus.toml` | `[tool.idfkit.governance] level` in `idfkit/pyproject.toml`, `idfkit.governance` in `idfkit-js/packages/core/package.json` |
 
 They are separate on purpose, and the purpose runs in both directions:
 

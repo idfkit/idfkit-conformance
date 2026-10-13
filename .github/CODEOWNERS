@@ -47,6 +47,13 @@
 # read this file, so a change here is cross-language surface like the two files beside it.
 /governance/consumers.toml  @idfkit/python-maintainers @idfkit/javascript-maintainers
 
+# The version roster and the EnergyPlus adoption records (feature 012, FR-038). The roster is
+# already covered by /governance/ above and is named again because its `run` commands are executed
+# in every rostered project. The records under /energyplus/ are the permanent evidence of an
+# adoption and are added only by reviewed pull request.
+/governance/energyplus.toml  @idfkit/python-maintainers @idfkit/javascript-maintainers
+/energyplus/            @idfkit/python-maintainers @idfkit/javascript-maintainers
+
 # The runners themselves, and the tooling that regenerates expected output. A change to
 # how a case is compared changes what both gates mean.
 /runners/               @idfkit/python-maintainers @idfkit/javascript-maintainers

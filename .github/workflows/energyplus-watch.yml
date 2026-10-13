@@ -1,0 +1,157 @@
+# Detect upstream EnergyPlus releases and advance every open adoption (feature 012).
+#
+# WHAT IT DOES
+#
+#   1. Renews its own schedule. GitHub disables a scheduled workflow after 60 days without
+#      repository activity, and the detection this workflow replaces was disabled that way for
+#      85 days without any signal. The renewal is a call to the workflow enable endpoint with this
+#      repository's own token. A failed renewal is a warning. The weekly sweep reports any disabled
+#      schedule in the organisation, and every rendered checklist states its own age, so a stopped
+#      clock is visible by two other means.
+#   2. Lists upstream releases and keeps those that are releases: not a draft, a tag of exactly
+#      vX.Y.Z, not marked as a prerelease, at least one asset. Upstream publishes test builds with
+#      the prerelease flag unset, so the flag alone does not qualify a release.
+#   3. For each release that is newer than the newest supported release and has no adoption record,
+#      keeps exactly one tracking issue, found by a marker among open and closed issues, and
+#      rewrites its body with the checklist evaluated in this run.
+#   4. Dispatches each project's adoption workflow when what the project waits on is observable.
+#      Dispatch is performed only when the repository variable ENERGYPLUS_DISPATCH is `true`.
+#      Without it the run evaluates and renders and starts nothing.
+#   5. When every step of an adoption is resolved, opens the pull request that adds its record.
+#
+# WHAT IT NEVER DOES
+#
+#   It never writes to the contents of any repository except through the record pull request in
+#   this one. It never merges, publishes, releases or deploys. It never reports on what it could
+#   not see: without the application's credentials it fails before reading anything.
+#
+# TRIGGERS
+#
+#   schedule            daily. Detection, and the fallback that advances every open adoption.
+#   workflow_dispatch   with `release`: the one starting action, or a manual advance. Also sent by a
+#                       project's adoption workflow when it finishes, and by each library after a
+#                       release, with `reason`, so that the run advances within minutes of the event
+#                       it was waiting for.
+#
+# EXIT CODES of the program
+#
+#   0  nothing is owed
+#   1  a dispatch did not land, or an evaluation could not be completed
+#   2  credentials absent, or a project could not be read
+#   3  at least one adoption waits on a person. This is the normal state between releases of the
+#      libraries, so it is reported as a successful job with a warning annotation.
+#   4  a requested release was refused, with the cause stated
+name: energyplus-watch
+
+on:
+  schedule:
+    - cron: "23 5 * * *"
+  workflow_dispatch:
+    inputs:
+      release:
+        description: The release to start or advance, as X.Y.Z. Empty to process every release awaiting adoption.
+        required: false
+        type: string
+        default: ""
+      reason:
+        description: Why this run was requested. Logged and not interpreted.
+        required: false
+        type: string
+        default: ""
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: write
+
+concurrency:
+  group: energyplus-watch
+  cancel-in-progress: false
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      HAS_APP: ${{ secrets.APP_ID != '' && secrets.APP_PRIVATE_KEY != '' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Renew the schedule
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api -X PUT "repos/${{ github.repository }}/actions/workflows/energyplus-watch.yml/enable" \
+            || echo "::warning title=Schedule not renewed::The enable call failed. The weekly sweep reports a disabled schedule."
+
+      - name: Refuse to watch blind
+        if: env.HAS_APP != 'true'
+        run: |
+          echo "::error title=No app credentials::APP_ID and APP_PRIVATE_KEY are not set, so private projects cannot be read and no project can be dispatched. Run by hand with: python -m tools.energyplus.watch --workspace .."
+          exit 2
+
+      - name: Mint a token for the whole installation
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+
+      - name: Watch
+        id: watch
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          RELEASE: ${{ inputs.release }}
+          REASON: ${{ inputs.reason }}
+          DISPATCH: ${{ vars.ENERGYPLUS_DISPATCH == 'true' && '--dispatch' || '' }}
+        run: |
+          set +e
+          python -m tools.energyplus.watch --release "$RELEASE" --reason "$REASON" --out evaluations $DISPATCH | tee watch.log
+          code=${PIPESTATUS[0]}
+          set -e
+          {
+            echo "### EnergyPlus watch"
+            echo
+            sed 's/^/- /' watch.log
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$code" -eq 3 ]; then
+            echo "::warning title=Waiting on a person::At least one adoption waits on a person. See the tracking issue for the next action."
+            exit 0
+          fi
+          exit "$code"
+
+      - name: Keep the evaluations
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: energyplus-evaluations
+          path: evaluations/
+          if-no-files-found: ignore
+
+      # The record is written by the program only when every step is resolved. The branch is pushed
+      # with this repository's token and the pull request is opened by the application, so that the
+      # governance checks run on it. It is reviewed under CODEOWNERS and never merged by a tool.
+      - name: Open the record pull request
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+          branch-token: ${{ github.token }}
+          add-paths: energyplus/adoptions/*.toml
+          # One branch, so that a record waiting for review is updated in place. A suffix per run
+          # would open one more pull request at every run until the record is merged.
+          branch: energyplus/record
+          title: Record a completed EnergyPlus adoption
+          commit-message: Record a completed EnergyPlus adoption
+          body: |
+            Every step of the adoption is passed or not applicable, no occurrence is unaccounted
+            for, and the upstream source is unchanged since the first evaluation. The record was
+            written by `tools/energyplus/record.py` from the evaluation attached to the run.
+
+            Merging this pull request marks the adoption complete. Close the tracking issue named in
+            the record's `tracking_issue` when it is merged.

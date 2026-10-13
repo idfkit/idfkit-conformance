@@ -55,3 +55,68 @@ def test_no_workflow_calls_itself_at_a_branch() -> None:
 def test_the_self_check_refuses_a_branch_as_its_level() -> None:
     text = (ROOT / ".github" / "workflows" / "check-consumer.yml").read_text()
     assert r"^governance-[0-9]{4}\.[0-9]+$" in text
+
+
+# ── The adoption workflow and its callers (feature 012) ────────────────────────────────────────────
+
+WORKSPACE = ROOT.parent
+_CALL = re.compile(r"idfkit-conformance/\.github/workflows/adopt-energyplus\.yml@(\S+)")
+
+
+def _adopt_callers() -> list[Path]:
+    """Every `adopt-energyplus.yml` in a sibling checkout. Empty where the workspace is not checked out."""
+    return sorted(path for path in WORKSPACE.glob("*/.github/workflows/adopt-energyplus.yml") if path.parent.parent.parent != ROOT)
+
+
+def caller_problems(text: str) -> list[str]:
+    """What is wrong with one caller of the adoption workflow. Empty when it is well formed."""
+    refs = _CALL.findall(text)
+    if len(refs) != 1:
+        return [f"calls adopt-energyplus.yml {len(refs)} time(s), expected 1"]
+    problems = []
+    if not re.fullmatch(r"governance-\d{4}\.\d+", refs[0]):
+        problems.append(f"uses the reusable workflow at {refs[0]!r}, not at a governance tag")
+    levels = re.findall(r"^\s*governance_level:\s*(\S+)", text, flags=re.MULTILINE)
+    if levels != [refs[0]]:
+        problems.append(f"passes governance_level {levels}, which is not the tag on uses: ({refs[0]})")
+    if "run-name: Adopt EnergyPlus ${{ inputs.release }}" not in text:
+        problems.append("does not set run-name, so an evaluation cannot find the run for a release")
+    if re.search(r"id-token|packages:\s*write|deployments:", text):
+        problems.append("grants a permission that publishing or deploying needs")
+    return problems
+
+
+GOOD_CALLER = """\
+name: adopt-energyplus
+run-name: Adopt EnergyPlus ${{ inputs.release }}
+jobs:
+  adopt:
+    uses: idfkit/idfkit-conformance/.github/workflows/adopt-energyplus.yml@governance-2026.23
+    with:
+      project: idfkit-mcp
+      governance_level: governance-2026.23
+"""
+
+
+def test_a_well_formed_caller_has_no_problems() -> None:
+    assert caller_problems(GOOD_CALLER) == []
+
+
+def test_a_caller_at_a_branch_or_with_two_different_pins_is_rejected() -> None:
+    assert "not at a governance tag" in caller_problems(GOOD_CALLER.replace("governance-2026.23", "main"))[0]
+    assert "is not the tag on uses" in caller_problems(GOOD_CALLER.replace("governance_level: governance-2026.23", "governance_level: governance-2026.22"))[0]
+    assert caller_problems(GOOD_CALLER.replace("run-name", "name-of-run"))
+    assert caller_problems(GOOD_CALLER + "permissions:\n  id-token: write\n")
+
+
+def test_every_caller_in_the_workspace_pins_one_governance_tag() -> None:
+    for caller in _adopt_callers():
+        assert caller_problems(caller.read_text()) == [], f"{caller.parent.parent.parent.name}: {caller_problems(caller.read_text())}"
+
+
+def test_the_adoption_workflow_requests_nothing_that_publishes_or_deploys() -> None:
+    text = (ROOT / ".github" / "workflows" / "adopt-energyplus.yml").read_text()
+    body = "\n".join(line for line in text.splitlines() if not line.lstrip().startswith("#"))
+    assert "id-token" not in body and "packages:" not in body and "deployments:" not in body
+    assert "gh pr merge" not in body and "--auto" not in body.replace("set-head origin --auto", "")
+    assert r"^governance-[0-9]{4}\.[0-9]+$" in body and "refs/tags/${{ inputs.governance_level }}" in body
