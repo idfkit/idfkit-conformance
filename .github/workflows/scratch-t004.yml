@@ -1,0 +1,43 @@
+# Scratch test for specification 012, task T004. Deleted with its branch after one run.
+#
+# Question: does a pull request opened with the idfkit-bot token, on a branch pushed with this
+# repository's default token, trigger the repository's `pull_request` checks?
+name: scratch-t004
+
+on:
+  push:
+    branches: ["scratch/t004"]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  open:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Mint a token for the application
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+
+      - name: Make a change under a path the governance workflow watches
+        run: date -u +%Y-%m-%dT%H:%M:%SZ > tests/t004-scratch.txt
+
+      - name: Open the pull request
+        id: pr
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+          branch-token: ${{ github.token }}
+          base: scratch/t004
+          branch: scratch/t004-pr
+          title: "Scratch: T004, do not merge"
+          commit-message: Scratch change for T004
+          body: Scratch test for specification 012, task T004. It will be closed without merging.
+
+      - run: echo "${{ steps.pr.outputs.pull-request-url }}" >> "$GITHUB_STEP_SUMMARY"
