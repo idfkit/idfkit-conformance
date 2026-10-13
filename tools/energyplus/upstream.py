@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import fnmatch
 import json
+import re
 import subprocess
 from dataclasses import dataclass
 from datetime import datetime
@@ -59,6 +60,19 @@ class Published:
         return None
 
 
+_UBUNTU = re.compile(r"-Ubuntu(\d+(?:\.\d+)*)-")
+
+
+def _numbers(version: str) -> tuple[int, ...]:
+    return tuple(int(part) for part in version.split("."))
+
+
+def _ubuntu(name: str) -> tuple[int, ...] | None:
+    """The Ubuntu release an asset name states, or `None` when it states none."""
+    found = _UBUNTU.search(name)
+    return _numbers(found.group(1)) if found else None
+
+
 @dataclass(frozen=True, slots=True)
 class UpstreamRelease:
     release: Release
@@ -68,17 +82,34 @@ class UpstreamRelease:
     prerelease: bool
     assets: tuple[Asset, ...]
 
-    def asset(self, role: AssetRole) -> Asset:
+    def asset(self, role: AssetRole, ubuntu: str | None = None) -> Asset:
+        """The one asset that fills `role`.
+
+        Upstream has shipped two Ubuntu builds per architecture. With `ubuntu` stated, the build
+        for that Ubuntu release is the asset, and its absence is an error. Without it, the build
+        for the oldest Ubuntu release is, because a binary linked against an older C library runs
+        on a newer system and the reverse does not hold.
+        """
         pattern = role.pattern(self.release)
         found = [asset for asset in self.assets if fnmatch.fnmatchcase(asset.name, pattern)]
-        if len(found) != 1:
-            raise UpstreamError(f"{self.tag}: {len(found)} assets match {pattern!r}, expected exactly 1")
-        return found[0]
+        if not found:
+            raise UpstreamError(f"{self.tag}: 0 assets match {pattern!r}")
+        builds = [(_ubuntu(asset.name), asset) for asset in found]
+        if ubuntu is not None:
+            wanted = [asset for build, asset in builds if build == _numbers(ubuntu)]
+            if len(wanted) != 1:
+                raise UpstreamError(f"{self.tag}: {len(wanted)} assets match {pattern!r} for Ubuntu {ubuntu}, expected exactly 1")
+            return wanted[0]
+        if len(found) == 1:
+            return found[0]
+        if any(build is None for build, _ in builds) or len({build for build, _ in builds}) != len(builds):
+            raise UpstreamError(f"{self.tag}: {len(found)} assets match {pattern!r} and their Ubuntu releases do not tell them apart")
+        return min(builds, key=lambda pair: pair[0] or ())[1]
 
-    def has(self, role: AssetRole) -> bool:
+    def has(self, role: AssetRole, ubuntu: str | None = None) -> bool:
         """The role resolves to one asset, and that asset carries a digest."""
         try:
-            return self.asset(role).sha256 is not None
+            return self.asset(role, ubuntu).sha256 is not None
         except UpstreamError:
             return False
 

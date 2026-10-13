@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 from energyplus.check_roster import check, tally
-from energyplus.roster import Form, Release, Roster, StepClass, Target
+from energyplus.roster import AssetRole, Form, Release, Roster, StepClass, Target
 from support import APP, HEADER, LIB, NONE, ROSTER, VERIFICATIONS, VERSIONS
 
 R = Release(26, 2, 0)
@@ -118,3 +118,22 @@ def test_a_release_in_a_pin_reason_is_allowed() -> None:
 def test_a_not_yet_lag_needs_an_issue() -> None:
     text = HEADER + LIB + APP + '\n  [project.lag]\n  kind = "not-yet"\n' + NONE + VERIFICATIONS
     assert {failure.rule for failure in check(text)} == {"V10"}
+
+
+ASSETS = 'kind = "upstream-assets"\n  roles = ["linux-x86_64"]'
+
+
+def test_an_opening_may_state_the_ubuntu_build_it_consumes() -> None:
+    roster = Roster.from_text(_broken(ASSETS, ASSETS + '\n  ubuntu = "24.04"'))
+    assert roster.ubuntu_builds() == {AssetRole.LINUX_X86_64: "24.04"}
+    assert Roster.from_text(ROSTER).ubuntu_builds() == {}
+
+
+def test_an_ubuntu_release_is_a_string_of_two_numbers() -> None:
+    assert {failure.rule for failure in check(_broken(ASSETS, ASSETS + "\n  ubuntu = 24.04"))} == {"V9"}
+
+
+def test_two_projects_cannot_state_different_builds_for_one_role() -> None:
+    second = '\n\n  [[project.opens_on]]\n  kind = "upstream-assets"\n  roles = ["linux-x86_64"]\n  ubuntu = "22.04"'
+    text = HEADER + LIB.replace(ASSETS, ASSETS + '\n  ubuntu = "24.04"') + APP.replace('gate = "npm test"', 'gate = "npm test"' + second) + NONE + VERIFICATIONS
+    assert {failure.rule for failure in check(text)} == {"V9"}

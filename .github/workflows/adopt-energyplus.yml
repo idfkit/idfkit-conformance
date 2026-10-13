@@ -177,6 +177,9 @@ jobs:
           branch: energyplus/${{ inputs.release }}
           title: Adopt EnergyPlus ${{ inputs.release }}
           commit-message: Adopt EnergyPlus ${{ inputs.release }}
+          # The action's default author is the person who dispatched the run. adopt.py reads any
+          # author but the workflow's as a person's commit, and would never regenerate the branch.
+          author: github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>
           body-path: adoption-body.md
           draft: ${{ steps.adopt.outputs.draft == 'true' && 'always-true' || 'false' }}
           delete-branch: false

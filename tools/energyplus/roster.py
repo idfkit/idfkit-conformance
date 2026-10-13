@@ -434,6 +434,9 @@ class Opening:
 
     kind: OpeningKind
     roles: tuple[AssetRole, ...] = ()
+    #: The Ubuntu release whose build this project consumes, as `24.04`. When absent, the build for
+    #: the oldest Ubuntu release upstream published is the asset.
+    ubuntu: str | None = None
     project: str | None = None
     step: str | None = None
     published: PublishedCarries | None = None
@@ -526,6 +529,10 @@ class Roster:
 
     def by_repository(self, repository: str) -> Project | None:
         return next((project for project in self.projects if project.repository == repository), None)
+
+    def ubuntu_builds(self) -> dict[AssetRole, str]:
+        """The Ubuntu release stated for each asset role. A role no opening states one for is absent."""
+        return {role: opening.ubuntu for project in self.projects for opening in project.opens_on if opening.ubuntu for role in opening.roles}
 
     def rostered(self) -> tuple[Project, ...]:
         """The projects that carry version-dependent content."""
@@ -653,7 +660,10 @@ def _opening(table: Table, where: str) -> Opening:
     match kind:
         case OpeningKind.UPSTREAM_ASSETS:
             roles = tuple(_enum(AssetRole, role, "V9", where) for role in _need(table, "roles", "V9", where))
-            return Opening(kind, roles=roles)
+            ubuntu = table.get("ubuntu")
+            if ubuntu is not None and not (isinstance(ubuntu, str) and re.fullmatch(r"\d+\.\d+", ubuntu)):
+                raise RosterError("V9", where, f"ubuntu = {ubuntu!r} is not an Ubuntu release written as a string such as \"24.04\"")
+            return Opening(kind, roles=roles, ubuntu=ubuntu)
         case OpeningKind.MERGED:
             return Opening(kind, project=_need(table, "project", "V9", where), step=_need(table, "step", "V9", where))
         case OpeningKind.PUBLISHED:

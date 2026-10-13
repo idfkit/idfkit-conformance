@@ -32,10 +32,11 @@ from typing import Protocol
 
 from sweep_consumers import Source, Unreachable
 
+from .checklist import recorded_source
 from .evaluate import CONTENT_KINDS, CheckOutcome, Evaluator, GhHub, HttpPackages, Hub, Packages, Recorded, branch_for, consumed, source_changes
 from .roster import Project, PublishedCarries, Release, Roster, Step, StepClass, Target, members
 from .scan import GitHubArchive, glob_pattern
-from .upstream import GhReleases, UpstreamRelease, find, releases
+from .upstream import GhReleases, UpstreamError, UpstreamRelease, find, releases
 
 #: The identities whose commits on an adoption branch are the workflow's own.
 WORKFLOW_AUTHORS = ("github-actions[bot]", "idfkit-bot[bot]")
@@ -216,7 +217,7 @@ def adopt(
     base_checks = hub.checks(project.repository, None, project.checks)
     if base_checks.outcome is CheckOutcome.FAILURE:
         return AdoptionResult(Result.PRE_EXISTING, f"the default branch's checks were failing before this run: {', '.join(base_checks.failing)}")
-    changed = source_changes(recorded, upstream.commit if upstream else "", consumed(upstream))
+    changed = source_changes(recorded, upstream.commit if upstream else "", consumed(upstream, roster.ubuntu_builds()))
     if changed:
         return AdoptionResult(Result.SOURCE_CHANGED, "; ".join(f"{change.what}: recorded {change.recorded}, now {change.live}" for change in changed))
     try:
@@ -307,6 +308,16 @@ def edited_comment(release: Release, result: AdoptionResult) -> str:
     )
 
 
+def recorded_at(issue: str) -> Recorded | None:
+    """The source identity the tracking issue recorded at the first evaluation, or `None` without an issue."""
+    if not issue:
+        return None
+    done = subprocess.run(["gh", "issue", "view", issue, "--json", "body", "--jq", ".body"], capture_output=True, text=True, check=False)  # noqa: S603, S607
+    if done.returncode != 0:
+        raise Unreachable(f"the tracking issue {issue} could not be read: {done.stderr.strip() or 'gh issue view failed'}")
+    return recorded_source(done.stdout)
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--project", required=True)
@@ -325,8 +336,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     with tempfile.TemporaryDirectory() as scratch:
         try:
             upstream = find(releases(GhReleases(roster.upstream)), release)
-            result = adopt(roster, project, release, tree, GitHubArchive(Path(scratch)), GhHub(), HttpPackages(), upstream, ShellRunner(), remote_branch=remote)
-        except Unreachable as error:
+            result = adopt(
+                roster, project, release, tree, GitHubArchive(Path(scratch)), GhHub(), HttpPackages(), upstream, ShellRunner(),
+                recorded=recorded_at(arguments.issue), remote_branch=remote,
+            )  # fmt: skip
+        except (Unreachable, UpstreamError) as error:
             print(f"::error title=Roster or project unreadable::{error}")
             return 2
     arguments.body.write_text(edited_comment(release, result) if result.result is Result.BRANCH_EDITED else body(project, release, result, arguments.issue), encoding="utf-8")

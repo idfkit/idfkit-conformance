@@ -143,8 +143,9 @@ jobs:
           token: ${{ steps.app-token.outputs.token }}
           branch-token: ${{ github.token }}
           add-paths: energyplus/adoptions/*.toml
+          # One branch, so that a record waiting for review is updated in place. A suffix per run
+          # would open one more pull request at every run until the record is merged.
           branch: energyplus/record
-          branch-suffix: timestamp
           title: Record a completed EnergyPlus adoption
           commit-message: Record a completed EnergyPlus adoption
           body: |

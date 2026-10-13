@@ -19,6 +19,7 @@ from pathlib import Path
 
 from .roster import (
     END_TO_END_IDS,
+    AssetRole,
     SCHEMA_VERSION,
     LagKind,
     OpeningKind,
@@ -168,6 +169,14 @@ def v9_openings_resolve(roster: Roster) -> list[Failure]:
                 failures.append(Failure("V9", f"project {project.id}", f"opens on project {opening.project!r}, which the roster does not list"))
             elif opening.step is not None and opening.step not in {step.id for step in target.steps}:
                 failures.append(Failure("V9", f"project {project.id}", f"opens on step {opening.step!r}, which {target.id} does not have"))
+    stated: dict[AssetRole, tuple[str, str]] = {}
+    for project in roster.projects:
+        for opening in project.opens_on:
+            for role in opening.roles if opening.ubuntu else ():
+                first = stated.setdefault(role, (opening.ubuntu or "", project.id))
+                if first[0] != opening.ubuntu:
+                    # The source recorded for a release names one asset per role, so one build per role.
+                    failures.append(Failure("V9", f"project {project.id}", f"states Ubuntu {opening.ubuntu} for {role.value}, and {first[1]} states {first[0]}"))
     if failures:
         return failures
     done: set[str] = set()

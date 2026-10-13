@@ -61,10 +61,28 @@ def _release(*names: str) -> UpstreamRelease:
 def test_an_asset_that_matches_no_name_or_two_names_is_an_error() -> None:
     with pytest.raises(UpstreamError, match="0 assets"):
         _release("sha256sums.txt").asset(AssetRole.LINUX_X86_64)
-    two = _release("EnergyPlus-26.2.0-aaa-Linux-Ubuntu22.04-x86_64.tar.gz", "EnergyPlus-26.2.0-aaa-Linux-Ubuntu24.04-x86_64.tar.gz")
+    same = _release("EnergyPlus-26.2.0-aaa-Linux-Ubuntu24.04-x86_64.tar.gz", "EnergyPlus-26.2.0-bbb-Linux-Ubuntu24.04-x86_64.tar.gz")
     with pytest.raises(UpstreamError, match="2 assets"):
-        two.asset(AssetRole.LINUX_X86_64)
-    assert not two.has(AssetRole.LINUX_X86_64)
+        same.asset(AssetRole.LINUX_X86_64)
+    assert not same.has(AssetRole.LINUX_X86_64)
+
+
+OLDER = "EnergyPlus-26.2.0-aaa-Linux-Ubuntu22.04-x86_64.tar.gz"
+NEWER = "EnergyPlus-26.2.0-aaa-Linux-Ubuntu24.04-x86_64.tar.gz"
+
+
+def test_of_two_ubuntu_builds_the_oldest_fills_the_role() -> None:
+    assert _release(NEWER, OLDER).asset(AssetRole.LINUX_X86_64).name == OLDER
+
+
+def test_a_stated_ubuntu_release_selects_its_build() -> None:
+    assert _release(NEWER, OLDER).asset(AssetRole.LINUX_X86_64, "24.04").name == NEWER
+
+
+def test_a_stated_ubuntu_release_that_upstream_did_not_build_is_an_error() -> None:
+    with pytest.raises(UpstreamError, match="for Ubuntu 26.04"):
+        _release(NEWER, OLDER).asset(AssetRole.LINUX_X86_64, "26.04")
+    assert not _release(NEWER).has(AssetRole.LINUX_X86_64, "22.04")
 
 
 def test_an_asset_without_a_digest_does_not_satisfy_a_role() -> None:

@@ -35,7 +35,7 @@ import tempfile
 import urllib.error
 import urllib.request
 import zipfile
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from enum import Enum
@@ -73,7 +73,7 @@ from .roster import (
 )
 from .scan import Finding, FindingKind, scan, source_for, statement_findings, supported
 from .serial import encode
-from .upstream import Asset, GhReleases, Releases, UpstreamRelease, find, releases
+from .upstream import Asset, GhReleases, Releases, UpstreamError, UpstreamRelease, find, releases
 
 ROOT = Path(__file__).resolve().parent.parent.parent
 DEFAULT_ROSTER = ROOT / "governance" / "energyplus.toml"
@@ -403,8 +403,9 @@ class Evaluator:
                 return Evidence(run.conclusion == "success", run.url, f"{workflow}: {run.conclusion or 'in progress'}")
             case PublishedCarries():
                 return self._published(verification, project, ref)
-            case HttpContains(url=url, pattern=pattern):
-                text = self.hub.get(release.substitute(url))
+            case HttpContains(url=stated_url, pattern=pattern):
+                url = release.substitute(stated_url)
+                text = self.hub.get(url)
                 if text is None:
                     return Evidence(False, url, f"{url} could not be read")
                 wanted = verification.form.render(Target(release, 0))
@@ -525,7 +526,7 @@ class Evaluator:
         for opening in project.opens_on:
             match opening.kind:
                 case OpeningKind.UPSTREAM_ASSETS:
-                    held = self.upstream is not None and all(self.upstream.has(role) for role in opening.roles)
+                    held = self.upstream is not None and all(self.upstream.has(role, opening.ubuntu) for role in opening.roles)
                 case OpeningKind.MERGED:
                     other = self.roster.project(opening.project or "")
                     held = self.holds(other.step(opening.step or "").verify, other).holds
@@ -571,6 +572,9 @@ class Evaluator:
         if pull is None or pull.state != "open":
             base = self.hub.checks(project.repository, None, project.checks)
             if base.outcome is CheckOutcome.FAILURE:
+                if pull is not None and pull.state == "merged":
+                    after = f"failing after the adoption merged: {', '.join(base.failing)}"
+                    return row(Verdict.FAILED, Landing.NONE, Evidence(False, base.url or pull.url, after), "the default branch's checks fail after the adoption merged")
                 return row(Verdict.FAILED, Landing.NONE, Evidence(False, base.url, f"failing before any adoption: {', '.join(base.failing)}"), PRE_EXISTING)
             run = self.hub.run(project.repository, ADOPT_WORKFLOW, self.release)
             if run is not None and run.conclusion is None:
@@ -679,13 +683,14 @@ def source_changes(recorded: Recorded | None, commit: str, sources: Sequence[Sou
     return tuple(found)
 
 
-def consumed(upstream: UpstreamRelease | None) -> tuple[SourceAsset, ...]:
+def consumed(upstream: UpstreamRelease | None, ubuntu: Mapping[AssetRole, str] | None = None) -> tuple[SourceAsset, ...]:
+    """The assets the suite consumes. `ubuntu` is the roster's stated build per role (`Roster.ubuntu_builds`)."""
     if upstream is None:
         return ()
     found = []
     for role in CONSUMED_ROLES:
         try:
-            asset: Asset = upstream.asset(role)
+            asset: Asset = upstream.asset(role, (ubuntu or {}).get(role))
         except RuntimeError:
             continue
         found.append(SourceAsset(role, asset.name, asset.size, asset.sha256))
@@ -714,7 +719,7 @@ def evaluate(
         rows.extend(evaluator.rows_of(project))
         states.append(evaluator.state_of(project))
     rows.extend(evaluator.end_to_end())
-    sources = consumed(upstream)
+    sources = consumed(upstream, roster.ubuntu_builds())
     changed = source_changes(recorded, upstream.commit if upstream else "", sources)
     if changed:
         rows.insert(0, StepResult(END_TO_END, "source", SOURCE_CHANGED.capitalize(), StepClass.AUTOMATED, Verdict.FAILED, Landing.NONE, None, changed[0].what, SOURCE_CHANGED))
@@ -741,6 +746,34 @@ def evaluate(
 # ── GitHub and the package indexes, for a real run ─────────────────────────────────────────────────
 
 _BOT = re.compile(r"\[bot\]$|^github-actions$")
+
+#: The review states that replace a reviewer's earlier verdict. A comment does not.
+_VERDICTS = ("APPROVED", "CHANGES_REQUESTED", "DISMISSED")
+
+
+@dataclass(frozen=True, slots=True)
+class Approval:
+    by: str
+    at: datetime | None
+
+
+def approval(reviews: Sequence[Mapping[str, Any]], head: str) -> Approval | None:
+    """The newest standing approval of `head` by a person, from a pull request's reviews in order.
+
+    An approval stands only for the commit it was given on: one given before the branch was
+    regenerated accepts content its reviewer did not see. A reviewer's later request for changes,
+    or a dismissal, replaces their approval.
+    """
+    latest: dict[str, Mapping[str, Any]] = {}
+    for review in reviews:
+        login = (review.get("user") or {}).get("login")
+        if login and not _BOT.search(login) and review.get("state") in _VERDICTS:
+            latest[login] = review
+    standing = [(login, review) for login, review in latest.items() if review["state"] == "APPROVED" and review.get("commit_id") == head]
+    if not standing:
+        return None
+    login, review = max(standing, key=lambda pair: pair[1].get("submitted_at") or "")
+    return Approval(login, _when(review.get("submitted_at")))
 _BAD = {"failure", "cancelled", "timed_out", "action_required", "startup_failure"}
 
 
@@ -819,7 +852,7 @@ class GhHub:
         number = listing[0]["number"]
         pull = self._api(f"repos/{repository}/pulls/{number}")
         reviews = self._api(f"repos/{repository}/pulls/{number}/reviews?per_page=100", missing=[])
-        approvals = [r for r in reviews if r["state"] == "APPROVED" and r.get("user") and not _BOT.search(r["user"]["login"])]
+        approved = approval(reviews, pull["head"]["sha"])
         merged_by = (pull.get("merged_by") or {}).get("login")
         return PullRequest(
             number=number,
@@ -828,8 +861,8 @@ class GhHub:
             state="merged" if pull.get("merged_at") else pull["state"],
             merged_by=merged_by if merged_by and not _BOT.search(merged_by) else None,
             merged_at=_when(pull.get("merged_at")),
-            approved_by=approvals[-1]["user"]["login"] if approvals else None,
-            approved_at=_when(approvals[-1]["submitted_at"]) if approvals else None,
+            approved_by=approved.by if approved else None,
+            approved_at=approved.at if approved else None,
         )
 
     def tags(self, repository: str) -> tuple[str, ...]:
@@ -944,17 +977,17 @@ def main(argv: Sequence[str] | None = None, *, upstream_source: Releases | None 
     arguments = parser.parse_args(argv)
     roster = Roster.load(arguments.roster)
     release = Release.parse(arguments.release)
-    upstream = find(releases(upstream_source or GhReleases(roster.upstream)), release)
     with tempfile.TemporaryDirectory() as scratch:
         source = source_for(arguments.workspace, Path(scratch), arguments.working_tree)
         try:
+            upstream = find(releases(upstream_source or GhReleases(roster.upstream)), release)
             known = [candidate for candidate in supported(roster, source) if candidate < release]
             changes = None if arguments.no_changes else summarised(roster, source, upstream, known[-1] if known else None)
             evaluation = evaluate(
                 roster, release, source, GhHub(), HttpPackages(), upstream,
                 now=datetime.now(timezone.utc), process_revision=revision(), governance_level=None, changes=changes,
             )  # fmt: skip
-        except Unreachable as error:
+        except (Unreachable, UpstreamError) as error:
             print(f"the evaluation could not be completed: {error}", file=sys.stderr)
             return 2
     arguments.out.write_text(encode(evaluation), encoding="utf-8")

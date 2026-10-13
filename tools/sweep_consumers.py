@@ -595,13 +595,17 @@ def roster_findings(roster_path: Path, workspace: Path | None) -> tuple[list[Ros
     import tempfile
 
     sys.path.insert(0, str(ROOT))
+    # When this file runs as a script it is `__main__`, and the scan imports a second copy of it
+    # under its own name. The scan raises that copy's `Unreachable`, so both are caught.
+    from sweep_consumers import Unreachable as ScanUnreachable
+
     from tools.energyplus.roster import Roster
     from tools.energyplus.scan import scan, source_for
 
     with tempfile.TemporaryDirectory() as scratch:
         try:
             report = scan(Roster.load(roster_path), source_for(workspace, Path(scratch)))
-        except Unreachable as error:
+        except (Unreachable, ScanUnreachable) as error:
             return [], [{"repository": "version roster", "reason": str(error)}]
     findings = [RosterFinding(f.kind.value, f.project, f.path, f.line, f.detail) for f in report.findings]
     return findings, [{"repository": unread.project, "reason": f"version roster: {unread.cause}"} for unread in report.unread]

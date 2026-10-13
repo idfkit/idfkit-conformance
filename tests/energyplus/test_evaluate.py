@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from energyplus.evaluate import (
     PRE_EXISTING,
+    approval,
     CheckOutcome,
     CheckState,
     Evaluation,
@@ -208,3 +209,34 @@ def test_strangers_are_carried_into_the_evaluation() -> None:
     evaluation = _evaluate(repos)
     assert [(o.project, o.path, o.line) for o in evaluation.strangers] == [("lib", "notes.md", 1)]
     assert not evaluation.complete()
+
+
+# An approval stands for the commit it was given on.
+
+
+def _review(login: str, state: str, commit: str, at: str) -> dict[str, object]:
+    return {"user": {"login": login}, "state": state, "commit_id": commit, "submitted_at": at}
+
+
+def test_an_approval_of_the_head_commit_stands() -> None:
+    found = approval([_review("ada", "APPROVED", "h2", "2026-10-02T00:00:00Z")], "h2")
+    assert found is not None and found.by == "ada"
+
+
+def test_an_approval_of_an_earlier_generation_does_not_stand() -> None:
+    assert approval([_review("ada", "APPROVED", "h1", "2026-10-01T00:00:00Z")], "h2") is None
+
+
+def test_a_later_request_for_changes_replaces_an_approval() -> None:
+    reviews = [_review("ada", "APPROVED", "h2", "2026-10-01T00:00:00Z"), _review("ada", "CHANGES_REQUESTED", "h2", "2026-10-02T00:00:00Z")]
+    assert approval(reviews, "h2") is None
+
+
+def test_a_comment_does_not_replace_an_approval_and_a_bot_does_not_approve() -> None:
+    reviews = [
+        _review("ada", "APPROVED", "h2", "2026-10-01T00:00:00Z"),
+        _review("ada", "COMMENTED", "h2", "2026-10-02T00:00:00Z"),
+        _review("idfkit-bot[bot]", "APPROVED", "h2", "2026-10-03T00:00:00Z"),
+    ]
+    found = approval(reviews, "h2")
+    assert found is not None and found.by == "ada"

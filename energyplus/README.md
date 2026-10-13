@@ -77,6 +77,14 @@ A step is classed other than automated only for one of three stated conditions: 
 silent when wrong, it requires a choice no recorded rule decides, or it publishes. The roster states
 the condition and the reason for each.
 
+An approval stands only for the commit it was given on. When the adoption branch is regenerated
+after an approval, the step returns to awaiting a person, and the approval is given again on the new
+head. A reviewer's later request for changes replaces their approval.
+
+Where upstream publishes builds for two Ubuntu releases, a project consumes the build for the oldest
+one unless its opening in the roster states another with `ubuntu = "24.04"`. Two projects cannot
+state different builds for the same architecture.
+
 After a project's pull request merges, the checklist names what remains for a maintainer: a
 publication, a release, a deployment. No tool performs those. The run pauses at each one, and
 resumes at the next evaluation after the publication is observable.

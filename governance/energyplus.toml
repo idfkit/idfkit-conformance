@@ -2172,9 +2172,12 @@ after_merge = "Run the billable smoke test against the deployed service."
   kind = "project-complete"
   project = "idfkit-mcp"
 
+  # `app.py` installs the archive built for Ubuntu 24.04, so that build is the asset and not the
+  # oldest one upstream published.
   [[project.opens_on]]
   kind = "upstream-assets"
   roles = ["linux-arm64"]
+  ubuntu = "24.04"
 
   # The archive name embeds a build hash and is taken from the release's asset list, never
   # constructed from the version.

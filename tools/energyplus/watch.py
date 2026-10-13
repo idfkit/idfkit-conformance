@@ -275,7 +275,8 @@ def watch(
             lines.append(f"EnergyPlus {release.full()}: rewrote {issue.url}.")
         evaluations.append(evaluation)
         lines += [f"EnergyPlus {release.full()}: dispatch did not land: {failure}" for failure in failures]
-        if evaluation.complete():
+        causes = record.refusals(evaluation)
+        if not causes:
             adoption = record.from_evaluation(evaluation, now, issue.url)
             target = adoption.path(records)
             target.write_text(record.to_toml(adoption), encoding="utf-8")
@@ -283,6 +284,10 @@ def watch(
             lines.append(f"EnergyPlus {release.full()}: complete. The record was written to {target.name} for the record pull request.")
         else:
             older_open = True
+            if evaluation.complete():
+                # Every step is resolved and the record still cannot be written. That is owed by a person.
+                lines.append(f"EnergyPlus {release.full()}: every step is resolved, but the record was refused: {'; '.join(causes)}.")
+                exit_code = EXIT_FAILED
         owed = evaluation.next_action
         lines.append(f"EnergyPlus {release.full()}: next action: {owed.text if owed else 'none owed by a person'}")
         if failures:
