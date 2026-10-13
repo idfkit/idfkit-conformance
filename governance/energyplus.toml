@@ -1,0 +1,2326 @@
+# ==================================================================================================
+# THE VERSION ROSTER
+#
+# Every project in the idfkit workspace that carries content depending on the EnergyPlus version:
+# what must be observable before the project may adopt a release, the steps it performs, how each
+# step is verified, and where the project states the latest release. The fifth governance artifact
+# (feature 012).
+#
+# 1. WHAT IT NEVER HOLDS. An EnergyPlus version. The supported set is read from the location
+#    [roster.supported_at] names. An adoption therefore changes nothing in this file and cuts no
+#    governance tag. tools/energyplus/check_roster.py rejects any value that reads as a release,
+#    except in the reason of a pin or an ignore.
+#
+# 2. HOW IT IS READ. By tools/energyplus/roster.py and by nothing else. A project's adoption
+#    workflow reads it at the governance-YYYY.N tag on its `uses:` line. The watch and the sweep run
+#    inside this repository and read the working tree.
+#
+# 3. HOW IT IS CHANGED. By pull request, reviewed by a maintainer of the other language through
+#    CODEOWNERS. The `run` and `gate` values are commands executed in each project, which is the
+#    reason the review is required. tools/energyplus/check_roster.py must pass.
+#
+# 4. THE FOUR DECLARATIONS. Every occurrence of the newest supported release in a project is one of:
+#      statement   a path and a pattern whose `release` group is rewritten at adoption
+#      generated   a path glob produced by a named step, never rewritten directly
+#      pin         a path glob that names a release on purpose, with a reason, never rewritten
+#      ignore      a path glob or a line pattern that is not an EnergyPlus version, with a reason
+#    tools/energyplus/scan.py reports an occurrence under none of the four.
+#
+# 5. STEP CLASSES. `automated` steps are verified without a person. `reviewed` and `manual` steps
+#    state the condition that justifies them (silent-effect, undecided-choice, publishes), the
+#    reason, and what a person inspects. No step publishes, deploys, releases or merges.
+#
+# 6. A CHECK DOES NOT ESTABLISH A RELEASE. A `checks-green` or `accepted` verification holds only on
+#    a commit on which every content verification of the same project holds (registry-lists,
+#    path-exists, tag-exists, statements-current, published-carries). A green default branch that
+#    does not carry the release therefore passes nothing.
+# ==================================================================================================
+
+[roster]
+schema_version = "1"
+upstream = "NatLabRockies/EnergyPlus"
+review = "a maintainer of the other language, enforced by CODEOWNERS"
+
+  [roster.supported_at]
+  repository = "idfkit/idfkit"
+  path = "src/idfkit/versions.py"
+  pattern = '^\s*\((?P<release>\d+, \d+, \d+)\),'
+  form = "tuple"
+
+  [[roster.ignore]]
+  glob = "**/*.lock"
+  reason = "Lock files name third-party package versions."
+
+  [[roster.ignore]]
+  glob = "**/package-lock.json"
+  reason = "Lock files name third-party package versions."
+
+  [[roster.pin]]
+  glob = "**/CHANGELOG.md"
+  reason = "A changelog records what each past version changed."
+
+  [[roster.pin]]
+  glob = "specs/**"
+  reason = "Specifications are a historical record of the state they were written against."
+
+# ── The host ──────────────────────────────────────────────────────────────────────────────────────
+
+[[project]]
+id = "idfkit-conformance"
+repository = "idfkit/idfkit-conformance"
+content = ["expectations"]
+gate = "python -m pytest tests -q"
+# The record is written by the watch, by pull request, when every other step is resolved.
+caller = false
+
+  [[project.step]]
+  id = "record-adoption"
+  title = "Record the adoption"
+  class = "automated"
+    [project.step.verify]
+    kind = "path-exists"
+    path = "energyplus/adoptions/{full}.toml"
+
+  [[project.pin]]
+  glob = "cases/**"
+  reason = "Each expectation records the release that produced it, and an adoption never changes a conformance expectation."
+
+  [[project.pin]]
+  glob = "manifest.json"
+  reason = "Each expectation records the release that produced it, and an adoption never changes a conformance expectation."
+
+  [[project.pin]]
+  glob = "checks/**"
+  reason = "Each expectation records the release that produced it, and an adoption never changes a conformance expectation."
+
+  [[project.pin]]
+  glob = "known-divergence.toml"
+  reason = "Each expectation records the release that produced it, and an adoption never changes a conformance expectation."
+
+  [[project.pin]]
+  glob = "sweep-report.json"
+  reason = "Each expectation records the release that produced it, and an adoption never changes a conformance expectation."
+
+  [[project.pin]]
+  glob = "runners/**"
+  reason = "The runner contracts and their fixtures give examples at the release the expectations were produced with."
+
+  [[project.pin]]
+  glob = "README.md"
+  reason = "The suite states the single release its expectations were produced with, which an adoption does not change."
+
+  [[project.pin]]
+  glob = "tests/**"
+  reason = "Test fixtures name packages and versions as example input."
+
+  [[project.pin]]
+  glob = "governance/naming.toml"
+  reason = "The naming register names published packages and gives examples at a named release. It changes only by a reviewed governance change, never by an adoption."
+
+  [[project.pin]]
+  glob = "governance/parity.toml"
+  reason = "The parity ledger records measurements and the state of each capability at a named release. It changes only by a reviewed governance change, never by an adoption."
+
+# ── The first library ─────────────────────────────────────────────────────────────────────────────
+[[project]]
+id = "idfkit"
+repository = "idfkit/idfkit"
+content = ["schema", "types", "prose"]
+publishes = ["idfkit"]
+checks = "main.yml"
+gate = "make check && make test"
+after_merge = "Publish an idfkit version to the package index. Every project that resolves idfkit waits on it."
+
+  [[project.opens_on]]
+  kind = "upstream-assets"
+  roles = ["linux-x86_64"]
+
+  # The registry step precedes the schema step: the downloader refuses a version the registry does
+  # not list.
+  [[project.step]]
+  id = "registry"
+  title = "Add the release to the registry"
+  class = "automated"
+    [project.step.verify]
+    kind = "registry-lists"
+    path = "src/idfkit/versions.py"
+    pattern = '^\s*\((?P<release>\d+, \d+, \d+)\),'
+    form = "tuple"
+
+  # The bundled file is verified directly. The library can resolve a schema from a local EnergyPlus
+  # installation, which would mask a missing bundle.
+  [[project.step]]
+  id = "bundle-schema"
+  title = "Bundle the schema"
+  class = "automated"
+    [project.step.verify]
+    kind = "path-exists"
+    path = "src/idfkit/schemas/{directory}/Energy+.schema.epJSON.gz"
+
+  [[project.step]]
+  id = "regenerate-stubs"
+  title = "Regenerate type stubs"
+  class = "automated"
+    [project.step.verify]
+    kind = "checks-green"
+    workflow = "main.yml"
+
+  [[project.step]]
+  id = "regenerate-references"
+  title = "Regenerate baked agent references"
+  class = "automated"
+    [project.step.verify]
+    kind = "checks-green"
+    workflow = "main.yml"
+
+  [[project.step]]
+  id = "sweep-row"
+  title = "Add the example sweep row with its measured findings count"
+  class = "reviewed"
+  condition = "silent-effect"
+  class_reason = "The count becomes a ceiling. A wrong ceiling hides defects without raising an error."
+  inspect = "The findings and errors counts in the new matrix row, against the sweep's log for this release. Accept when both equal the measured values."
+    [project.step.verify]
+    kind = "all"
+      [[project.step.verify.of]]
+      kind = "registry-lists"
+      path = ".github/workflows/main.yml"
+      pattern = '\{ version: "(?P<release>\d+\.\d+\.\d+)", findings:'
+      form = "full"
+      [[project.step.verify.of]]
+      kind = "accepted"
+
+  [[project.step]]
+  id = "statements"
+  title = "Rewrite statements"
+  class = "automated"
+    [project.step.verify]
+    kind = "statements-current"
+
+  [[project.step]]
+  id = "gate"
+  title = "Pass the gate"
+  class = "automated"
+    [project.step.verify]
+    kind = "checks-green"
+
+  # Statements: the supported range, the latest release and the number of supported releases.
+
+  [[project.statement]]
+  path = "README.md"
+  pattern = 'from v8\.9 through v(?P<release>\d+\.\d+)\.'
+  form = "line"
+
+  [[project.statement]]
+  path = "CLAUDE.md"
+  pattern = 'versions\.py\s+# Version registry \(8\.9\.0 through (?P<release>\d+\.\d+\.\d+)\)'
+  form = "full"
+
+  [[project.statement]]
+  path = "CLAUDE.md"
+  pattern = '# Bundled epJSON schemas for (?P<release>\d+) EnergyPlus versions'
+  form = "count"
+
+  [[project.statement]]
+  path = "CLAUDE.md"
+  pattern = 'Bundled schemas cover EnergyPlus 8\.9\.0 through (?P<release>\d+\.\d+\.\d+) \('
+  form = "full"
+
+  [[project.statement]]
+  path = "CLAUDE.md"
+  pattern = 'through \d+\.\d+\.\d+ \((?P<release>\d+) versions\)'
+  form = "count"
+
+  [[project.statement]]
+  path = "CLAUDE.md"
+  pattern = 'The latest supported version is (?P<release>\d+\.\d+\.\d+)\.'
+  form = "full"
+
+  [[project.statement]]
+  path = "AGENTS.md"
+  pattern = 'Bundled epJSON schemas \((?P<release>\d+) EnergyPlus versions\)'
+  form = "count"
+
+  [[project.statement]]
+  path = "AGENTS.md"
+  pattern = 'supports EnergyPlus versions 8\.9\.0 through (?P<release>\d+\.\d+\.\d+)\.'
+  form = "full"
+
+  [[project.statement]]
+  path = "AGENTS.md"
+  pattern = '^\| \d+\.\d+\.\d+ - (?P<release>\d+\.\d+\.\d+) \| Latest supported \|'
+  form = "full"
+
+  [[project.statement]]
+  path = "agent_references/templates/parsing-idf-epjson.md"
+  pattern = 'matching bundled schema \(8\.9 through (?P<release>\d+\.\d+) '
+  form = "line"
+
+  [[project.statement]]
+  path = "agent_references/templates/schema-and-validation.md"
+  pattern = 'for every supported version \(8\.9 → (?P<release>\d+\.\d+)\)'
+  form = "line"
+
+  [[project.statement]]
+  path = "agent_references/templates/hvac-templates.md"
+  pattern = '^## Complete enumeration \(EnergyPlus (?P<release>\d+\.\d+)\)'
+  form = "line"
+
+  [[project.statement]]
+  path = ".github/workflows/main.yml"
+  pattern = 'idfkit ships (?P<release>[a-z]+),'
+  form = "count-word"
+
+  [[project.statement]]
+  path = ".github/workflows/main.yml"
+  pattern = 'is permanent\. (?P<release>[A-Z][a-z]+)\n\s*# downloads happen once'
+  form = "count-word"
+
+  [[project.statement]]
+  path = ".github/workflows/main.yml"
+  pattern = '# The (?P<release>[a-z]+) versions idfkit bundles a schema for\.'
+  form = "count-word"
+
+  # Generated: files a step produces or extends.
+
+  [[project.generated]]
+  glob = "src/idfkit/versions.py"
+  by_step = "registry"
+
+  [[project.generated]]
+  glob = "src/idfkit/schemas/**"
+  by_step = "bundle-schema"
+
+  [[project.generated]]
+  glob = "src/idfkit/_generated_types.pyi"
+  by_step = "regenerate-stubs"
+
+  [[project.generated]]
+  glob = "src/idfkit/document.pyi"
+  by_step = "regenerate-stubs"
+
+  [[project.generated]]
+  glob = "src/idfkit/.agents/skills/developing-with-idfkit/**"
+  by_step = "regenerate-references"
+
+  [[project.generated]]
+  glob = ".github/workflows/main.yml"
+  by_step = "sweep-row"
+
+  # Pins: text that is true of one release and does not change at adoption.
+
+  [[project.pin]]
+  glob = "tests/**"
+  reason = "Tests and fixtures name the release whose behaviour they assert: models declaring Version 26.1, schema facts measured on 26.1.0, and output files written by EnergyPlus 26.1.0."
+
+  [[project.pin]]
+  glob = ".github/ep-testfiles.sparse"
+  reason = "The comment records that the excluded example file is absent from EnergyPlus by 26.1, a fact about that release."
+
+  [[project.pin]]
+  glob = "src/idfkit/document.py"
+  reason = "The docstring records a count of reference fields measured in the 26.1.0 schema."
+
+  [[project.pin]]
+  glob = "src/idfkit/validation.py"
+  reason = "The docstring records a count of fields measured in the 26.1.0 schema."
+
+  [[project.pin]]
+  glob = "src/idfkit/idf_parser.py"
+  reason = "The comments record a property of example files shipped with EnergyPlus 26.1.0."
+
+  [[project.pin]]
+  glob = "src/idfkit/scene.py"
+  reason = "The comment records behaviour observed in EnergyPlus 26.1.0."
+
+  [[project.pin]]
+  glob = "src/idfkit/writers.py"
+  reason = "The comment uses 26.1 as an example of a four-character version identifier when describing column drift."
+
+# ── The engine ────────────────────────────────────────────────────────────────────────────────────
+#
+# The engine resolves neither library and is out of scope of the consumer register. It appears here
+# because it carries content for exactly one EnergyPlus release per published asset package.
+[[project]]
+id = "idfkit-engine"
+repository = "idfkit/idfkit-engine"
+content = ["engine", "prose"]
+publishes = ["@idfkit/engine-assets"]
+checks = "ci.yml"
+gate = "npm run typecheck && npm test"
+after_merge = "Publish the asset package for the release. Projects that run a simulation in the browser wait on it."
+
+  [[project.opens_on]]
+  kind = "upstream-assets"
+  roles = ["linux-x86_64"]
+
+  [[project.step]]
+  id = "toolchain-row"
+  title = "Propose the toolchain row, from the previous release's"
+  class = "reviewed"
+  condition = "silent-effect"
+  class_reason = "A build that compiles can produce a binary that computes wrong results or fails at run time."
+  inspect = "The proposed row in .github/energyplus-builds.json and the build it produced. Accept when the build succeeded and the row's status is not stronger than what was verified."
+    [project.step.verify]
+    kind = "all"
+      [[project.step.verify.of]]
+      kind = "registry-lists"
+      path = ".github/energyplus-builds.json"
+      pattern = '"energyplus": "(?P<release>v\d+\.\d+\.\d+)"'
+      form = "tag"
+      [[project.step.verify.of]]
+      kind = "accepted"
+
+  [[project.step]]
+  id = "build-engine"
+  title = "Build the engine"
+  class = "automated"
+    [project.step.verify]
+    kind = "tag-exists"
+    tag = "wasm-{tag}"
+
+  [[project.step]]
+  id = "source-patches"
+  title = "Report the outcome of each source patch"
+  class = "reviewed"
+  condition = "silent-effect"
+  class_reason = "Several patches depend on upstream source text and do nothing when it changed. A green build can lack a capability."
+  inspect = "The per-patch report posted by the run: applied, skipped, or no change. Accept when every patch is applied, or each skipped patch is stated in the asset package's notes."
+    [project.step.verify]
+    kind = "accepted"
+
+  [[project.step]]
+  id = "build-preprocessors"
+  title = "Build the preprocessors"
+  class = "automated"
+    [project.step.verify]
+    kind = "tag-exists"
+    tag = "preprocessors-{tag}"
+
+  [[project.step]]
+  id = "compose-assets"
+  title = "Compose the asset set"
+  class = "automated"
+    [project.step.verify]
+    kind = "registry-lists"
+    path = "packages/engine-assets/package.json"
+    pattern = '"version": "(?P<release>\d+\.\d+)\.\d+"'
+    form = "line"
+
+  [[project.step]]
+  id = "asset-package"
+  title = "Update the asset package (version, constants, notice)"
+  class = "automated"
+    [project.step.verify]
+    kind = "registry-lists"
+    path = "packages/engine-assets/index.js"
+    pattern = "energyPlusVersion = '(?P<release>\\d+\\.\\d+\\.\\d+)'"
+    form = "full"
+
+  [[project.step]]
+  id = "third-party-notices"
+  title = "Regenerate third-party notices"
+  class = "reviewed"
+  condition = "silent-effect"
+  class_reason = "A licence statement. The project requires the link line to be read again for each build."
+  inspect = "The regenerated THIRD_PARTY_NOTICES against the build's link line. Accept when every linked component is listed."
+    [project.step.verify]
+    kind = "accepted"
+
+  [[project.step]]
+  id = "e2e-fixtures"
+  title = "Fetch end-to-end fixtures"
+  class = "automated"
+    [project.step.verify]
+    kind = "path-exists"
+    path = "packages/engine/tests/fixtures/{full}"
+
+  # References are generated from the release tarball on a Linux runner, not from a container image.
+  [[project.step]]
+  id = "differential-references"
+  title = "Generate differential references from the release tarball"
+  class = "automated"
+  needs_energyplus = true
+    [project.step.verify]
+    kind = "path-exists"
+    path = "packages/engine/tests/differential/reference/{full}"
+
+  [[project.step]]
+  id = "differential-comparison"
+  title = "Pass the differential comparison"
+  class = "automated"
+    [project.step.verify]
+    kind = "checks-green"
+    workflow = "ci.yml"
+
+  [[project.step]]
+  id = "mark-verified"
+  title = "Mark the release verified"
+  class = "reviewed"
+  condition = "silent-effect"
+  class_reason = "The status asserts numerical agreement with the native engine. A wrong status alters simulation results without raising an error."
+  inspect = "The differential report for the release. Accept when every case is within its recorded tolerance and no tolerance was changed."
+    [project.step.verify]
+    kind = "all"
+      [[project.step.verify.of]]
+      kind = "registry-lists"
+      path = ".github/energyplus-builds.json"
+      pattern = '"energyplus": "(?P<release>v\d+\.\d+\.\d+)",\s*"emsdk": "[^"]*",\s*"boost": "[^"]*",\s*"status": "verified"'
+      form = "tag"
+      [[project.step.verify.of]]
+      kind = "accepted"
+
+  [[project.step]]
+  id = "statements"
+  title = "Rewrite statements"
+  class = "automated"
+    [project.step.verify]
+    kind = "statements-current"
+
+  [[project.statement]]
+  path = "README.md"
+  pattern = 'engine-assets@(?P<release>\d+\.\d+)(?!\.?\d)'
+  form = "line"
+
+  [[project.statement]]
+  path = "README.md"
+  pattern = 'assets-(?P<release>v\d+\.\d+\.\d+)'
+  form = "tag"
+
+  [[project.statement]]
+  path = "packages/engine/README.md"
+  pattern = 'engine-assets@(?P<release>\d+\.\d+)   # EnergyPlus version \d+\.\d+\.\d+ software\nnpm install @idfkit/engine-assets@'
+  form = "line"
+
+  [[project.statement]]
+  path = "packages/engine/README.md"
+  pattern = 'npm install @idfkit/engine @idfkit/engine-assets@(?P<release>\d+\.\d+)$'
+  form = "line"
+
+  [[project.statement]]
+  path = "packages/engine/README.md"
+  pattern = '`@idfkit/engine-assets@(?P<release>\d+\.\d+)` and'
+  form = "line"
+
+  [[project.statement]]
+  path = "packages/engine/README.md"
+  pattern = 'energyplus\.js-(?P<release>\d+\.\d+)\.wasm'
+  form = "line"
+
+  [[project.statement]]
+  path = "packages/engine/README.md"
+  pattern = '# EnergyPlus version (?P<release>\d+\.\d+\.\d+) software\nnpm install @idfkit/engine-assets@'
+  form = "full"
+
+  [[project.statement]]
+  path = "packages/engine/README.md"
+  pattern = '\*\*EnergyPlus version (?P<release>\d+\.\d+\.\d+) software\*\*'
+  form = "full"
+
+  [[project.statement]]
+  path = "packages/engine/README.md"
+  pattern = '(?P<release>\d+\.\d+\.\d+)-build\.\d'
+  form = "full"
+
+  [[project.statement]]
+  path = "packages/engine/README.md"
+  pattern = '\^(?P<release>\d+\.\d+\.\d+)'
+  form = "full"
+
+  [[project.statement]]
+  path = "packages/engine/AGENTS.md"
+  pattern = 'engine-assets@(?P<release>\d+\.\d+)(?!\.?\d)'
+  form = "line"
+  occurrences = 3
+
+  [[project.statement]]
+  path = "packages/engine/AGENTS.md"
+  pattern = 'EnergyPlus version (?P<release>\d+\.\d+\.\d+)\s+software'
+  form = "full"
+  occurrences = 2
+
+  [[project.statement]]
+  path = "packages/engine/.agents/skills/using-idfkit-engine/references/choosing-a-version.md"
+  pattern = 'engine-assets@(?P<release>\d+\.\d+)   # EnergyPlus version \d+\.\d+\.\d+ software\nnpm install @idfkit/engine-assets@'
+  form = "line"
+
+  [[project.statement]]
+  path = "packages/engine/.agents/skills/using-idfkit-engine/references/choosing-a-version.md"
+  pattern = '`@idfkit/engine-assets@(?P<release>\d+\.\d+)` and'
+  form = "line"
+
+  [[project.statement]]
+  path = "packages/engine/.agents/skills/using-idfkit-engine/references/choosing-a-version.md"
+  pattern = 'engine-assets@(?P<release>\d+\.\d+\.\d+)'
+  form = "full"
+
+  [[project.statement]]
+  path = "packages/engine/.agents/skills/using-idfkit-engine/references/choosing-a-version.md"
+  pattern = '# EnergyPlus version (?P<release>\d+\.\d+\.\d+) software\nnpm install @idfkit/engine-assets@'
+  form = "full"
+
+  [[project.statement]]
+  path = "packages/engine/.agents/skills/using-idfkit-engine/references/choosing-a-version.md"
+  pattern = 'bundles EnergyPlus version (?P<release>\d+\.\d+\.\d+)$'
+  form = "full"
+
+  [[project.statement]]
+  path = "packages/engine/.agents/skills/using-idfkit-engine/references/choosing-a-version.md"
+  pattern = '(?P<release>\d+\.\d+\.\d+)-build\.\d'
+  form = "full"
+
+  [[project.statement]]
+  path = "packages/engine/.agents/skills/using-idfkit-engine/references/choosing-a-version.md"
+  pattern = '\^(?P<release>\d+\.\d+\.\d+)'
+  form = "full"
+
+  [[project.statement]]
+  path = "packages/engine/.agents/skills/using-idfkit-engine/references/getting-started.md"
+  pattern = 'engine-assets@(?P<release>\d+\.\d+)(?!\.?\d)'
+  form = "line"
+
+  [[project.statement]]
+  path = "packages/engine/.agents/skills/using-idfkit-engine/references/serving-and-assets.md"
+  pattern = 'engine-assets@(?P<release>\d+\.\d+)(?!\.?\d)'
+  form = "line"
+
+  [[project.statement]]
+  path = "packages/engine/.agents/skills/using-idfkit-engine/references/serving-and-assets.md"
+  pattern = 'energyplus\.js-(?P<release>\d+\.\d+)\.wasm'
+  form = "line"
+
+  [[project.statement]]
+  path = "packages/engine/.agents/skills/using-idfkit-engine/references/capability-support.md"
+  pattern = 'energyplus\.js-(?P<release>\d+\.\d+)\.wasm'
+  form = "line"
+
+  [[project.statement]]
+  path = "README.md"
+  pattern = 'so a (?P<release>\d+\.\d+) file is not a valid input'
+  form = "line"
+
+  [[project.statement]]
+  path = "packages/engine/README.md"
+  pattern = '\*\*native\*\* EnergyPlus (?P<release>\d+\.\d+\.\d+) build'
+  form = "full"
+
+  [[project.statement]]
+  path = "packages/engine/.agents/skills/using-idfkit-engine/references/choosing-a-version.md"
+  pattern = '^Version, (?P<release>\d+\.\d+);$'
+  form = "line"
+
+  [[project.statement]]
+  path = "packages/engine/.agents/skills/using-idfkit-engine/references/choosing-a-version.md"
+  pattern = 'model on a (?P<release>\d+\.\d+) engine'
+  form = "line"
+
+  [[project.statement]]
+  path = "CLAUDE.md"
+  pattern = 'assets-(?P<release>v\d+\.\d+\.\d+)'
+  form = "tag"
+
+  [[project.statement]]
+  path = "CLAUDE.md"
+  pattern = '(?:fetch-corpus|generate-reference-docker)\.mjs (?P<release>\d+\.\d+\.\d+)$'
+  form = "full"
+  occurrences = 2
+
+  [[project.statement]]
+  path = "packages/engine/src/protocol.ts"
+  pattern = 'energyplus\.js-(?P<release>\d+\.\d+)\.wasm'
+  form = "line"
+
+  [[project.statement]]
+  path = "packages/engine/src/protocol.ts"
+  pattern = 'the (?P<release>\d+\.\d+) asset package'
+  form = "line"
+
+  [[project.statement]]
+  path = "packages/engine/src/assets.ts"
+  pattern = 'engine-assets@(?P<release>\d+\.\d+)(?!\.?\d)'
+  form = "line"
+
+  [[project.statement]]
+  path = "packages/engine/src/createEnergyPlus.ts"
+  pattern = 'engine-assets@(?P<release>\d+\.\d+)(?!\.?\d)'
+  form = "line"
+
+  [[project.statement]]
+  path = "packages/engine/src/createEnergyPlus.ts"
+  pattern = 'energyplus\.js-(?P<release>\d+\.\d+)\.wasm'
+  form = "line"
+
+  [[project.statement]]
+  path = "packages/engine/src/createEnergyPlus.ts"
+  pattern = 'the (?P<release>\d+\.\d+) (?:file)?name'
+  form = "line"
+
+  [[project.statement]]
+  path = "packages/engine/src/worker/engineWorker.ts"
+  pattern = 'the (?P<release>\d+\.\d+) (?:file)?name'
+  form = "line"
+
+  [[project.statement]]
+  path = "packages/engine/src/protocol.ts"
+  pattern = 'tied to (?P<release>\d+\.\d+)\.'
+  form = "line"
+
+  [[project.statement]]
+  path = "packages/engine/src/worker/engineWorker.ts"
+  pattern = "'(?P<release>\\d+\\.\\d+) asset package contains"
+  form = "line"
+
+  [[project.statement]]
+  path = "packages/engine/tests/compat/index.html"
+  pattern = 'the (?P<release>\d+\.\d+) (?:file)?name'
+  form = "line"
+
+  [[project.statement]]
+  path = "packages/engine/tests/differential/differential.spec.ts"
+  pattern = 'the (?P<release>\d+\.\d+) (?:file)?name'
+  form = "line"
+
+  [[project.statement]]
+  path = "packages/engine/tests/e2e/harness.js"
+  pattern = 'the (?P<release>\d+\.\d+) (?:file)?name'
+  form = "line"
+
+  [[project.statement]]
+  path = "packages/engine/tests/node/node.test.mjs"
+  pattern = 'name is the (?P<release>\d+\.\d+) one'
+  form = "line"
+
+  [[project.statement]]
+  path = "packages/engine/tests/server.mjs"
+  pattern = 'the (?P<release>\d+\.\d+) (?:file)?name'
+  form = "line"
+
+  [[project.statement]]
+  path = "packages/engine/tests/upstreamVersion.mjs"
+  pattern = 'energyplus\.js-(?P<release>\d+\.\d+)\.wasm'
+  form = "line"
+
+  [[project.statement]]
+  path = "packages/engine/tests/differential/harness.html"
+  pattern = 'the (?P<release>\d+\.\d+) binary, so'
+  form = "line"
+
+  [[project.statement]]
+  path = "packages/engine/tests/node/node.test.mjs"
+  pattern = 'the committed (?P<release>\d+\.\d+) file'
+  form = "line"
+
+  [[project.statement]]
+  path = "packages/engine/tests/upstreamVersion.mjs"
+  pattern = 'only ever exercise (?P<release>\d+\.\d+) --'
+  form = "line"
+
+  [[project.statement]]
+  path = "packages/engine/tests/differential/corpus.json"
+  pattern = '"ref": "(?P<release>v\d+\.\d+\.\d+)"'
+  form = "tag"
+
+  [[project.statement]]
+  path = "scripts/build-basement-wasm.sh"
+  pattern = '\(default:? (?P<release>v\d+\.\d+\.\d+)\)'
+  form = "tag"
+
+  [[project.statement]]
+  path = "scripts/build-basement-wasm.sh"
+  pattern = '^EPLUS_VERSION="(?P<release>v\d+\.\d+\.\d+)"'
+  form = "tag"
+
+  [[project.statement]]
+  path = "scripts/build-calcsoilsurftemp-wasm.sh"
+  pattern = '\(default:? (?P<release>v\d+\.\d+\.\d+)\)'
+  form = "tag"
+
+  [[project.statement]]
+  path = "scripts/build-calcsoilsurftemp-wasm.sh"
+  pattern = '^EPLUS_VERSION="(?P<release>v\d+\.\d+\.\d+)"'
+  form = "tag"
+
+  [[project.statement]]
+  path = "scripts/build-parametric-wasm.sh"
+  pattern = '\(default:? (?P<release>v\d+\.\d+\.\d+)\)'
+  form = "tag"
+
+  [[project.statement]]
+  path = "scripts/build-parametric-wasm.sh"
+  pattern = '^EPLUS_VERSION="(?P<release>v\d+\.\d+\.\d+)"'
+  form = "tag"
+
+  [[project.statement]]
+  path = "scripts/build-slab-wasm.sh"
+  pattern = '\(default:? (?P<release>v\d+\.\d+\.\d+)\)'
+  form = "tag"
+
+  [[project.statement]]
+  path = "scripts/build-slab-wasm.sh"
+  pattern = '^EPLUS_VERSION="(?P<release>v\d+\.\d+\.\d+)"'
+  form = "tag"
+
+  [[project.statement]]
+  path = "scripts/build-transition-wasm.sh"
+  pattern = '\(default:? (?P<release>v\d+\.\d+\.\d+)\)'
+  form = "tag"
+
+  [[project.statement]]
+  path = "scripts/build-transition-wasm.sh"
+  pattern = '^EPLUS_VERSION="(?P<release>v\d+\.\d+\.\d+)"'
+  form = "tag"
+
+  [[project.statement]]
+  path = "scripts/test-basement-wasm.mjs"
+  pattern = '\(default:? (?P<release>v\d+\.\d+\.\d+)\)'
+  form = "tag"
+
+  [[project.statement]]
+  path = "scripts/test-basement-wasm.mjs"
+  pattern = "'eplus-version', '(?P<release>v\\d+\\.\\d+\\.\\d+)'\\)"
+  form = "tag"
+
+  [[project.statement]]
+  path = "scripts/test-calcsoilsurftemp-wasm.mjs"
+  pattern = '\(default:? (?P<release>v\d+\.\d+\.\d+)\)'
+  form = "tag"
+
+  [[project.statement]]
+  path = "scripts/test-calcsoilsurftemp-wasm.mjs"
+  pattern = "'eplus-version', '(?P<release>v\\d+\\.\\d+\\.\\d+)'\\)"
+  form = "tag"
+
+  [[project.statement]]
+  path = "scripts/test-expandobjects-wasm.mjs"
+  pattern = "'eplus-version', '(?P<release>v\\d+\\.\\d+\\.\\d+)'\\)"
+  form = "tag"
+
+  [[project.statement]]
+  path = "scripts/test-parametric-wasm.mjs"
+  pattern = '\(default:? (?P<release>v\d+\.\d+\.\d+)\)'
+  form = "tag"
+
+  [[project.statement]]
+  path = "scripts/test-parametric-wasm.mjs"
+  pattern = "'eplus-version', '(?P<release>v\\d+\\.\\d+\\.\\d+)'\\)"
+  form = "tag"
+
+  [[project.statement]]
+  path = "scripts/test-slab-wasm.mjs"
+  pattern = "'eplus-version', '(?P<release>v\\d+\\.\\d+\\.\\d+)'\\)"
+  form = "tag"
+
+  [[project.statement]]
+  path = "scripts/build-transition-wasm.sh"
+  pattern = 'the newest step only \(e\.g\. \d+\.\d+ -> (?P<release>\d+\.\d+)\)'
+  form = "line"
+
+  [[project.statement]]
+  path = "scripts/third-party-notices.mjs"
+  pattern = '--branch (?P<release>v\d+\.\d+\.\d+) '
+  form = "tag"
+
+  [[project.statement]]
+  path = ".github/workflows/build-preprocessors-wasm.yml"
+  pattern = "^\\s+default: '(?P<release>v\\d+\\.\\d+\\.\\d+)'$"
+  form = "tag"
+
+  [[project.statement]]
+  path = ".github/workflows/build-preprocessors-wasm.yml"
+  pattern = "inputs\\.energyplus_version \\|\\| '(?P<release>v\\d+\\.\\d+\\.\\d+)'"
+  form = "tag"
+  occurrences = 3
+
+  [[project.generated]]
+  glob = ".github/energyplus-builds.json"
+  by_step = "toolchain-row"
+
+  [[project.generated]]
+  glob = "packages/engine-assets/**"
+  by_step = "asset-package"
+
+  [[project.generated]]
+  glob = "packages/engine/tests/fixtures/*/*"
+  by_step = "e2e-fixtures"
+
+  [[project.generated]]
+  glob = "packages/engine/tests/differential/reference/**"
+  by_step = "differential-references"
+
+  [[project.pin]]
+  glob = "CLAUDE.md"
+  reason = "The maintainer notes record what was measured on builds of named releases, including the toolchain pairing, the rebuild numbering and the native reference values taken at that release."
+
+  [[project.pin]]
+  glob = "scripts/**"
+  reason = "The build and test scripts record measurements made at a named release and hold native reference values pinned to it, which a script refuses to apply to another release."
+
+  [[project.pin]]
+  glob = ".github/workflows/**"
+  reason = "The workflows gate the ground-heat tools on native values pinned to a named release, and their comments record measurements and trigger examples taken at it."
+
+  [[project.pin]]
+  glob = "build-parametric-wasm/**"
+  reason = "The smoke models of the parametric preprocessor are written for the release they declare."
+
+  [[project.pin]]
+  glob = "packages/engine/tests/**"
+  reason = "Tests and fixtures assert the behaviour of a named release, and their comments record facts about the builds of it."
+
+  [[project.pin]]
+  glob = "packages/engine/src/parsers/__tests__/**"
+  reason = "The parser tests assert on output text recorded from a run of a named release."
+
+  [[project.pin]]
+  glob = "packages/engine/src/idf/externalFiles.ts"
+  reason = "The comment records counts measured on the schema of a named release."
+
+# ── The second library ────────────────────────────────────────────────────────────────────────────
+[[project]]
+id = "idfkit-js"
+repository = "idfkit/idfkit-js"
+content = ["schema", "types", "prose"]
+publishes = ["@idfkit/schemas"]
+checks = "main.yml"
+gate = "npm run typecheck && npm test"
+after_merge = "Publish an idfkit-js version to the package index. Every project that resolves the scoped packages waits on it."
+
+  # The second library builds its bundle from the first library's default branch, and its quality
+  # job fails on any difference. It therefore opens on the merge and not on a publication.
+  [[project.opens_on]]
+  kind = "merged"
+  project = "idfkit"
+  step = "bundle-schema"
+
+  [[project.step]]
+  id = "rebuild-bundle"
+  title = "Rebuild the schema bundle from idfkit"
+  class = "automated"
+    [project.step.verify]
+    kind = "path-exists"
+    path = "packages/schemas/data/manifest-{dashed}.json.gz"
+
+  [[project.step]]
+  id = "documented-versions"
+  title = "Update the documented-versions mirror and its test constants"
+  class = "automated"
+    [project.step.verify]
+    kind = "registry-lists"
+    path = "packages/core/src/docs-url/index.ts"
+    pattern = "^\\s*'(?P<release>\\d+\\.\\d+\\.\\d+)',$"
+    form = "full"
+
+  [[project.step]]
+  id = "sweep-row"
+  title = "Add the sweep row"
+  class = "reviewed"
+  condition = "silent-effect"
+  class_reason = "The count becomes a ceiling. A wrong ceiling hides defects without raising an error."
+  inspect = "The findings and errors counts in the new matrix row, against the sweep's log for this release. Accept when both equal the measured values."
+    [project.step.verify]
+    kind = "all"
+      [[project.step.verify.of]]
+      kind = "registry-lists"
+      path = ".github/workflows/main.yml"
+      pattern = '\{ version: "(?P<release>\d+\.\d+\.\d+)", findings:'
+      form = "full"
+      [[project.step.verify.of]]
+      kind = "accepted"
+
+  [[project.step]]
+  id = "type-package"
+  title = "Decide the type package for the release"
+  class = "manual"
+  condition = "undecided-choice"
+  class_reason = "Type packages are published for a subset of releases and no recorded rule decides whether a new release receives one. A new package adds a public name."
+  prepares = "The package generated by the code generator for the release, as an artifact, and the list of files that reference a type package."
+  inspect = "The generated package and the wiring list. Accept a pull request that either adds the package with its wiring and a naming register entry, or records in this roster that none is published."
+    [project.step.verify]
+    kind = "accepted"
+
+  [[project.step]]
+  id = "statements"
+  title = "Rewrite statements"
+  class = "automated"
+    [project.step.verify]
+    kind = "statements-current"
+
+  [[project.step]]
+  id = "gate"
+  title = "Pass the gate"
+  class = "automated"
+    [project.step.verify]
+    kind = "checks-green"
+    workflow = "main.yml"
+
+  # idfkit-js: statements, generated files and pins on the default branch.
+
+  [[project.statement]]
+  path = "mkdocs.yml"
+  pattern = 'all (?P<release>\d+) EnergyPlus versions'
+  form = "count"
+
+  [[project.statement]]
+  path = "README.md"
+  pattern = '[Aa]ll (?P<release>\d+) versions'
+  form = "count"
+  occurrences = 2
+
+  [[project.statement]]
+  path = "CLAUDE.md"
+  pattern = 'all (?P<release>\d+) versions \|'
+  form = "count"
+
+  [[project.statement]]
+  path = "CLAUDE.md"
+  pattern = 'EnergyPlus \d+\.\d+\.\d+ through (?P<release>\d+\.\d+\.\d+), all shipped together'
+  form = "full"
+
+  [[project.statement]]
+  path = "docs/index.md"
+  pattern = '(?P<release>\d+) EnergyPlus versions</span>'
+  form = "count"
+
+  [[project.statement]]
+  path = "docs/index.md"
+  pattern = '[Aa]ll (?P<release>\d+) versions'
+  form = "count"
+  occurrences = 2
+
+  [[project.statement]]
+  path = "docs/index.md"
+  pattern = 'the (?P<release>\d+) releases carry'
+  form = "count"
+
+  [[project.statement]]
+  path = "docs/explanation/parity.md"
+  pattern = 'All (?P<release>\d+) EnergyPlus versions \|'
+  form = "count"
+
+  [[project.statement]]
+  path = "docs/explanation/parity.md"
+  pattern = '\| \d+\.\d+\.\d+ through (?P<release>\d+\.\d+\.\d+) +\|'
+  form = "full"
+
+  [[project.statement]]
+  path = "docs/explanation/content-addressed-schemas.md"
+  pattern = 'changed once in (?P<release>\d+) releases'
+  form = "count"
+
+  [[project.statement]]
+  path = "docs/explanation/content-addressed-schemas.md"
+  pattern = 'shipping (?P<release>\d+) schemas'
+  form = "count"
+
+  [[project.statement]]
+  path = "docs/explanation/content-addressed-schemas.md"
+  pattern = 'All (?P<release>\d+) versions, gzipped'
+  form = "count"
+
+  [[project.statement]]
+  path = "docs/explanation/index.md"
+  pattern = 'how (?P<release>\d+) versions fit'
+  form = "count"
+
+  [[project.statement]]
+  path = "docs/reference/schemas.md"
+  pattern = 'for all (?P<release>\d+) supported versions'
+  form = "count"
+
+  [[project.statement]]
+  path = "docs/reference/versions.md"
+  pattern = 'All (?P<release>\d+) releases ship in one package'
+  form = "count"
+
+  [[project.statement]]
+  path = "docs/reference/versions.md"
+  pattern = 'Schemas ship for all (?P<release>\d+) versions'
+  form = "count"
+
+  [[project.statement]]
+  path = "docs/reference/index.md"
+  pattern = 'the (?P<release>\d+) bundled releases'
+  form = "count"
+
+  [[project.statement]]
+  path = "docs/reference/slim-schema-format.md"
+  pattern = 'across the (?P<release>\d+) bundled versions'
+  form = "count"
+
+  [[project.statement]]
+  path = "docs/how-to/run-a-simulation.md"
+  pattern = '\[(?P<release>\d+) supported versions\]'
+  form = "count"
+
+  [[project.statement]]
+  path = "docs/how-to/parse-in-the-browser.md"
+  pattern = 'all (?P<release>\d+) versions'
+  form = "count"
+  occurrences = 2
+
+  [[project.statement]]
+  path = "docs/tutorials/first-model.md"
+  pattern = 'all (?P<release>\d+) EnergyPlus versions'
+  form = "count"
+
+  [[project.statement]]
+  path = "packages/schemas/README.md"
+  pattern = 'changed once in (?P<release>\d+) releases'
+  form = "count"
+
+  [[project.statement]]
+  path = "packages/schemas/README.md"
+  pattern = 'All (?P<release>\d+) versions, gzipped'
+  form = "count"
+
+  [[project.statement]]
+  path = "packages/schemas/README.md"
+  pattern = '''bundle\.versions\(\); // \[.*, '(?P<release>\d+\.\d+\.\d+)'\]'''
+  form = "full"
+
+  [[project.statement]]
+  path = "packages/schemas/README.md"
+  pattern = '''bundle\.latest\(\); // '(?P<release>\d+\.\d+\.\d+)''''
+  form = "full"
+
+  [[project.statement]]
+  path = "packages/schemas/src/index.ts"
+  pattern = 'for all (?P<release>\d+) versions instead of'
+  form = "count"
+
+  [[project.statement]]
+  path = "packages/schemas/src/index.ts"
+  pattern = 'of all (?P<release>[a-z-]+) schemas into a single array'
+  form = "count-word"
+
+  [[project.statement]]
+  path = "packages/schemas/scripts/build.mjs"
+  pattern = 'Supporting all (?P<release>\d+) versions'
+  form = "count"
+
+  [[project.statement]]
+  path = "packages/schemas/tests/bundle.test.ts"
+  pattern = 'expect\(versions\.length\)\.toBe\((?P<release>\d+)\);'
+  form = "count"
+
+  [[project.statement]]
+  path = "packages/schemas/tests/bundle.test.ts"
+  pattern = '''expect\(versions\.at\(-1\)\)\.toBe\('(?P<release>\d+\.\d+\.\d+)'\);'''
+  form = "full"
+
+  [[project.statement]]
+  path = "packages/schemas/tests/bundle.test.ts"
+  pattern = '''expect\(await bundle\.latest\(\)\)\.toBe\('(?P<release>\d+\.\d+\.\d+)'\);'''
+  form = "full"
+
+  [[project.generated]]
+  glob = "packages/schemas/data/**"
+  by_step = "rebuild-bundle"
+
+  [[project.generated]]
+  glob = "packages/core/src/docs-url/index.ts"
+  by_step = "documented-versions"
+
+  [[project.generated]]
+  glob = "packages/core/tests/docs-url.test.ts"
+  by_step = "documented-versions"
+
+  [[project.generated]]
+  glob = "docs/reference/versions.md"
+  by_step = "documented-versions"
+
+  [[project.generated]]
+  glob = ".github/workflows/main.yml"
+  by_step = "sweep-row"
+
+  [[project.pin]]
+  glob = "packages/types-v26-1/**"
+  reason = "The per-release type package for 26.1.0. A later release receives its own package or none, and this package is not renamed."
+
+  [[project.pin]]
+  glob = "packages/*/tests/**"
+  reason = "Tests, snapshots and fixtures assert the behaviour of a named release. The assertions of the newest release and of the count in bundle.test.ts are declared as statements."
+
+  [[project.pin]]
+  glob = "docs-snippets/**"
+  reason = "Snippets are compiled examples written against a named release. They remain valid after a later release is adopted."
+
+  [[project.pin]]
+  glob = "bench/**"
+  reason = "Benchmarks are measured against a named release so that results stay comparable between runs."
+
+  [[project.pin]]
+  glob = "scripts/**"
+  reason = "Packaging checks and the type generator use a named release as a fixture and name the per-release type package."
+
+  [[project.pin]]
+  glob = "docs/index.md"
+  reason = "Examples in the documentation load a named release and name the per-release type package. They remain valid after a later release is adopted. The statements in these pages are declared separately."
+
+  [[project.pin]]
+  glob = "docs/explanation/**"
+  reason = "Examples in the documentation load a named release and name the per-release type package. They remain valid after a later release is adopted. The statements in these pages are declared separately."
+
+  [[project.pin]]
+  glob = "docs/how-to/**"
+  reason = "Examples in the documentation load a named release and name the per-release type package. They remain valid after a later release is adopted. The statements in these pages are declared separately."
+
+  [[project.pin]]
+  glob = "docs/tutorials/**"
+  reason = "Examples in the documentation load a named release and name the per-release type package. They remain valid after a later release is adopted. The statements in these pages are declared separately."
+
+  [[project.pin]]
+  glob = "docs/reference/index.md"
+  reason = "Examples in the documentation load a named release and name the per-release type package. They remain valid after a later release is adopted. The statements in these pages are declared separately."
+
+  [[project.pin]]
+  glob = "docs/reference/slim-schema-format.md"
+  reason = "Examples in the documentation load a named release and name the per-release type package. They remain valid after a later release is adopted. The statements in these pages are declared separately."
+
+  [[project.pin]]
+  glob = "packages/core/src/*.ts"
+  reason = "Source comments record a fact measured against a named release or use it as an example of a version string. No comment states the supported range."
+
+  [[project.pin]]
+  glob = "packages/core/src/introspect/**"
+  reason = "Source comments record a fact measured against a named release or use it as an example of a version string. No comment states the supported range."
+
+  [[project.pin]]
+  glob = "packages/core/src/parse/**"
+  reason = "Source comments record a fact measured against a named release or use it as an example of a version string. No comment states the supported range."
+
+  [[project.pin]]
+  glob = "packages/core/src/validate/**"
+  reason = "Source comments record a fact measured against a named release or use it as an example of a version string. No comment states the supported range."
+
+  [[project.pin]]
+  glob = "packages/geometry/src/**"
+  reason = "Source comments record a fact measured against a named release or use it as an example of a version string. No comment states the supported range."
+
+  [[project.pin]]
+  glob = "packages/schemas/src/**"
+  reason = "Source comments record a fact measured against a named release or use it as an example of a version string. No comment states the supported range."
+
+  [[project.pin]]
+  glob = "packages/schemas/scripts/build.mjs"
+  reason = "A comment uses a named release to illustrate the mapping from a directory name to a version. The count in the header comment is declared as a statement."
+
+  [[project.pin]]
+  glob = "tsconfig.json"
+  reason = "The file names the per-release type package. The type-package step decides whether a later release adds one, and this reference remains correct in either case."
+
+  [[project.pin]]
+  glob = "tsconfig.test.json"
+  reason = "The file names the per-release type package. The type-package step decides whether a later release adds one, and this reference remains correct in either case."
+
+  [[project.pin]]
+  glob = "packages/core/package.json"
+  reason = "The file names the per-release type package. The type-package step decides whether a later release adds one, and this reference remains correct in either case."
+
+  [[project.pin]]
+  glob = ".github/workflows/publish.yml"
+  reason = "The file names the per-release type package. The type-package step decides whether a later release adds one, and this reference remains correct in either case."
+
+  [[project.pin]]
+  glob = "README.md"
+  reason = "The file names the per-release type package and loads a named release in an example. The counts are declared as statements."
+
+  [[project.pin]]
+  glob = "CLAUDE.md"
+  reason = "The file names the per-release type package and the release its generator is run for. The count and the supported range are declared as statements."
+
+  [[project.pin]]
+  glob = "CONTRIBUTING.md"
+  reason = "The file names the two releases for which type packages are published and the command that regenerates one."
+
+  [[project.pin]]
+  glob = "packages/core/README.md"
+  reason = "The file names the per-release type package and loads a named release in an example."
+
+  [[project.pin]]
+  glob = "packages/idfkit/README.md"
+  reason = "The file names the per-release type package and the engine asset line, which idfkit-engine publishes on its own schedule."
+
+  [[project.pin]]
+  glob = "packages/schemas/README.md"
+  reason = "Examples load a named release. The latest release and the counts are declared as statements."
+
+  [[project.pin]]
+  glob = ".github/ep-testfiles.sparse"
+  reason = "A comment records the release by which an upstream example file had lost two object types."
+
+# ── Consumers of the first library ────────────────────────────────────────────────────────────────
+#
+# A library level is moved by the project's existing bump workflow. The adoption verifies the step
+# and does not perform it, so these steps state no `run`.
+[[project]]
+id = "idfkit-mcp"
+repository = "idfkit/idfkit-mcp"
+content = ["library-level", "prose"]
+publishes = ["idfkit-mcp"]
+checks = "main.yml"
+gate = "make check && make test"
+after_merge = "Publish an idfkit-mcp version. The plugin and the hosted deployment wait on it."
+
+  [[project.opens_on]]
+  kind = "published"
+  index = "pypi"
+  package = "idfkit"
+  member = "idfkit/schemas/{directory}/Energy+.schema.epJSON.gz"
+
+  [[project.step]]
+  id = "library-level"
+  title = "Library level carries the release"
+  class = "automated"
+    [project.step.verify]
+    kind = "published-carries"
+    index = "pypi"
+    package = "idfkit"
+    member = "idfkit/schemas/{directory}/Energy+.schema.epJSON.gz"
+      [project.step.verify.through]
+      path = "pyproject.toml"
+      pattern = '"idfkit==(?P<level>[^"]+)"'
+
+  [[project.step]]
+  id = "statements"
+  title = "Rewrite statements"
+  class = "automated"
+    [project.step.verify]
+    kind = "statements-current"
+
+  [[project.step]]
+  id = "gate"
+  title = "Pass the gate"
+  class = "automated"
+    [project.step.verify]
+    kind = "checks-green"
+
+  [[project.statement]]
+  path = "README.md"
+  pattern = 'EnergyPlus \d+\.\d+ through (?P<release>\d+\.\d+)\*\*'
+  form = "line"
+
+  [[project.statement]]
+  path = "README.md"
+  pattern = '\((?P<release>\d+) versions with bundled schemas\)'
+  form = "count"
+
+  [[project.statement]]
+  path = "docs/concepts/architecture.md"
+  pattern = 'EnergyPlus \d+\.\d+ &ndash; (?P<release>\d+\.\d+)<'
+  form = "line"
+
+[[project]]
+id = "idfkit-lsp"
+repository = "idfkit/idfkit-lsp"
+content = ["library-level"]
+publishes = ["idfkit-lsp"]
+checks = "ci.yml"
+gate = "make check"
+after_merge = "Publish an idfkit-lsp version. The plugin waits on it."
+
+  [[project.opens_on]]
+  kind = "published"
+  index = "pypi"
+  package = "idfkit"
+  member = "idfkit/schemas/{directory}/Energy+.schema.epJSON.gz"
+
+  # Every package of the second library is published at one version, so the level read from the
+  # core package is the level of the schema bundle.
+  [[project.step]]
+  id = "library-levels"
+  title = "Library levels carry the release"
+  class = "automated"
+    [project.step.verify]
+    kind = "all"
+      [[project.step.verify.of]]
+      kind = "published-carries"
+      index = "pypi"
+      package = "idfkit"
+      member = "idfkit/schemas/{directory}/Energy+.schema.epJSON.gz"
+        [project.step.verify.of.through]
+        path = "server/pyproject.toml"
+        pattern = '"idfkit==(?P<level>[^"]+)"'
+      [[project.step.verify.of]]
+      kind = "published-carries"
+      index = "npm"
+      package = "@idfkit/schemas"
+      member = "package/data/manifest-{dashed}.json.gz"
+        [project.step.verify.of.through]
+        path = "model-server/package.json"
+        pattern = '"@idfkit/core": "(?P<level>[^"]+)"'
+
+  [[project.step]]
+  id = "gate"
+  title = "Pass the gate"
+  class = "automated"
+    [project.step.verify]
+    kind = "checks-green"
+
+  [[project.pin]]
+  glob = "model-server/tests/**"
+  reason = "The model server tests parse fixture documents that declare a fixed release. The assertions concern hover and semantic token behaviour and do not state the latest supported release."
+
+[[project]]
+id = "idfkit-docs"
+repository = "idfkit/idfkit-docs"
+content = ["documentation", "library-level", "prose"]
+checks = "main.yml"
+gate = "make check"
+after_merge = "Run the conversion and publication of the release's documentation."
+
+  [[project.opens_on]]
+  kind = "published"
+  index = "pypi"
+  package = "idfkit"
+  member = "idfkit/schemas/{directory}/Energy+.schema.epJSON.gz"
+
+  # This step precedes the next by rule. The library returns the newest schema it has for a release
+  # it does not list, so a conversion against an older level would publish the wrong field metadata
+  # under the new heading without failing.
+  [[project.step]]
+  id = "library-level"
+  title = "Library level carries the release"
+  class = "automated"
+    [project.step.verify]
+    kind = "published-carries"
+    index = "pypi"
+    package = "idfkit"
+    member = "idfkit/schemas/{directory}/Energy+.schema.epJSON.gz"
+      [project.step.verify.through]
+      path = "pyproject.toml"
+      pattern = '"idfkit==(?P<level>[^"]+)"'
+
+  [[project.step]]
+  id = "target-list"
+  title = "Add the release to the target list and designate it latest"
+  class = "automated"
+    [project.step.verify]
+    kind = "all"
+      [[project.step.verify.of]]
+      kind = "registry-lists"
+      path = "scripts/config.py"
+      pattern = '^\s*"(?P<release>v\d+\.\d+\.\d+)",$'
+      form = "tag"
+      [[project.step.verify.of]]
+      kind = "registry-lists"
+      path = "scripts/config.py"
+      pattern = '^LATEST_VERSION: str = "(?P<release>v\d+\.\d+\.\d+)"'
+      form = "tag"
+
+  [[project.step]]
+  id = "documentation-sets"
+  title = "Accept documentation sets that are new or renamed upstream"
+  class = "reviewed"
+  condition = "silent-effect"
+  class_reason = "A source directory that no configured set matches is logged and not failed, so a new document can be omitted from the published site without an error."
+  inspect = "The list, posted by the run, of upstream documentation directories that no configured set matches. Accept when each is either configured with a title or stated as excluded."
+    [project.step.verify]
+    kind = "accepted"
+
+  [[project.step]]
+  id = "statements"
+  title = "Rewrite statements"
+  class = "automated"
+    [project.step.verify]
+    kind = "statements-current"
+
+  [[project.step]]
+  id = "gate"
+  title = "Pass the gate"
+  class = "automated"
+    [project.step.verify]
+    kind = "checks-green"
+
+  [[project.statement]]
+  path = "CLAUDE.md"
+  pattern = 'through (?P<release>v\d+\.\d+\.\d+) \(\d+ versions\)'
+  form = "tag"
+
+  [[project.statement]]
+  path = "CLAUDE.md"
+  pattern = 'through v\d+\.\d+\.\d+ \((?P<release>\d+) versions\)'
+  form = "count"
+
+  [[project.generated]]
+  glob = "scripts/config.py"
+  by_step = "target-list"
+
+[[project]]
+id = "idfkit-developers"
+repository = "idfkit/idfkit-developers"
+content = ["documentation", "library-level", "prose"]
+checks = "docs.yml"
+gate = "make check && make docs-test"
+after_merge = "None. The site deploys from its default branch by its own workflow."
+
+  [[project.opens_on]]
+  kind = "published"
+  index = "pypi"
+  package = "idfkit"
+  member = "idfkit/schemas/{directory}/Energy+.schema.epJSON.gz"
+
+  [[project.opens_on]]
+  kind = "published"
+  index = "npm"
+  package = "@idfkit/schemas"
+  member = "package/data/manifest-{dashed}.json.gz"
+
+  [[project.step]]
+  id = "library-level"
+  title = "Library level carries the release"
+  class = "automated"
+    [project.step.verify]
+    kind = "published-carries"
+    index = "pypi"
+    package = "idfkit"
+    member = "idfkit/schemas/{directory}/Energy+.schema.epJSON.gz"
+      [project.step.verify.through]
+      path = "pyproject.toml"
+      pattern = '"idfkit==(?P<level>[^"]+)"'
+
+  [[project.step]]
+  id = "documentation-artifact"
+  title = "Documentation artifact level carries the release"
+  class = "automated"
+    [project.step.verify]
+    kind = "registry-lists"
+    path = "docs/snippets/js/reference/versions/reading_the_list_at_runtime.ts"
+    pattern = "bundle\\.latest\\(\\); // '(?P<release>\\d+\\.\\d+\\.\\d+)'"
+    form = "full"
+
+  [[project.step]]
+  id = "statements"
+  title = "Rewrite statements, including printed outputs"
+  class = "automated"
+    [project.step.verify]
+    kind = "statements-current"
+
+  [[project.step]]
+  id = "gate"
+  title = "Pass the gate"
+  class = "automated"
+    [project.step.verify]
+    kind = "checks-green"
+
+  # ── Statements of the latest release ──────────────────────────────────────────────────────────────
+
+  [[project.statement]]
+  path = "docs/api/versions.md"
+  pattern = 'from v\d+\.\d+ through v(?P<release>\d+\.\d+)\.'
+  form = "line"
+
+  [[project.statement]]
+  path = "docs/benchmarks.md"
+  pattern = '\| \*\*idfkit\*\* \| \d+\.\d+ -- (?P<release>\d+\.\d+) \|'
+  form = "line"
+
+  [[project.statement]]
+  path = "docs/index.md"
+  pattern = 'v\d+\.\d+ to v(?P<release>\d+\.\d+), \d+ versions'
+  form = "line"
+
+  [[project.statement]]
+  path = "docs/explanation/generated-types.md"
+  pattern = 'currently ships for (?P<release>\d+\.\d+\.\d+) only'
+  form = "full"
+
+  [[project.statement]]
+  path = "docs/explanation/generated-types.md"
+  pattern = 'loaded at \d+\.\d+ gets (?P<release>\d+\.\d+) field'
+  form = "line"
+
+  [[project.statement]]
+  path = "docs/how-to/compare-versions.md"
+  pattern = 'every schema from \d+\.\d+\.\d+ to (?P<release>\d+\.\d+\.\d+),'
+  form = "full"
+
+  [[project.statement]]
+  path = "docs/tutorials/first-model.md"
+  pattern = '^\d+\.\d+\.\d+ through (?P<release>\d+\.\d+\.\d+), so nothing'
+  form = "full"
+
+  [[project.statement]]
+  path = "docs/reference/versions.md"
+  pattern = 'releases, \d+\.\d+\.\d+\nthrough (?P<release>\d+\.\d+\.\d+)\.'
+  form = "full"
+
+  # The two statements below match the last populated row of the table of releases. An adoption
+  # appends a row and does not rewrite this one.
+  [[project.statement]]
+  path = "docs/reference/versions.md"
+  pattern = '^\|[^|\n]*\|[^|\n]*\| (?P<release>\d+\.\d+) +\| `\d+\.\d+\.\d+` +\|\n(?:\|[^|\n]*\|[^|\n]*\| +\| +\|\n)*\n'
+  form = "line"
+
+  [[project.statement]]
+  path = "docs/reference/versions.md"
+  pattern = '^\|[^|\n]*\|[^|\n]*\| \d+\.\d+ +\| `(?P<release>\d+\.\d+\.\d+)` +\|\n(?:\|[^|\n]*\|[^|\n]*\| +\| +\|\n)*\n'
+  form = "full"
+
+  [[project.statement]]
+  path = "docs/reference/versions.md"
+  pattern = "version_string\\(LATEST_VERSION\\) +# '(?P<release>\\d+\\.\\d+\\.\\d+)'"
+  form = "full"
+
+  [[project.statement]]
+  path = "docs/reference/versions.md"
+  pattern = '\| Python +\| (?P<release>\d+\.\d+\.\d+) +\| stubs bundled'
+  form = "full"
+
+  # The printed list of every supported release. An adoption appends an element.
+  [[project.statement]]
+  path = "docs/getting-started/core-tutorial.ipynb"
+  pattern = 'Available schema versions: \[.*(?P<release>\(\d+, \d+, \d+\))\]'
+  form = "tuple"
+
+  # The release the in-browser engine executes.
+  [[project.statement]]
+  path = "docs/how-to/run-a-simulation-in-the-browser.md"
+  pattern = '@idfkit/engine-assets@(?P<release>\d+\.\d+)'
+  form = "line"
+  occurrences = 3
+
+  [[project.statement]]
+  path = "docs/how-to/run-a-simulation-in-the-browser.md"
+  pattern = 'This engine executes EnergyPlus (?P<release>\d+\.\d+)"'
+  form = "line"
+
+  [[project.statement]]
+  path = "docs/how-to/run-a-simulation-in-the-browser.md"
+  pattern = 'runs \*\*EnergyPlus (?P<release>\d+\.\d+)\*\*'
+  form = "line"
+
+  [[project.statement]]
+  path = "docs/javascripts/engine-runner.js"
+  pattern = "@idfkit/engine-assets@(?P<release>\\d+\\.\\d+)'"
+  form = "line"
+
+  [[project.statement]]
+  path = "docs/javascripts/engine-runner.js"
+  pattern = "\\.load\\('(?P<release>\\d+\\.\\d+\\.\\d+)'\\)"
+  form = "full"
+
+  # ── Statements of the number of supported releases ────────────────────────────────────────────────
+
+  [[project.statement]]
+  path = "docs/index.md"
+  pattern = 'to v\d+\.\d+, (?P<release>\d+) versions'
+  form = "count"
+
+  [[project.statement]]
+  path = "docs/concepts/version-compatibility.md"
+  pattern = 'idfkit supports (?P<release>\d+) EnergyPlus releases'
+  form = "count"
+
+  [[project.statement]]
+  path = "docs/concepts/version-compatibility.md"
+  pattern = 'for the (?P<release>\d+) releases and how'
+  form = "count"
+
+  [[project.statement]]
+  path = "docs/explanation/content-addressed-schemas.md"
+  pattern = 'Across the (?P<release>\d+) versions'
+  form = "count"
+
+  [[project.statement]]
+  path = "docs/explanation/content-addressed-schemas.md"
+  pattern = '^(?P<release>\d+) separate schemas'
+  form = "count"
+
+  [[project.statement]]
+  path = "docs/explanation/content-addressed-schemas.md"
+  pattern = 'All (?P<release>\d+) versions, gzipped'
+  form = "count"
+
+  [[project.statement]]
+  path = "docs/explanation/index.md"
+  pattern = 'how (?P<release>\d+) versions of'
+  form = "count"
+
+  [[project.statement]]
+  path = "docs/getting-started/installation.md"
+  pattern = 'all (?P<release>\d+) supported EnergyPlus versions'
+  form = "count"
+
+  [[project.statement]]
+  path = "docs/how-to/parse-in-the-browser.md"
+  pattern = 'all (?P<release>\d+) versions'
+  form = "count"
+  occurrences = 2
+
+  [[project.statement]]
+  path = "docs/reference/index.md"
+  pattern = 'the (?P<release>\d+) releases both libraries'
+  form = "count"
+
+  [[project.statement]]
+  path = "docs/reference/slim-schema-format.md"
+  pattern = 'across the (?P<release>\d+) bundled versions'
+  form = "count"
+
+  [[project.statement]]
+  path = "docs/reference/typescript/schemas.md"
+  pattern = 'for all (?P<release>\d+) supported versions'
+  form = "count"
+
+  [[project.statement]]
+  path = "docs/reference/versions.md"
+  pattern = 'the same (?P<release>\d+) EnergyPlus releases'
+  form = "count"
+
+  [[project.statement]]
+  path = "docs/reference/versions.md"
+  pattern = 'len\(ENERGYPLUS_VERSIONS\) +# (?P<release>\d+)'
+  form = "count"
+
+  [[project.statement]]
+  path = "docs/reference/versions.md"
+  pattern = 'Schemas ship for all (?P<release>\d+) releases'
+  form = "count"
+
+  # ── Generated ─────────────────────────────────────────────────────────────────────────────────────
+
+  [[project.generated]]
+  glob = "docs/typedoc/**"
+  by_step = "documentation-artifact"
+
+  [[project.generated]]
+  glob = "docs/snippets/js/**"
+  by_step = "documentation-artifact"
+
+  # The two pages below are rendered from the naming register and the parity ledger at the pinned
+  # governance level, by scripts/render_naming_map.py and scripts/render_parity_page.py. The project
+  # has no step that advances that level. `gate` is named because it is the step that compares the
+  # pages with the level; a dedicated step is proposed.
+  [[project.pin]]
+  glob = "docs/explanation/naming-map.md"
+  reason = "Rendered from the governance registers at the pinned governance level. It changes when that level moves, not at an adoption."
+
+  [[project.pin]]
+  glob = "docs/explanation/parity.md"
+  reason = "Rendered from the governance registers at the pinned governance level. It changes when that level moves, not at an adoption."
+
+  # ── Pins ──────────────────────────────────────────────────────────────────────────────────────────
+  # Each page below holds occurrences that remain true after an adoption. The statements declared in
+  # the same page above are still checked.
+
+  [[project.pin]]
+  glob = "docs/concepts/version-compatibility.md"
+  reason = "The page uses a release as an example value for an explicit version argument, a type package name and a list of lint targets. None states the latest supported release."
+
+  [[project.pin]]
+  glob = "docs/explanation/accessors-not-proxies.md"
+  reason = "The page names two releases whose Zone definition is identical, which is a fact about those two releases."
+
+  [[project.pin]]
+  glob = "docs/explanation/content-addressed-schemas.md"
+  reason = "The page names two releases to illustrate the cost of loading a second schema. The example holds for any pair of releases."
+
+  [[project.pin]]
+  glob = "docs/explanation/generated-types.md"
+  reason = "The page records the measured interface count and declaration size of the type package of one release, and the name of that package."
+
+  [[project.pin]]
+  glob = "docs/explanation/two-writers-one-model.md"
+  reason = "The page records a measurement taken on an example file of one release."
+
+  [[project.pin]]
+  glob = "docs/geometry/reading.md"
+  reason = "The page records the observed behaviour of the engine of one release for site shading."
+
+  [[project.pin]]
+  glob = "docs/how-to/compare-versions.md"
+  reason = "The examples compare an older release with a named newer release. They remain correct for that pair after an adoption."
+
+  [[project.pin]]
+  glob = "docs/how-to/parse-in-the-browser.md"
+  reason = "The page names a release to illustrate loading the wrong schema for a file. The example holds for any release."
+
+  [[project.pin]]
+  glob = "docs/reference/versions.md"
+  reason = "Apart from the declared statements, the page uses a release as an example argument and records the releases that have a published type package with the measured size of each."
+
+  [[project.pin]]
+  glob = "docs/tutorials/**"
+  reason = "The tutorials create a model at a fixed release and print output produced at that release. The output is illustrative and makes no claim about the latest supported release."
+
+  [[project.pin]]
+  glob = "docs/snippets/tutorials/**"
+  reason = "The tutorial examples create a model at a fixed release, and the printed output shown in the tutorials was produced by them."
+
+  [[project.pin]]
+  glob = "scripts/check_surfaces.py"
+  reason = "A comment gives an example of a scoped package name followed by a version, to explain a pattern."
+
+  [[project.pin]]
+  glob = "tests/**"
+  reason = "Test fixtures reproduce an install instruction verbatim to exercise the surface check."
+
+  # ── Ignores ───────────────────────────────────────────────────────────────────────────────────────
+
+  [[project.ignore]]
+  pattern = '@idfkit/types-v\d+-\d+'
+  reason = "The name of a published type package. Whether a release receives a type package is decided by the manual type-package step of idfkit-js, so the name does not follow the latest supported release."
+
+# ── Consumers of the second library and of the engine ─────────────────────────────────────────────
+[[project]]
+id = "envelop"
+repository = "idfkit/idfkit-app"
+content = ["library-level", "prose"]
+checks = "check.yml"
+gate = "npm run check"
+after_merge = "None. The supported range and the engine assets are read at run time."
+
+  [[project.opens_on]]
+  kind = "published"
+  index = "npm"
+  package = "@idfkit/schemas"
+  member = "package/data/manifest-{dashed}.json.gz"
+
+  [[project.step]]
+  id = "library-level"
+  title = "Library level carries the release"
+  class = "automated"
+    [project.step.verify]
+    kind = "published-carries"
+    index = "npm"
+    package = "@idfkit/schemas"
+    member = "package/data/manifest-{dashed}.json.gz"
+      [project.step.verify.through]
+      path = "package.json"
+      pattern = '"@idfkit/schemas": "(?P<level>[^"]+)"'
+
+  [[project.step]]
+  id = "statements"
+  title = "Rewrite statements, including the test that states the count and the newest release"
+  class = "automated"
+    [project.step.verify]
+    kind = "statements-current"
+
+  [[project.step]]
+  id = "gate"
+  title = "Pass the gate"
+  class = "automated"
+    [project.step.verify]
+    kind = "checks-green"
+
+  [[project.statement]]
+  path = "src/model/schemaBundle.test.ts"
+  pattern = 'expect\(versions\)\.toHaveLength\((?P<release>\d+)\)'
+  form = "count"
+
+  [[project.statement]]
+  path = "src/model/schemaBundle.test.ts"
+  pattern = "expect\\(versions\\.at\\(-1\\)\\)\\.toBe\\('(?P<release>\\d+\\.\\d+\\.\\d+)'\\)"
+  form = "full"
+
+  [[project.statement]]
+  path = "src/run/panels/EngineAvailabilityNotice.tsx"
+  pattern = 'reads\n \* EnergyPlus \d+\.\d+ through (?P<release>\d+\.\d+) and'
+  form = "line"
+
+  [[project.statement]]
+  path = "src/run/panels/EngineAvailabilityNotice.tsx"
+  pattern = 'engine is published for \d+\.\d+ through (?P<release>\d+\.\d+),'
+  form = "line"
+
+  [[project.statement]]
+  path = "src/run/engine.ts"
+  pattern = 'Both default to the (?P<release>\d+\.\d+) filenames'
+  form = "line"
+
+  [[project.statement]]
+  path = "src/run/engine.ts"
+  pattern = 'silently means (?P<release>\d+\.\d+) is not a convenience'
+  form = "line"
+
+  [[project.statement]]
+  path = "src/run/engine.ts"
+  pattern = 'this application opens (?P<release>[a-z]+)\n \* EnergyPlus versions'
+  form = "count-word"
+
+  [[project.statement]]
+  path = "src/run/assets.ts"
+  pattern = 'oldest first: `\d+\.\d+` through `(?P<release>\d+\.\d+)`'
+  form = "line"
+
+  [[project.statement]]
+  path = "src/run/assets.ts"
+  pattern = '`wasmFile` to the (?P<release>\d+\.\d+) filename'
+  form = "line"
+
+  [[project.statement]]
+  path = "src/run/assets.ts"
+  pattern = 'Ten of the (?P<release>[a-z]+) versions this application opens'
+  form = "count-word"
+
+  [[project.statement]]
+  path = "src/browse/types.ts"
+  pattern = 'Six of the (?P<release>[a-z]+)\n'
+  form = "count-word"
+
+  [[project.pin]]
+  glob = "src/**/*.test.ts"
+  reason = "Tests assert the behaviour of the application on a model at a named release."
+
+  [[project.pin]]
+  glob = "src/**/*.test.tsx"
+  reason = "Tests assert the behaviour of the application on a model at a named release."
+
+  [[project.pin]]
+  glob = "src/test/**"
+  reason = "Test fixtures and helpers build models at a named release."
+
+  [[project.pin]]
+  glob = "src/**/__snapshots__/**"
+  reason = "Snapshots record rendered output of fixtures at a named release."
+
+  [[project.pin]]
+  glob = ".design-sync/**"
+  reason = "Design previews render example content and state no supported range."
+
+  [[project.pin]]
+  glob = "src/design/SpecimenSignals.tsx"
+  reason = "The design specimen renders example content and states no supported range."
+
+  [[project.pin]]
+  glob = "vercel.csp.md"
+  reason = "The table records responses observed from the content delivery network on a stated date."
+
+  [[project.pin]]
+  glob = "src/run/assets.ts"
+  reason = "The field comments illustrate with a named release line and record a registry response observed while it was the newest."
+
+  [[project.pin]]
+  glob = "src/browse/*.ts"
+  reason = "The comments record counts measured on the schema of a named release."
+
+  [[project.pin]]
+  glob = "src/edit/*.ts"
+  reason = "The comments record counts measured on the schema of a named release."
+
+  [[project.pin]]
+  glob = "src/model/idfkit.ts"
+  reason = "The comment records a fact measured on the schema of a named release."
+
+  [[project.pin]]
+  glob = "src/geometry/render/index.ts"
+  reason = "The comment records a count measured on the example files of a named release."
+
+  [[project.pin]]
+  glob = "src/results/database.ts"
+  reason = "The comment records a measurement made on the output of a named release."
+
+  [[project.pin]]
+  glob = "src/run/externalFiles.ts"
+  reason = "The comment records a count measured on the schema of a named release."
+
+  [[project.pin]]
+  glob = "src/components/RewriteDialog.tsx"
+  reason = "The text gives an example that is a fact about the schema of a named release."
+
+  [[project.pin]]
+  glob = "src/stores/runStore.ts"
+  reason = "The comment illustrates with a named release line and states no supported range."
+
+  [[project.pin]]
+  glob = "src/text/service/answers.ts"
+  reason = "The comment illustrates with a named release and states no supported range."
+
+  [[project.pin]]
+  glob = "src/weather/designConditions/change.ts"
+  reason = "The comment illustrates with a named release line and records at which releases a field was added."
+
+[[project]]
+id = "idfkit-shoebox"
+repository = "idfkit/idfkit-shoebox"
+content = ["library-level", "engine", "prose"]
+checks = "check.yml"
+gate = "npm run build"
+after_merge = "Deploy the page by the project's own workflow."
+
+  [[project.opens_on]]
+  kind = "published"
+  index = "npm"
+  package = "@idfkit/schemas"
+  member = "package/data/manifest-{dashed}.json.gz"
+
+  [[project.opens_on]]
+  kind = "published"
+  index = "npm"
+  package = "@idfkit/engine-assets"
+  version_names_release = true
+
+  [[project.step]]
+  id = "release-constant"
+  title = "Move the release constant, the asset pin, the model's version literal and the engine file name"
+  class = "automated"
+    [project.step.verify]
+    kind = "all"
+      [[project.step.verify.of]]
+      kind = "registry-lists"
+      path = "src/version.js"
+      pattern = "ENERGYPLUS_VERSION = '(?P<release>\\d+\\.\\d+\\.\\d+)'"
+      form = "full"
+      [[project.step.verify.of]]
+      kind = "registry-lists"
+      path = "package.json"
+      pattern = '"@idfkit/engine-assets": "(?P<release>\d+\.\d+)\.\d+"'
+      form = "line"
+
+  [[project.step]]
+  id = "gate"
+  title = "Pass the gate"
+  class = "automated"
+    [project.step.verify]
+    kind = "checks-green"
+
+  [[project.step]]
+  id = "model-outside-browser"
+  title = "Verify the model outside the browser"
+  class = "manual"
+  condition = "silent-effect"
+  class_reason = "The project has no test runner. Its constitution requires a run of the generated model by a person, because a model that the page accepts can still fail in the engine."
+  prepares = "The generated model written to disk at the positions the project's constitution names, as an artifact."
+  inspect = "The prepared models, run with the release's engine. Accept when each completes with no severe error."
+    [project.step.verify]
+    kind = "accepted"
+
+  [[project.step]]
+  id = "statements"
+  title = "Rewrite statements, including licence text"
+  class = "automated"
+    [project.step.verify]
+    kind = "statements-current"
+
+  [[project.statement]]
+  path = "index.html"
+  pattern = 'width of the `EnergyPlus (?P<release>\d+\.\d+\.\d+)` it sits under'
+  form = "full"
+
+  [[project.statement]]
+  path = "index.html"
+  pattern = 'id="t-engine-version">EnergyPlus (?P<release>\d+\.\d+\.\d+)<'
+  form = "full"
+
+  [[project.statement]]
+  path = "index.html"
+  pattern = 'EnergyPlus version (?P<release>\d+\.\d+\.\d+) software'
+  form = "full"
+  occurrences = 2
+
+  [[project.statement]]
+  path = ".interface-design/system.md"
+  pattern = 'as wide as the `EnergyPlus (?P<release>\d+\.\d+\.\d+)` above it'
+  form = "full"
+
+  [[project.statement]]
+  path = ".specify/memory/constitution.md"
+  pattern = '\*\*EnergyPlus version\*\*: (?P<release>\d+\.\d+\.\d+), as bundled'
+  form = "full"
+
+  [[project.statement]]
+  path = ".specify/memory/constitution.md"
+  pattern = '^\s+(?P<release>\d+\.\d+\.\d+) locally, or the staged WebAssembly engine'
+  form = "full"
+
+  [[project.statement]]
+  path = "CLAUDE.md"
+  pattern = 'EnergyPlus (?P<release>\d+\.\d+\.\d+) is installed'
+  form = "full"
+
+  [[project.statement]]
+  path = "CLAUDE.md"
+  pattern = "load\\('(?P<release>\\d+\\.\\d+\\.\\d+)'\\)"
+  form = "full"
+
+  [[project.statement]]
+  path = "CLAUDE.md"
+  pattern = '/Applications/EnergyPlus-(?P<release>\d+-\d+-\d+)`'
+  form = "dashed"
+
+  [[project.statement]]
+  path = "README.md"
+  pattern = 'example \(EnergyPlus (?P<release>\d+\.\d+\.\d+)\)'
+  form = "full"
+
+  [[project.statement]]
+  path = "README.md"
+  pattern = 'energyplus\.js-(?P<release>\d+\.\d+)\.wasm'
+  form = "line"
+
+  [[project.statement]]
+  path = "scripts/deploy.mjs"
+  pattern = 'energyplus\.js-(?P<release>\d+\.\d+)\.wasm'
+  form = "line"
+
+  [[project.statement]]
+  path = "src/model.js"
+  pattern = "version_identifier: '(?P<release>\\d+\\.\\d+)'"
+  form = "line"
+
+  [[project.generated]]
+  glob = "src/version.js"
+  by_step = "release-constant"
+
+  [[project.generated]]
+  glob = "package.json"
+  by_step = "release-constant"
+
+  [[project.pin]]
+  glob = "docs/design-notes.md"
+  reason = "The design notes record measurements and decisions made against a named release."
+
+  [[project.pin]]
+  glob = "src/*.js"
+  reason = "The source comments and citations record facts measured on the schema, the example files and the weather files of a named release."
+
+[[project]]
+id = "idfkit.com"
+repository = "idfkit/idfkit.com"
+content = ["prose"]
+after_merge = "None. The site is served from its default branch."
+
+  [[project.opens_on]]
+  kind = "published"
+  index = "npm"
+  package = "@idfkit/engine-assets"
+  version_names_release = true
+
+  [[project.step]]
+  id = "statements"
+  title = "Rewrite statements"
+  class = "automated"
+    [project.step.verify]
+    kind = "statements-current"
+
+  [[project.statement]]
+  path = "index.html"
+  pattern = '<li>EnergyPlus \d+\.\d+ through (?P<release>\d+\.\d+)</li>'
+  form = "line"
+
+# ── Deliveries of idfkit-mcp ──────────────────────────────────────────────────────────────────────
+[[project]]
+id = "idfkit-plugin"
+repository = "idfkit/idfkit-plugin"
+content = ["library-level", "prose"]
+after_merge = "None. The plugin is installed from its default branch."
+
+  [[project.opens_on]]
+  kind = "project-complete"
+  project = "idfkit-mcp"
+
+  # The plugin pins the two servers, and each published server version declares the library level it
+  # resolves. The level is followed through the server to the library.
+  [[project.step]]
+  id = "delivery-pins"
+  title = "Delivery pins carry the release"
+  class = "automated"
+    [project.step.verify]
+    kind = "all"
+      [[project.step.verify.of]]
+      kind = "published-carries"
+      index = "pypi"
+      package = "idfkit"
+      member = "idfkit/schemas/{directory}/Energy+.schema.epJSON.gz"
+        [project.step.verify.of.through]
+        path = ".mcp.json"
+        pattern = '"idfkit-mcp@(?P<level>[^"]+)"'
+        via = "idfkit-mcp"
+      [[project.step.verify.of]]
+      kind = "published-carries"
+      index = "pypi"
+      package = "idfkit"
+      member = "idfkit/schemas/{directory}/Energy+.schema.epJSON.gz"
+        [project.step.verify.of.through]
+        path = ".lsp.json"
+        pattern = '"idfkit-lsp==(?P<level>[^"]+)"'
+        via = "idfkit-lsp"
+
+  [[project.step]]
+  id = "statements"
+  title = "Rewrite statements (skill text)"
+  class = "automated"
+    [project.step.verify]
+    kind = "statements-current"
+
+  [[project.statement]]
+  path = "skills/idf-conventions/SKILL.md"
+  pattern = 'through the latest supported \(currently (?P<release>\d+\.\d+\.\d+)\)'
+  form = "full"
+
+  [[project.statement]]
+  path = "skills/upgrade-version/SKILL.md"
+  pattern = '\(currently (?P<release>\d+\.\d+\.\d+)\)'
+  form = "full"
+  occurrences = 2
+
+[[project]]
+id = "idfkit-mcp-deployment"
+repository = "idfkit/idfkit-mcp-deployment"
+content = ["runtime-image", "library-level", "prose"]
+checks = "main.yml"
+gate = "make check && make test"
+merge_effect = "Merging this project's pull request deploys the hosted service."
+after_merge = "Run the billable smoke test against the deployed service."
+
+  [project.lag]
+  kind = "deliberate"
+  reason = "The hosted service adopts an EnergyPlus release only together with a reviewed change of its platform and billing, which no adoption run performs. Its default branch is behind the supported set by more than one release."
+
+  [[project.opens_on]]
+  kind = "project-complete"
+  project = "idfkit-mcp"
+
+  [[project.opens_on]]
+  kind = "upstream-assets"
+  roles = ["linux-arm64"]
+
+  # The archive name embeds a build hash and is taken from the release's asset list, never
+  # constructed from the version.
+  [[project.step]]
+  id = "engine-archive"
+  title = "Set the engine archive URL and its digest from the release's asset list"
+  class = "automated"
+    [project.step.verify]
+    kind = "registry-lists"
+    path = "app.py"
+    pattern = 'EnergyPlus-(?P<release>\d+\.\d+\.\d+)-[0-9a-f]+-Linux'
+    form = "full"
+
+  [[project.step]]
+  id = "smoke-constants"
+  title = "Move the smoke test constants"
+  class = "automated"
+    [project.step.verify]
+    kind = "statements-current"
+
+  [[project.step]]
+  id = "image-build"
+  title = "Build the simulation image and run the engine's version command"
+  class = "automated"
+  needs_energyplus = true
+    [project.step.verify]
+    kind = "checks-green"
+    workflow = "main.yml"
+
+  [[project.step]]
+  id = "gate"
+  title = "Pass the gate"
+  class = "automated"
+    [project.step.verify]
+    kind = "checks-green"
+
+  [[project.step]]
+  id = "billable-smoke"
+  title = "Run the billable smoke test after deployment"
+  class = "manual"
+  condition = "publishes"
+  class_reason = "The test spends real credits against the hosted service, and it can run only after a deployment, which the run never performs."
+  prepares = "The command to run and the outcome to expect, in the pull request body."
+  inspect = "The smoke test's output against the deployed service. Accept when a simulation at the release completes and is charged once."
+    [project.step.verify]
+    kind = "accepted"
+
+  [[project.statement]]
+  path = "README.md"
+  pattern = '\| NatLabRockies (?P<release>v\d+\.\d+\.\d+) ARM64 \|'
+  form = "tag"
+
+  [[project.generated]]
+  glob = "app.py"
+  by_step = "engine-archive"
+
+# ── Projects that carry no version-dependent content ──────────────────────────────────────────────
+[[project]]
+id = "idfkit-auth"
+repository = "idfkit/idfkit-auth"
+carries_none_reason = "An authentication front end. It reads and writes no model and names no EnergyPlus release."
+
+[[project]]
+id = "idfkit-org"
+repository = "idfkit/.github"
+carries_none_reason = "The organisation profile. It names no EnergyPlus release."
+
+# ── End-to-end verifications (spec section 3.3) ───────────────────────────────────────────────────
+
+[[verification]]
+id = "parses-and-validates"
+title = "A model at the release parses and validates in each library"
+class = "automated"
+  [verification.verify]
+  kind = "all"
+    [[verification.verify.of]]
+    kind = "checks-green"
+    repository = "idfkit/idfkit"
+    workflow = "main.yml"
+    [[verification.verify.of]]
+    kind = "checks-green"
+    repository = "idfkit/idfkit-js"
+    workflow = "main.yml"
+
+[[verification]]
+id = "round-trips"
+title = "A model at the release round-trips in each library"
+class = "automated"
+  [verification.verify]
+  kind = "all"
+    [[verification.verify.of]]
+    kind = "checks-green"
+    repository = "idfkit/idfkit"
+    workflow = "main.yml"
+    [[verification.verify.of]]
+    kind = "checks-green"
+    repository = "idfkit/idfkit-js"
+    workflow = "main.yml"
+
+[[verification]]
+id = "migrates"
+title = "A model at the previous release migrates to the release and validates"
+class = "automated"
+  [verification.verify]
+  kind = "checks-green"
+  repository = "idfkit/idfkit-engine"
+  workflow = "ci.yml"
+
+[[verification]]
+id = "simulates"
+title = "A model at the release simulates on each surface"
+class = "automated"
+  [verification.verify]
+  kind = "checks-green"
+  repository = "idfkit/idfkit-engine"
+  workflow = "ci.yml"
+
+[[verification]]
+id = "documentation-published"
+title = "The documentation for the release is published and designated latest"
+class = "automated"
+  [verification.verify]
+  kind = "http-contains"
+  url = "https://docs.idfkit.com/versions.json"
+  pattern = '"title":\s*"(?P<release>\d+\.\d+\.\d+)",\s*"aliases":\s*\[\s*"latest"'
+  form = "full"
+
+[[verification]]
+id = "range-stated"
+title = "Every surface that states the supported range states the release"
+class = "automated"
+  [verification.verify]
+  kind = "statements-current"
+  project = "*"
+
+[[verification]]
+id = "conformance-passes"
+title = "The conformance suite passes in both libraries"
+class = "automated"
+  [verification.verify]
+  kind = "all"
+    [[verification.verify.of]]
+    kind = "checks-green"
+    repository = "idfkit/idfkit"
+    workflow = "conformance.yml"
+    [[verification.verify.of]]
+    kind = "checks-green"
+    repository = "idfkit/idfkit-js"
+    workflow = "conformance.yml"

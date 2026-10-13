@@ -7,7 +7,7 @@ from collections.abc import Mapping
 from typing import Any
 
 from consumers import Register
-from sweep_consumers import Registry, Unreachable, exit_code, scoped_level, sweep
+from sweep_consumers import DisabledSchedule, Registry, Report, RosterFinding, Unreachable, exit_code, find_disabled_schedules, render, scoped_level, sweep
 
 
 class FakeSource:
@@ -212,3 +212,45 @@ def test_a_scoped_consumer_is_never_lagging_for_its_door() -> None:
 def test_registry_protocol_is_satisfied() -> None:
     registry: Registry = FakeRegistry()
     assert registry.npm("@idfkit/core")
+
+
+# ── Schedules that stopped, and the version roster (feature 012) ───────────────────────────────────
+
+
+class FakeSchedules:
+    def __init__(self, workflows: dict[str, list[dict[str, str]] | None]) -> None:
+        self.listing = workflows
+
+    def workflows(self, repository: str) -> list[Mapping[str, Any]]:
+        found = self.listing.get(repository)
+        if found is None:
+            raise Unreachable(f"{repository}: HTTP 403")
+        return list(found)
+
+
+def test_a_schedule_disabled_for_inactivity_is_reported() -> None:
+    schedules = FakeSchedules({
+        "o/docs": [
+            {"name": "Check for new release", "path": ".github/workflows/check-new-release.yml", "state": "disabled_inactivity"},
+            {"name": "CI", "path": ".github/workflows/main.yml", "state": "active"},
+        ],
+        "o/lib": [{"name": "Old", "path": ".github/workflows/old.yml", "state": "disabled_manually"}],
+    })  # fmt: skip
+    disabled, unreachable = find_disabled_schedules(["o/docs", "o/lib"], schedules)
+    assert disabled == [DisabledSchedule("o/docs", "Check for new release", ".github/workflows/check-new-release.yml")]
+    assert unreachable == []
+
+
+def test_a_repository_whose_workflows_cannot_be_listed_is_unreachable_and_not_clean() -> None:
+    disabled, unreachable = find_disabled_schedules(["o/private"], FakeSchedules({"o/private": None}))
+    assert disabled == [] and unreachable == [{"repository": "o/private", "reason": "workflows: o/private: HTTP 403"}]
+
+
+def test_a_disabled_schedule_or_a_roster_finding_is_exit_one_and_unreachable_alone_is_exit_two() -> None:
+    disabled = Report("test", disabled_schedules=[DisabledSchedule("o/docs", "Check", ".github/workflows/check.yml")])
+    strange = Report("test", roster_findings=[RosterFinding("stranger", "lib", "notes.md", 4, "'26.1.0' is under no declaration")])
+    blind = Report("test", unreachable=[{"repository": "o/private", "reason": "HTTP 403"}])
+    assert (exit_code(disabled), exit_code(strange), exit_code(blind), exit_code(Report("test"))) == (1, 1, 2, 0)
+    assert exit_code(Report("test", roster_findings=strange.roster_findings, unreachable=blind.unreachable)) == 1
+    assert "o/docs: .github/workflows/check.yml" in render(disabled)
+    assert "stranger lib notes.md:4" in render(strange)
