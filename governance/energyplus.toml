@@ -1540,6 +1540,28 @@ after_merge = "None. The site deploys from its default branch by its own workflo
     pattern = "bundle\\.latest\\(\\); // '(?P<release>\\d+\\.\\d+\\.\\d+)'"
     form = "full"
 
+  # Two places enumerate every supported release: the table of releases and the printed list in the
+  # core tutorial. An adoption adds an entry to each. A statement would rewrite the newest entry in
+  # place and drop the release before it, so these are a step with a command. It follows the two
+  # levels, because the command refuses a release the pinned library does not list.
+  [[project.step]]
+  id = "release-rows"
+  title = "List the release in the table of releases and in the tutorial's printed list"
+  class = "automated"
+  run = 'uv run python scripts/adopt_release.py {full}'
+    [project.step.verify]
+    kind = "all"
+      [[project.step.verify.of]]
+      kind = "registry-lists"
+      path = "docs/reference/versions.md"
+      pattern = '\| `(?P<release>\d+\.\d+\.\d+)` +\|'
+      form = "full"
+      [[project.step.verify.of]]
+      kind = "registry-lists"
+      path = "docs/getting-started/core-tutorial.ipynb"
+      pattern = 'Available schema versions: \[.*(?P<release>\(\d+, \d+, \d+\))\]'
+      form = "tuple"
+
   [[project.step]]
   id = "statements"
   title = "Rewrite statements, including printed outputs"
@@ -1596,18 +1618,6 @@ after_merge = "None. The site deploys from its default branch by its own workflo
   pattern = 'releases, \d+\.\d+\.\d+\nthrough (?P<release>\d+\.\d+\.\d+)\.'
   form = "full"
 
-  # The two statements below match the last populated row of the table of releases. An adoption
-  # appends a row and does not rewrite this one.
-  [[project.statement]]
-  path = "docs/reference/versions.md"
-  pattern = '^\|[^|\n]*\|[^|\n]*\| (?P<release>\d+\.\d+) +\| `\d+\.\d+\.\d+` +\|\n(?:\|[^|\n]*\|[^|\n]*\| +\| +\|\n)*\n'
-  form = "line"
-
-  [[project.statement]]
-  path = "docs/reference/versions.md"
-  pattern = '^\|[^|\n]*\|[^|\n]*\| \d+\.\d+ +\| `(?P<release>\d+\.\d+\.\d+)` +\|\n(?:\|[^|\n]*\|[^|\n]*\| +\| +\|\n)*\n'
-  form = "full"
-
   [[project.statement]]
   path = "docs/reference/versions.md"
   pattern = "version_string\\(LATEST_VERSION\\) +# '(?P<release>\\d+\\.\\d+\\.\\d+)'"
@@ -1617,12 +1627,6 @@ after_merge = "None. The site deploys from its default branch by its own workflo
   path = "docs/reference/versions.md"
   pattern = '\| Python +\| (?P<release>\d+\.\d+\.\d+) +\| stubs bundled'
   form = "full"
-
-  # The printed list of every supported release. An adoption appends an element.
-  [[project.statement]]
-  path = "docs/getting-started/core-tutorial.ipynb"
-  pattern = 'Available schema versions: \[.*(?P<release>\(\d+, \d+, \d+\))\]'
-  form = "tuple"
 
   # The release the in-browser engine executes.
   [[project.statement]]
@@ -1730,6 +1734,10 @@ after_merge = "None. The site deploys from its default branch by its own workflo
   form = "count"
 
   # ── Generated ─────────────────────────────────────────────────────────────────────────────────────
+
+  [[project.generated]]
+  glob = "docs/getting-started/core-tutorial.ipynb"
+  by_step = "release-rows"
 
   [[project.generated]]
   glob = "docs/typedoc/**"
