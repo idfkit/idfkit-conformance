@@ -71,6 +71,18 @@ def test_one_release_moves_both_doors_together() -> None:
     assert half_adopted(planned) == []
 
 
+def test_a_release_moves_geometry_with_core() -> None:
+    # @idfkit/geometry peers on @idfkit/core at an exact version, so a bump that left it behind would
+    # produce a tree npm refuses to install (idfkit-app#235, idfkit-conformance#34).
+    manifest = {"dependencies": {"@idfkit/core": "0.4.0-rc.1", "@idfkit/geometry": "0.4.0-rc.1"}}
+    planned = plan_javascript(manifest, "0.4.0")
+    assert planned["dependencies"] == {"@idfkit/core": "0.4.0", "@idfkit/geometry": "0.4.0"}
+    assert half_adopted({"dependencies": {"@idfkit/core": "0.4.0", "@idfkit/geometry": "0.4.0-rc.1"}}) == [
+        "@idfkit/core@0.4.0",
+        "@idfkit/geometry@0.4.0-rc.1",
+    ]
+
+
 def test_a_release_cannot_be_half_adopted() -> None:
     assert half_adopted({"dependencies": {"@idfkit/core": "0.3.0", "@idfkit/idfkit": "0.2.0"}}) == ["@idfkit/core@0.3.0", "@idfkit/idfkit@0.2.0"]
 
