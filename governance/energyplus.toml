@@ -114,6 +114,14 @@ caller = false
   reason = "Test fixtures name packages and versions as example input."
 
   [[project.pin]]
+  glob = "energyplus/adoptions/**"
+  reason = "An adoption record names the release it records and the evidence of each step. It is written once and never edited."
+
+  [[project.pin]]
+  glob = "governance/energyplus.toml"
+  reason = "The roster states no release as a value. The reasons of its pins and ignores name the release a pinned file was written for."
+
+  [[project.pin]]
   glob = "governance/naming.toml"
   reason = "The naming register names published packages and gives examples at a named release. It changes only by a reviewed governance change, never by an adoption."
 
@@ -141,6 +149,7 @@ after_merge = "Publish an idfkit version to the package index. Every project tha
   id = "registry"
   title = "Add the release to the registry"
   class = "automated"
+  run = 'uv run python scripts/adopt_energyplus.py register {full}'
     [project.step.verify]
     kind = "registry-lists"
     path = "src/idfkit/versions.py"
@@ -153,6 +162,7 @@ after_merge = "Publish an idfkit version to the package index. Every project tha
   id = "bundle-schema"
   title = "Bundle the schema"
   class = "automated"
+  run = 'uv run python -m idfkit.download {full} --target-dir src/idfkit/schemas'
     [project.step.verify]
     kind = "path-exists"
     path = "src/idfkit/schemas/{directory}/Energy+.schema.epJSON.gz"
@@ -161,6 +171,7 @@ after_merge = "Publish an idfkit version to the package index. Every project tha
   id = "regenerate-stubs"
   title = "Regenerate type stubs"
   class = "automated"
+  run = 'uv run python -m idfkit.codegen.generate_stubs'
     [project.step.verify]
     kind = "checks-green"
     workflow = "main.yml"
@@ -169,6 +180,7 @@ after_merge = "Publish an idfkit version to the package index. Every project tha
   id = "regenerate-references"
   title = "Regenerate baked agent references"
   class = "automated"
+  run = 'uv run python -m idfkit.codegen.bake_references'
     [project.step.verify]
     kind = "checks-green"
     workflow = "main.yml"
@@ -180,6 +192,8 @@ after_merge = "Publish an idfkit version to the package index. Every project tha
   condition = "silent-effect"
   class_reason = "The count becomes a ceiling. A wrong ceiling hides defects without raising an error."
   inspect = "The findings and errors counts in the new matrix row, against the sweep's log for this release. Accept when both equal the measured values."
+  run = 'uv run python scripts/adopt_energyplus.py sweep-row {full}'
+  prepares = "The matrix row for the release, with findings and errors measured by reading that release's example files from the upstream tag against the bundled schema. The count per diagnostic code is in the pull request body."
     [project.step.verify]
     kind = "all"
       [[project.step.verify.of]]
@@ -347,7 +361,7 @@ repository = "idfkit/idfkit-engine"
 content = ["engine", "prose"]
 publishes = ["@idfkit/engine-assets"]
 checks = "ci.yml"
-gate = "npm run typecheck && npm test"
+gate = "npm ci && npm run typecheck && npm test"
 after_merge = "Publish the asset package for the release. Projects that run a simulation in the browser wait on it."
 
   [[project.opens_on]]
@@ -361,6 +375,8 @@ after_merge = "Publish the asset package for the release. Projects that run a si
   condition = "silent-effect"
   class_reason = "A build that compiles can produce a binary that computes wrong results or fails at run time."
   inspect = "The proposed row in .github/energyplus-builds.json and the build it produced. Accept when the build succeeded and the row's status is not stronger than what was verified."
+  run = 'node scripts/adopt-energyplus.mjs toolchain-row {full}'
+  prepares = "A row for the release in .github/energyplus-builds.json with the previous release's emsdk and boost, and status untested."
     [project.step.verify]
     kind = "all"
       [[project.step.verify.of]]
@@ -375,6 +391,9 @@ after_merge = "Publish the asset package for the release. Projects that run a si
   id = "build-engine"
   title = "Build the engine"
   class = "automated"
+  # Dispatches the project's own build on the adoption branch and returns. The build takes about an
+  # hour and creates the prerelease wasm-vX.Y.Z; a later run finds it present.
+  run = 'node scripts/adopt-energyplus.mjs dispatch engine {full}'
     [project.step.verify]
     kind = "tag-exists"
     tag = "wasm-{tag}"
@@ -386,6 +405,8 @@ after_merge = "Publish the asset package for the release. Projects that run a si
   condition = "silent-effect"
   class_reason = "Several patches depend on upstream source text and do nothing when it changed. A green build can lack a capability."
   inspect = "The per-patch report posted by the run: applied, skipped, or no change. Accept when every patch is applied, or each skipped patch is stated in the asset package's notes."
+  run = 'node scripts/adopt-energyplus.mjs source-patches {full}'
+  prepares = "One line per source patch with its outcome, in the pull request body."
     [project.step.verify]
     kind = "accepted"
 
@@ -393,6 +414,7 @@ after_merge = "Publish the asset package for the release. Projects that run a si
   id = "build-preprocessors"
   title = "Build the preprocessors"
   class = "automated"
+  run = 'node scripts/adopt-energyplus.mjs dispatch preprocessors {full}'
     [project.step.verify]
     kind = "tag-exists"
     tag = "preprocessors-{tag}"
@@ -401,6 +423,7 @@ after_merge = "Publish the asset package for the release. Projects that run a si
   id = "compose-assets"
   title = "Compose the asset set"
   class = "automated"
+  run = 'node scripts/adopt-energyplus.mjs dispatch compose {full}'
     [project.step.verify]
     kind = "registry-lists"
     path = "packages/engine-assets/package.json"
@@ -411,6 +434,7 @@ after_merge = "Publish the asset package for the release. Projects that run a si
   id = "asset-package"
   title = "Update the asset package (version, constants, notice)"
   class = "automated"
+  run = 'node scripts/adopt-energyplus.mjs asset-package {full}'
     [project.step.verify]
     kind = "registry-lists"
     path = "packages/engine-assets/index.js"
@@ -424,6 +448,8 @@ after_merge = "Publish the asset package for the release. Projects that run a si
   condition = "silent-effect"
   class_reason = "A licence statement. The project requires the link line to be read again for each build."
   inspect = "The regenerated THIRD_PARTY_NOTICES against the build's link line. Accept when every linked component is listed."
+  run = 'node scripts/adopt-energyplus.mjs third-party-notices {full}'
+  prepares = "packages/engine-assets/THIRD_PARTY_NOTICES regenerated from the upstream tag."
     [project.step.verify]
     kind = "accepted"
 
@@ -431,6 +457,7 @@ after_merge = "Publish the asset package for the release. Projects that run a si
   id = "e2e-fixtures"
   title = "Fetch end-to-end fixtures"
   class = "automated"
+  run = 'node packages/engine/tests/fixtures/fetch-fixtures.mjs {full}'
     [project.step.verify]
     kind = "path-exists"
     path = "packages/engine/tests/fixtures/{full}"
@@ -441,6 +468,7 @@ after_merge = "Publish the asset package for the release. Projects that run a si
   title = "Generate differential references from the release tarball"
   class = "automated"
   needs_energyplus = true
+  run = 'node scripts/adopt-energyplus.mjs references {full}'
     [project.step.verify]
     kind = "path-exists"
     path = "packages/engine/tests/differential/reference/{full}"
@@ -882,7 +910,7 @@ repository = "idfkit/idfkit-js"
 content = ["schema", "types", "prose"]
 publishes = ["@idfkit/schemas"]
 checks = "main.yml"
-gate = "npm run typecheck && npm test"
+gate = "npm ci && npm run typecheck && npm test"
 after_merge = "Publish an idfkit-js version to the package index. Every project that resolves the scoped packages waits on it."
 
   # The second library builds its bundle from the first library's default branch, and its quality
@@ -896,6 +924,9 @@ after_merge = "Publish an idfkit-js version to the package index. Every project 
   id = "rebuild-bundle"
   title = "Rebuild the schema bundle from idfkit"
   class = "automated"
+  # The bundle is built from the first library's schemas. The command refuses while that library's
+  # default branch does not bundle the release, because the build would succeed and add nothing.
+  run = 'src="$(mktemp -d)" && git clone --quiet --depth 1 https://github.com/idfkit/idfkit.git "$src" && { test -f "$src/src/idfkit/schemas/{directory}/Energy+.schema.epJSON.gz" || { echo "The default branch of idfkit does not bundle {directory}, so the schema bundle cannot carry {full} yet." >&2; exit 1; }; } && npm ci && npm run build:schemas -- --source "$src/src/idfkit/schemas"'
     [project.step.verify]
     kind = "path-exists"
     path = "packages/schemas/data/manifest-{dashed}.json.gz"
@@ -904,6 +935,7 @@ after_merge = "Publish an idfkit-js version to the package index. Every project 
   id = "documented-versions"
   title = "Update the documented-versions mirror and its test constants"
   class = "automated"
+  run = 'npm run sync:versions'
     [project.step.verify]
     kind = "registry-lists"
     path = "packages/core/src/docs-url/index.ts"
@@ -917,6 +949,8 @@ after_merge = "Publish an idfkit-js version to the package index. Every project 
   condition = "silent-effect"
   class_reason = "The count becomes a ceiling. A wrong ceiling hides defects without raising an error."
   inspect = "The findings and errors counts in the new matrix row, against the sweep's log for this release. Accept when both equal the measured values."
+  run = 'npm ci && npm run typecheck && node scripts/add-sweep-row.mjs {full}'
+  prepares = "The matrix row with the counts measured by the sweep over the release's example files. The sweep's report is in the pull request body."
     [project.step.verify]
     kind = "all"
       [[project.step.verify.of]]
@@ -933,8 +967,9 @@ after_merge = "Publish an idfkit-js version to the package index. Every project 
   class = "manual"
   condition = "undecided-choice"
   class_reason = "Type packages are published for a subset of releases and no recorded rule decides whether a new release receives one. A new package adds a public name."
-  prepares = "The package generated by the code generator for the release, as an artifact, and the list of files that reference a type package."
   inspect = "The generated package and the wiring list. Accept a pull request that either adds the package with its wiring and a naming register entry, or records in this roster that none is published."
+  run = 'src="$(mktemp -d)" && git clone --quiet --depth 1 https://github.com/idfkit/idfkit.git "$src" && npm run codegen:staged -- {full} --source "$src/src/idfkit/schemas"'
+  prepares = "The generated package and WIRING.md, the list of the seven files that name a type package, in the artifact adoption-prepared of the run. Neither is part of the pull request."
     [project.step.verify]
     kind = "accepted"
 
@@ -1111,6 +1146,19 @@ after_merge = "Publish an idfkit-js version to the package index. Every project 
   [[project.statement]]
   path = "packages/schemas/tests/bundle.test.ts"
   pattern = '''expect\(await bundle\.latest\(\)\)\.toBe\('(?P<release>\d+\.\d+\.\d+)'\);'''
+  form = "full"
+
+  # Two tests assert the number of supported releases and the newest one. They sit under a pin, and
+  # a statement is the narrower declaration.
+  [[project.statement]]
+  path = "packages/schemas/tests/http-source.test.ts"
+  pattern = 'expect\(versions\.length\)\.toBe\((?P<release>\d+)\);'
+  form = "count"
+  occurrences = 2
+
+  [[project.statement]]
+  path = "packages/core/tests/docs-snippets.test.ts"
+  pattern = "expect\\(await bundle\\.latest\\(\\)\\)\\.toBe\\('(?P<release>\\d+\\.\\d+\\.\\d+)'\\);"
   form = "full"
 
   [[project.generated]]
@@ -1316,7 +1364,7 @@ repository = "idfkit/idfkit-lsp"
 content = ["library-level"]
 publishes = ["idfkit-lsp"]
 checks = "ci.yml"
-gate = "make check"
+gate = "(cd model-server && npm ci && npm run build) && make check"
 after_merge = "Publish an idfkit-lsp version. The plugin waits on it."
 
   [[project.opens_on]]
@@ -1395,6 +1443,7 @@ after_merge = "Run the conversion and publication of the release's documentation
   id = "target-list"
   title = "Add the release to the target list and designate it latest"
   class = "automated"
+  run = 'uv run python -m scripts.adopt_release target-list {tag}'
     [project.step.verify]
     kind = "all"
       [[project.step.verify.of]]
@@ -1413,8 +1462,10 @@ after_merge = "Run the conversion and publication of the release's documentation
   title = "Accept documentation sets that are new or renamed upstream"
   class = "reviewed"
   condition = "silent-effect"
-  class_reason = "A source directory that no configured set matches is logged and not failed, so a new document can be omitted from the published site without an error."
-  inspect = "The list, posted by the run, of upstream documentation directories that no configured set matches. Accept when each is either configured with a title or stated as excluded."
+  class_reason = "An upstream Sphinx directory that no configured set matches is skipped with a debug message and no failure, so a new document can be omitted from the published site without an error."
+  inspect = "The list, in the pull request body, of upstream documentation directories that no configured set matches. Accept when each is either configured with a title or stated as excluded."
+  run = 'uv run python -m scripts.adopt_release doc-sets {tag}'
+  prepares = "The upstream documentation directories that no configured set matches, the configured sets found in neither tree, and the sets whose source format differs from the preceding release, in the pull request body."
     [project.step.verify]
     kind = "accepted"
 
@@ -1451,7 +1502,7 @@ id = "idfkit-developers"
 repository = "idfkit/idfkit-developers"
 content = ["documentation", "library-level", "prose"]
 checks = "docs.yml"
-gate = "make check && make docs-test"
+gate = 'export IDFKIT_CONFORMANCE_DIR="$(mktemp -d)" && git clone --quiet https://github.com/idfkit/idfkit-conformance.git "$IDFKIT_CONFORMANCE_DIR" && make check && make docs-test'
 after_merge = "None. The site deploys from its default branch by its own workflow."
 
   [[project.opens_on]]
@@ -1768,7 +1819,7 @@ id = "envelop"
 repository = "idfkit/idfkit-app"
 content = ["library-level", "prose"]
 checks = "check.yml"
-gate = "npm run check"
+gate = "npm ci && npm run check"
 after_merge = "None. The supported range and the engine assets are read at run time."
 
   [[project.opens_on]]
@@ -1826,27 +1877,12 @@ after_merge = "None. The supported range and the engine assets are read at run t
 
   [[project.statement]]
   path = "src/run/engine.ts"
-  pattern = 'Both default to the (?P<release>\d+\.\d+) filenames'
-  form = "line"
-
-  [[project.statement]]
-  path = "src/run/engine.ts"
-  pattern = 'silently means (?P<release>\d+\.\d+) is not a convenience'
-  form = "line"
-
-  [[project.statement]]
-  path = "src/run/engine.ts"
   pattern = 'this application opens (?P<release>[a-z]+)\n \* EnergyPlus versions'
   form = "count-word"
 
   [[project.statement]]
   path = "src/run/assets.ts"
   pattern = 'oldest first: `\d+\.\d+` through `(?P<release>\d+\.\d+)`'
-  form = "line"
-
-  [[project.statement]]
-  path = "src/run/assets.ts"
-  pattern = '`wasmFile` to the (?P<release>\d+\.\d+) filename'
   form = "line"
 
   [[project.statement]]
@@ -1931,12 +1967,16 @@ after_merge = "None. The supported range and the engine assets are read at run t
   glob = "src/weather/designConditions/change.ts"
   reason = "The comment illustrates with a named release line and records at which releases a field was added."
 
+  [[project.ignore]]
+  pattern = 'Both default to the \d+\.\d+ filenames|silently means \d+\.\d+ is not a convenience|`wasmFile` to the \d+\.\d+ filename'
+  reason = "The default file name of the engine loader. It moves with a release of @idfkit/engine, not with an adoption, so rewriting it at adoption would state a default the installed loader does not have."
+
 [[project]]
 id = "idfkit-shoebox"
 repository = "idfkit/idfkit-shoebox"
 content = ["library-level", "engine", "prose"]
 checks = "check.yml"
-gate = "npm run build"
+gate = "npm ci && npm run build"
 after_merge = "Deploy the page by the project's own workflow."
 
   [[project.opens_on]]
@@ -1955,6 +1995,8 @@ after_merge = "Deploy the page by the project's own workflow."
   id = "release-constant"
   title = "Move the release constant, the asset pin, the model's version literal and the engine file name"
   class = "automated"
+  # Refuses, and changes nothing, until an @idfkit/engine-assets version is published for the release.
+  run = 'node scripts/adopt-energyplus.mjs {full}'
     [project.step.verify]
     kind = "all"
       [[project.step.verify.of]]
@@ -1981,8 +2023,9 @@ after_merge = "Deploy the page by the project's own workflow."
   class = "manual"
   condition = "silent-effect"
   class_reason = "The project has no test runner. Its constitution requires a run of the generated model by a person, because a model that the page accepts can still fail in the engine."
-  prepares = "The generated model written to disk at the positions the project's constitution names, as an artifact."
   inspect = "The prepared models, run with the release's engine. Accept when each completes with no severe error."
+  run = 'npm ci && node scripts/write-models.mjs && mkdir -p .energyplus-adoption && cp -R harness/energyplus-* .energyplus-adoption/'
+  prepares = "The generated model at the shipped desk positions, with each channel toggled in turn, in the artifact adoption-prepared of the run."
     [project.step.verify]
     kind = "accepted"
 
@@ -2172,12 +2215,11 @@ after_merge = "Run the billable smoke test against the deployed service."
   kind = "project-complete"
   project = "idfkit-mcp"
 
-  # `app.py` installs the archive built for Ubuntu 24.04, so that build is the asset and not the
-  # oldest one upstream published.
+  # On the default branch `app.py` builds for linux/amd64 from the x86_64 archive. The README row
+  # that says ARM64, and the steps below, are to be reconciled with it before the lag is lifted.
   [[project.opens_on]]
   kind = "upstream-assets"
-  roles = ["linux-arm64"]
-  ubuntu = "24.04"
+  roles = ["linux-x86_64"]
 
   # The archive name embeds a build hash and is taken from the release's asset list, never
   # constructed from the version.

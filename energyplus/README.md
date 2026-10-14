@@ -77,6 +77,13 @@ A step is classed other than automated only for one of three stated conditions: 
 silent when wrong, it requires a choice no recorded rule decides, or it publishes. The roster states
 the condition and the reason for each.
 
+A run writes the declared statements first, then runs each step's command in roster order, and stops
+at the first step whose content another workflow of the project moves, such as a library level. No
+later command runs on a tree that lacks what it needs. What the command of a reviewed or manual step
+prints is carried into the pull request body, and what it writes under `.energyplus-adoption/` is
+uploaded as the artifact `adoption-prepared` and is no part of the change. The gate runs on the
+staged tree. A file a step is declared to generate may change even where a pin's glob covers it.
+
 An approval stands only for the commit it was given on. When the adoption branch is regenerated
 after an approval, the step returns to awaiting a person, and the approval is given again on the new
 head. A reviewer's later request for changes replaces their approval.
