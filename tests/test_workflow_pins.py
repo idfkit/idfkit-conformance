@@ -9,7 +9,10 @@ read FR-002 forbids and research R11 moved onto the `uses:` line to prevent.
 from __future__ import annotations
 
 import re
+import subprocess
 from pathlib import Path
+
+import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
 WORKFLOWS = sorted((ROOT / ".github" / "workflows").glob("*.yml"))
@@ -127,3 +130,52 @@ def test_the_adoption_workflow_requests_nothing_that_publishes_or_deploys() -> N
 def test_a_caller_may_name_a_permission_it_does_not_grant_in_a_comment() -> None:
     assert caller_problems("# It grants no id-token and no deployments: permission.\n" + GOOD_CALLER) == []
     assert caller_problems(GOOD_CALLER + "permissions:\n  id-token: write\n") != []
+
+
+def _step_script(name: str) -> str:
+    """The `run:` script of one named step of the adoption workflow, dedented."""
+    text = (ROOT / ".github" / "workflows" / "adopt-energyplus.yml").read_text()
+    step = text[text.index(f"- name: {name}") :]
+    lines = step[step.index("run: |") :].splitlines()[1:]
+    indent = len(lines[0]) - len(lines[0].lstrip())
+    script = []
+    for line in lines:
+        if line.strip() and len(line) - len(line.lstrip()) < indent:
+            break
+        script.append(line[indent:])
+    return "\n".join(script)
+
+
+@pytest.mark.parametrize(
+    ("seen", "answer", "holds"),
+    [
+        ("", "404", True),
+        ("abc123", "abc123", True),
+        ("", "abc123", False),
+        ("abc123", "404", False),
+        ("abc123", "def456", False),
+        ("", "500", False),
+    ],
+)
+def test_the_push_guard_reads_a_missing_branch_as_absent_and_nothing_else(tmp_path: Path, seen: str, answer: str, holds: bool) -> None:
+    # A stand-in for `gh api`: a commit on stdout, or the response body on stdout and the status on
+    # stderr with a failing exit, as `gh` does.
+    gh = tmp_path / "gh"
+    gh.write_text(
+        "#!/bin/sh\n"
+        f'case "{answer}" in\n'
+        '  404) echo \'{"message":"Not Found","status":"404"}\'; echo "gh: Not Found (HTTP 404)" >&2; exit 1;;\n'
+        '  500) echo \'{"message":"Server Error"}\'; echo "gh: Server Error (HTTP 500)" >&2; exit 1;;\n'
+        f"  *) echo {answer};;\n"
+        "esac\n"
+    )
+    gh.chmod(0o755)
+    environment = {
+        "PATH": f"{tmp_path}:/usr/bin:/bin",
+        "SEEN": seen,
+        "RELEASE": "26.2.0",
+        "GITHUB_REPOSITORY": "idfkit/example",
+        "RUNNER_TEMP": str(tmp_path),
+    }
+    result = subprocess.run(["bash", "-e", "-o", "pipefail", "-c", _step_script("Refuse to push over a branch that moved during the run")], env=environment, capture_output=True, text=True, check=False)
+    assert (result.returncode == 0) is holds, result.stdout + result.stderr

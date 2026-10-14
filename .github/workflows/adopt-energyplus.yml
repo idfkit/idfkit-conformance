@@ -264,7 +264,17 @@ jobs:
           SEEN: ${{ steps.branch.outputs.seen }}
           GH_TOKEN: ${{ steps.read-token.outputs.token }}
         run: |
-          now=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/energyplus/$RELEASE" --jq .object.sha 2>/dev/null || true)
+          # A missing branch is an answer, HTTP 404, and reads as absent. On an error `gh api` prints
+          # the response body on stdout, so a failed read is never taken as a commit, and any other
+          # failure stops the run rather than being read as absent.
+          if now=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/energyplus/$RELEASE" --jq .object.sha 2>"$RUNNER_TEMP/branch-read.err"); then
+            :
+          elif grep -q "HTTP 404" "$RUNNER_TEMP/branch-read.err"; then
+            now=""
+          else
+            echo "::error title=Branch unreadable::energyplus/$RELEASE could not be read: $(cat "$RUNNER_TEMP/branch-read.err"). Nothing was pushed."
+            exit 1
+          fi
           if [[ "$now" != "$SEEN" ]]; then
             echo "::error title=Branch moved::energyplus/$RELEASE was at '${SEEN:-absent}' when the run began and is at '${now:-absent}' now. Nothing was pushed. Dispatch the adoption again."
             exit 1
