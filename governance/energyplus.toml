@@ -362,6 +362,8 @@ content = ["engine", "prose"]
 publishes = ["@idfkit/engine-assets"]
 checks = "ci.yml"
 gate = "npm ci && npm run typecheck && npm test"
+# Three of its commands dispatch this repository's own build workflows.
+dispatches = true
 after_merge = "Publish the asset package for the release. Projects that run a simulation in the browser wait on it."
 
   [[project.opens_on]]
@@ -387,17 +389,7 @@ after_merge = "Publish the asset package for the release. Projects that run a si
       [[project.step.verify.of]]
       kind = "accepted"
 
-  [[project.step]]
-  id = "build-engine"
-  title = "Build the engine"
-  class = "automated"
-  # Dispatches the project's own build on the adoption branch and returns. The build takes about an
-  # hour and creates the prerelease wasm-vX.Y.Z; a later run finds it present.
-  run = 'node scripts/adopt-energyplus.mjs dispatch engine {full}'
-    [project.step.verify]
-    kind = "tag-exists"
-    tag = "wasm-{tag}"
-
+  # Before the build, so that the report which explains a failed build exists when it fails.
   [[project.step]]
   id = "source-patches"
   title = "Report the outcome of each source patch"
@@ -409,6 +401,25 @@ after_merge = "Publish the asset package for the release. Projects that run a si
   prepares = "One line per source patch with its outcome, in the pull request body."
     [project.step.verify]
     kind = "accepted"
+
+  [[project.step]]
+  id = "build-engine"
+  title = "Build the engine"
+  class = "automated"
+  # Dispatches the project's own build on the adoption branch and returns. The build takes about an
+  # hour and creates a prerelease; a later run finds it present. A build that failed leaves the step
+  # open and does not stop the run, so that the branch is generated again from a corrected default
+  # branch.
+  run = 'node scripts/adopt-energyplus.mjs dispatch engine {full}'
+  # The tag does not identify the release. The patch slot of this project's tags counts its own
+  # rebuilds, since a published package version can never be replaced, so wasm-v26.1.1 is a rebuild
+  # of 26.1.0. The Energy+.idd a prerelease carries states what it was built from.
+    [project.step.verify]
+    kind = "release-states"
+    tag = "wasm-v{line}.*"
+    asset = "Energy+.idd"
+    pattern = '^!IDD_Version (?P<release>\d+\.\d+\.\d+)'
+    form = "full"
 
   [[project.step]]
   id = "build-preprocessors"
@@ -424,11 +435,14 @@ after_merge = "Publish the asset package for the release. Projects that run a si
   title = "Compose the asset set"
   class = "automated"
   run = 'node scripts/adopt-energyplus.mjs dispatch compose {full}'
+  # A composed set is the engine build together with the preprocessors and the transition tables.
     [project.step.verify]
-    kind = "registry-lists"
-    path = "packages/engine-assets/package.json"
-    pattern = '"version": "(?P<release>\d+\.\d+)\.\d+"'
-    form = "line"
+    kind = "release-states"
+    tag = "wasm-v{line}.*"
+    asset = "Energy+.idd"
+    pattern = '^!IDD_Version (?P<release>\d+\.\d+\.\d+)'
+    form = "full"
+    beside = ["expandobjects.wasm", "transition.tar.gz"]
 
   [[project.step]]
   id = "asset-package"
@@ -1443,6 +1457,8 @@ after_merge = "Run the conversion and publication of the release's documentation
   id = "target-list"
   title = "Add the release to the target list and designate it latest"
   class = "automated"
+  # The second verification below reads the designated latest release. It can hold only for the
+  # newest release, which is the only one an adoption run accepts.
   run = 'uv run python -m scripts.adopt_release target-list {tag}'
     [project.step.verify]
     kind = "all"
@@ -1540,6 +1556,28 @@ after_merge = "None. The site deploys from its default branch by its own workflo
     pattern = "bundle\\.latest\\(\\); // '(?P<release>\\d+\\.\\d+\\.\\d+)'"
     form = "full"
 
+  # Two places enumerate every supported release: the table of releases and the printed list in the
+  # core tutorial. An adoption adds an entry to each. A statement would rewrite the newest entry in
+  # place and drop the release before it, so these are a step with a command. It follows the two
+  # levels, because the command refuses a release the pinned library does not list.
+  [[project.step]]
+  id = "release-rows"
+  title = "List the release in the table of releases and in the tutorial's printed list"
+  class = "automated"
+  run = 'uv run python scripts/adopt_release.py {full}'
+    [project.step.verify]
+    kind = "all"
+      [[project.step.verify.of]]
+      kind = "registry-lists"
+      path = "docs/reference/versions.md"
+      pattern = '\| `(?P<release>\d+\.\d+\.\d+)` +\|'
+      form = "full"
+      [[project.step.verify.of]]
+      kind = "registry-lists"
+      path = "docs/getting-started/core-tutorial.ipynb"
+      pattern = 'Available schema versions: \[.*(?P<release>\(\d+, \d+, \d+\))\]'
+      form = "tuple"
+
   [[project.step]]
   id = "statements"
   title = "Rewrite statements, including printed outputs"
@@ -1596,18 +1634,6 @@ after_merge = "None. The site deploys from its default branch by its own workflo
   pattern = 'releases, \d+\.\d+\.\d+\nthrough (?P<release>\d+\.\d+\.\d+)\.'
   form = "full"
 
-  # The two statements below match the last populated row of the table of releases. An adoption
-  # appends a row and does not rewrite this one.
-  [[project.statement]]
-  path = "docs/reference/versions.md"
-  pattern = '^\|[^|\n]*\|[^|\n]*\| (?P<release>\d+\.\d+) +\| `\d+\.\d+\.\d+` +\|\n(?:\|[^|\n]*\|[^|\n]*\| +\| +\|\n)*\n'
-  form = "line"
-
-  [[project.statement]]
-  path = "docs/reference/versions.md"
-  pattern = '^\|[^|\n]*\|[^|\n]*\| \d+\.\d+ +\| `(?P<release>\d+\.\d+\.\d+)` +\|\n(?:\|[^|\n]*\|[^|\n]*\| +\| +\|\n)*\n'
-  form = "full"
-
   [[project.statement]]
   path = "docs/reference/versions.md"
   pattern = "version_string\\(LATEST_VERSION\\) +# '(?P<release>\\d+\\.\\d+\\.\\d+)'"
@@ -1617,12 +1643,6 @@ after_merge = "None. The site deploys from its default branch by its own workflo
   path = "docs/reference/versions.md"
   pattern = '\| Python +\| (?P<release>\d+\.\d+\.\d+) +\| stubs bundled'
   form = "full"
-
-  # The printed list of every supported release. An adoption appends an element.
-  [[project.statement]]
-  path = "docs/getting-started/core-tutorial.ipynb"
-  pattern = 'Available schema versions: \[.*(?P<release>\(\d+, \d+, \d+\))\]'
-  form = "tuple"
 
   # The release the in-browser engine executes.
   [[project.statement]]
@@ -1730,6 +1750,10 @@ after_merge = "None. The site deploys from its default branch by its own workflo
   form = "count"
 
   # ── Generated ─────────────────────────────────────────────────────────────────────────────────────
+
+  [[project.generated]]
+  glob = "docs/getting-started/core-tutorial.ipynb"
+  by_step = "release-rows"
 
   [[project.generated]]
   glob = "docs/typedoc/**"
@@ -2024,7 +2048,7 @@ after_merge = "Deploy the page by the project's own workflow."
   condition = "silent-effect"
   class_reason = "The project has no test runner. Its constitution requires a run of the generated model by a person, because a model that the page accepts can still fail in the engine."
   inspect = "The prepared models, run with the release's engine. Accept when each completes with no severe error."
-  run = 'npm ci && node scripts/write-models.mjs && mkdir -p .energyplus-adoption && cp -R harness/energyplus-* .energyplus-adoption/'
+  run = 'npm ci && node scripts/write-models.mjs && mkdir -p .energyplus-adoption && cp -R harness/energyplus-{full} .energyplus-adoption/'
   prepares = "The generated model at the shipped desk positions, with each channel toggled in turn, in the artifact adoption-prepared of the run."
     [project.step.verify]
     kind = "accepted"
@@ -2147,6 +2171,7 @@ after_merge = "None. The site is served from its default branch."
 id = "idfkit-plugin"
 repository = "idfkit/idfkit-plugin"
 content = ["library-level", "prose"]
+checks = "tests.yml"
 after_merge = "None. The plugin is installed from its default branch."
 
   [[project.opens_on]]
@@ -2204,7 +2229,7 @@ repository = "idfkit/idfkit-mcp-deployment"
 content = ["runtime-image", "library-level", "prose"]
 checks = "main.yml"
 gate = "make check && make test"
-merge_effect = "Merging this project's pull request deploys the hosted service."
+merge_effect = "Merging this project's pull request deploys the hosted service, while its Deploy workflow is enabled."
 after_merge = "Run the billable smoke test against the deployed service."
 
   [project.lag]

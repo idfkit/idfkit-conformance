@@ -365,6 +365,26 @@ class TagExists:
 
 
 @dataclass(frozen=True, slots=True)
+class ReleaseStates:
+    """A release of a repository holds an asset that states the EnergyPlus release it was built from.
+
+    Used where a tag cannot be trusted to name the release. The engine tags its prereleases
+    `wasm-vX.Y.Z` and counts its own rebuilds in the patch slot, because a published package version
+    can never be replaced: `wasm-v26.1.1` is a rebuild of 26.1.0. What a prerelease was built from
+    is stated by the first line of the `Energy+.idd` it carries. `tag` is a glob with renderings
+    substituted, and the verification holds when one matching release has `asset` naming the
+    release, and every asset in `beside` as well.
+    """
+
+    repository: str | None
+    tag: str
+    asset: str
+    pattern: str
+    form: Form
+    beside: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
 class Level:
     """Where a consumer writes the version of a package it resolves. The pattern's group is `level`.
 
@@ -412,7 +432,7 @@ class All:
 
 
 Verification = (
-    RegistryLists | PathExists | StatementsCurrent | ChecksGreen | WorkflowSucceeded | TagExists | PublishedCarries | HttpContains | Accepted | All
+    RegistryLists | PathExists | StatementsCurrent | ChecksGreen | WorkflowSucceeded | TagExists | ReleaseStates | PublishedCarries | HttpContains | Accepted | All
 )
 
 
@@ -490,6 +510,9 @@ class Project:
     publishes: tuple[str, ...] = ()
     #: False for the host, whose one step is performed by the watch and not by a caller workflow.
     caller: bool = True
+    #: True when a command of this project dispatches workflows of its own repository. A run of such a
+    #: project is given a second token that can do so, and no other run is.
+    dispatches: bool = False
     #: What merging the adoption pull request does beyond changing the branch (rule C8).
     merge_effect: str | None = None
     #: The action that remains for a maintainer after the merge. Never performed by the run.
@@ -624,6 +647,16 @@ def _verification(table: Table, where: str) -> Verification:
             return WorkflowSucceeded(table.get("repository"), _need(table, "workflow", "V9", where))
         case "tag-exists":
             return TagExists(table.get("repository"), _need(table, "tag", "V9", where))
+        case "release-states":
+            form = _enum(Form, _need(table, "form", "V12", where), "V12", where)
+            return ReleaseStates(
+                table.get("repository"),
+                _need(table, "tag", "V9", where),
+                _need(table, "asset", "V9", where),
+                _pattern(_need(table, "pattern", "V12", where), "release", where),
+                form,
+                tuple(table.get("beside", ())),
+            )
         case "published-carries":
             return _published(table, where)
         case "http-contains":
@@ -717,6 +750,7 @@ def _project(table: Table, index: int) -> Project:
         workdir=table.get("workdir", "."),
         lag=None if lag is None else _lag(lag, where),
         caller=bool(table.get("caller", True)),
+        dispatches=bool(table.get("dispatches", False)),
         checks=table.get("checks"),
         publishes=tuple(table.get("publishes", ())),
         merge_effect=table.get("merge_effect"),

@@ -39,6 +39,46 @@ only, and a maintainer dispatches a project by hand:
 gh workflow run adopt-energyplus.yml --repo idfkit/<project> -f release=X.Y.Z
 ```
 
+A run dispatched by hand is held to the conditions the watch applies before it dispatches:
+
+1. It is dispatched on the project's default branch. Any other ref is refused.
+2. The project's openings hold. Otherwise the run reports `not-open` and changes nothing.
+3. The release is the newest. A release older than the newest supported one, which the project does
+   not carry, is refused.
+4. One run at a time adopts a release in a project. A second run for the same release waits.
+
+A run that finds nothing it can propose reports `waiting` and opens no pull request. The watch does
+not dispatch that project again until its default branch has moved, which is what the merge of a
+library bump does. Run by hand outside a workflow, the tool leaves the rewritten statements in the
+working tree in that case; in the workflow nothing is pushed unless the result is `proposed`.
+
+The engine takes at least three runs, because its builds outlast a run: the first proposes the
+branch, the second dispatches the builds, and the third composes the asset set. A maintainer
+dispatches the adoption again when a build has completed; the checklist says so on the step.
+
+### What bounds a run
+
+A caller's `permissions:` block bounds only the default token, which the run uses for nothing but
+reading. What a run can do is bounded by four tokens of the idfkit-bot application, each minted for
+one purpose:
+
+| Token | Scope | Used by |
+| --- | --- | --- |
+| reading | Every repository, read only | The roster's commands and the project's gate. A project's tests, hooks and dependencies never hold a token that can write |
+| dispatch | Actions write in the project's repository only, and only where the roster states `dispatches = true` | The engine's commands that start its own builds, through `ADOPTION_DISPATCH_TOKEN` |
+| proposing | Contents, pull requests and workflows write in the project's repository only | The two steps that push the branch and open the pull request, after the gate has passed |
+| watch | Actions write in idfkit-conformance only | The last step, which asks the watch to evaluate again |
+
+The roster and the tools are read at the pinned tag into a directory outside the project's tree, so
+that a gate which reads the whole tree does not judge them.
+
+### Two governance levels in one project
+
+A project's adoption caller pins the tag at which it reads this roster and these tools. Its other
+workflows pin the tag at which they read the consumer register, and each library pins the level its
+naming and parity gates read. These are separate readers of separate files and move separately. A
+caller's tag is raised when the roster's entry for that project, or the tools, change.
+
 ## 3. How to read the checklist
 
 1. The line under the title names exactly one next action and who can take it, or states that none
@@ -72,6 +112,13 @@ python -m tools.energyplus.checklist evaluation.json
 | automated | 52 | Nothing. Merge the pull request that carries it |
 | reviewed | 7 | Inspect what the row names, against the acceptance condition stated under the table, and approve or merge the pull request. The approval is the acceptance |
 | manual | 3 | Perform the step from what the run prepared, then approve or merge |
+
+The engine's builds are identified by what they hold, not by their tag. Its prereleases are tagged
+`wasm-vX.Y.Z`, and the patch slot counts that project's own rebuilds, because a published package
+version can never be replaced: `wasm-v26.1.1` is a rebuild of 26.1.0. The `Energy+.idd` a prerelease
+carries states the release it was built from, and the roster verifies that. Should upstream publish
+a patch release, the engine's dispatch command refuses to write to a tag that already holds another
+release, and a maintainer chooses the tag.
 
 A step is classed other than automated only for one of three stated conditions: its effect is
 silent when wrong, it requires a choice no recorded rule decides, or it publishes. The roster states
@@ -157,5 +204,5 @@ that carry version-dependent content.
 | The transition rule guidance for envelop | No project in the suite translates transition rules by hand. Migration uses upstream's own transition programs, natively and compiled to WebAssembly |
 | `generate_variable_mappings.py` | It generated a mapping for code that no longer exists. Renamed output variables are reported in the checklist's change summary, read from upstream's transition table |
 
-The skill's directory is removed only after this file is merged, and the date of removal is
-recorded here: not yet removed.
+The skill's directory was removed on 2026-10-13, after this file was merged. It was under no version
+control and no copy was kept: what remained valid is in the first table above.

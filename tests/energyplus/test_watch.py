@@ -9,7 +9,7 @@ from pathlib import Path
 from dispatch_waves import DispatchError
 from energyplus import watch as watching
 from energyplus.checklist import Recorded, marker
-from energyplus.evaluate import ADOPT_WORKFLOW, NOT_DISPATCHED, Evaluation, PullRequest, Run, evaluate
+from energyplus.evaluate import ADOPT_WORKFLOW, NOT_DISPATCHED, RAN_AND_WAITS, Evaluation, PullRequest, Run, evaluate
 from energyplus.roster import Release, Roster
 from energyplus.upstream import FixtureReleases, UpstreamRelease
 from energyplus.watch import DISPATCHED, EXIT_FAILED, EXIT_OK, EXIT_REFUSED, EXIT_UNREAD, EXIT_WAITING, Issue, dispatchable, watch
@@ -183,3 +183,18 @@ def test_the_exit_codes_are_distinct(tmp_path: Path) -> None:
     repos = organisation()
     repos["o/app"] = None
     assert _run(tmp_path, repos=repos, dispatcher=FakeDispatcher())[0].exit_code == EXIT_UNREAD
+
+
+# The watch and a project that waits do not dispatch each other without end.
+
+
+def test_a_project_whose_run_proposed_nothing_is_not_dispatched_again_on_the_same_commit(tmp_path: Path) -> None:
+    ran = FakeHub(runs={"o/lib": Run("https://github.com/o/lib/actions/runs/1", "success", "c0ffee")}, heads={"o/lib": "c0ffee"})
+    outcome, _ = _run(tmp_path, hub=ran)
+    assert dispatchable(ROSTERED, outcome.evaluations[0]) == ()
+    assert RAN_AND_WAITS in {row.reason for row in outcome.evaluations[0].of("lib")}
+
+
+def test_it_is_dispatched_again_once_its_default_branch_has_moved(tmp_path: Path) -> None:
+    moved = FakeHub(runs={"o/lib": Run("https://github.com/o/lib/actions/runs/1", "success", "c0ffee")}, heads={"o/lib": "f00d"})
+    assert _dispatchable(tmp_path, hub=moved) == ("lib",)

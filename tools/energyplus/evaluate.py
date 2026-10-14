@@ -55,6 +55,7 @@ from .roster import (
     AssetRole,
     ChecksGreen,
     HttpContains,
+    ReleaseStates,
     OpeningKind,
     PathExists,
     Project,
@@ -78,11 +79,15 @@ from .upstream import Asset, GhReleases, Releases, UpstreamError, UpstreamReleas
 ROOT = Path(__file__).resolve().parent.parent.parent
 DEFAULT_ROSTER = ROOT / "governance" / "energyplus.toml"
 ADOPT_WORKFLOW = "adopt-energyplus.yml"
+#: How much of a release asset is read to find the release it states.
+HEAD_BYTES = 4096
 PRE_EXISTING = "pre-existing"
 NOT_DISPATCHED = "open; no adoption has been dispatched"
+#: The adoption ran on the commit the default branch is at, succeeded, and opened no pull request.
+RAN_AND_WAITS = "the adoption ran on the current commit and proposed nothing; it waits on content that a run does not produce"
 SOURCE_CHANGED = "upstream source changed"
 CONSUMED_ROLES = (AssetRole.LINUX_X86_64, AssetRole.LINUX_ARM64, AssetRole.CHECKSUMS)
-CONTENT_KINDS = (RegistryLists, PathExists, TagExists, StatementsCurrent, PublishedCarries, HttpContains)
+CONTENT_KINDS = (RegistryLists, PathExists, TagExists, ReleaseStates, StatementsCurrent, PublishedCarries, HttpContains)
 
 
 def branch_for(release: Release) -> str:
@@ -249,10 +254,24 @@ class PullRequest:
 
 
 @dataclass(frozen=True, slots=True)
+class Released:
+    """One release of a repository whose tag matched a glob, with the start of one of its assets."""
+
+    tag: str
+    url: str
+    #: The names of every asset of the release.
+    assets: tuple[str, ...]
+    #: The first characters of the asset that was asked for. Empty when the release has no such asset.
+    head: str
+
+
+@dataclass(frozen=True, slots=True)
 class Run:
     url: str
     #: `None` while the run has not concluded.
     conclusion: str | None
+    #: The commit the run was dispatched on. Empty where it is not known.
+    head: str = ""
 
 
 class Hub(Protocol):
@@ -267,6 +286,12 @@ class Hub(Protocol):
     def pull_request(self, repository: str, branch: str) -> PullRequest | None: ...
 
     def tags(self, repository: str) -> tuple[str, ...]: ...
+
+    def released(self, repository: str, tag: str, asset: str) -> tuple[Released, ...]: ...
+
+    def head(self, repository: str) -> str:
+        """The commit the default branch is at."""
+        ...
 
     def run(self, repository: str, workflow: str, release: Release) -> Run | None: ...
 
@@ -379,6 +404,19 @@ class Evaluator:
                 found = [name for name in self.hub.tags(repository) if fnmatch.fnmatchcase(name, wanted)]
                 url = f"https://github.com/{repository}/releases/tag/{found[0]}" if found else None
                 return Evidence(bool(found), url, f"tag {wanted} {'exists' if found else 'does not exist'} in {repository}")
+            case ReleaseStates(repository=stated, tag=tag, asset=asset, pattern=pattern, beside=beside):
+                repository = self._repository(stated, project)
+                wanted = release.substitute(tag)
+                read = self.hub.released(repository, wanted, asset)
+                for found in read:
+                    names = [verification.form.read(match.group("release")) for match in re.finditer(pattern, found.head, re.MULTILINE)]
+                    missing = [name for name in beside if name not in found.assets]
+                    if release in names and not missing:
+                        return Evidence(True, found.url, f"{found.tag} in {repository} was built from {release.full()}")
+                    if release in names:
+                        return Evidence(False, found.url, f"{found.tag} in {repository} was built from {release.full()} and lacks {', '.join(missing)}")
+                held = ", ".join(found.tag for found in read) or "none"
+                return Evidence(False, None, f"no release {wanted} of {repository} states {release.full()} in {asset} (releases read: {held})")
             case StatementsCurrent(project=named):
                 return self._statements(named, project, ref)
             case ChecksGreen(repository=stated, workflow=workflow):
@@ -581,8 +619,14 @@ class Evaluator:
                 return row(Verdict.NOT_STARTED, Landing.NONE, Evidence(False, run.url, "the adoption run is in progress"), "the adoption run is in progress")
             if run is not None and run.conclusion != "success":
                 return row(Verdict.FAILED, Landing.NONE, Evidence(False, run.url, f"the adoption run concluded {run.conclusion}"), f"the adoption run concluded {run.conclusion}")
+            # A run that succeeded and opened no pull request found nothing it could propose: it
+            # stopped at a step whose content it has no command for. Run again on the same commit it
+            # would stop at the same step, so the project is dispatched again only when its default
+            # branch has moved. Without this the watch and the project dispatch each other without end.
             if step.run is None and step.step_class is StepClass.AUTOMATED and any(isinstance(m, PublishedCarries) for m in members(step.verify)):
                 return row(Verdict.NOT_STARTED, Landing.NONE, default, "waiting on the project's own library bump")
+            if run is not None and run.head and run.head == self.hub.head(project.repository):
+                return row(Verdict.NOT_STARTED, Landing.NONE, Evidence(False, run.url, default.detail), RAN_AND_WAITS)
             return row(Verdict.NOT_STARTED, Landing.NONE, default, NOT_DISPATCHED)
         head = self.holds(step.verify, project, pull.head)
         proposed = replace(head, url=head.url or pull.url)
@@ -597,6 +641,9 @@ class Evaluator:
             return row(Verdict.NOT_STARTED, Landing.PROPOSED, proposed, "checks on the pull request are in progress")
         if step.run is None and any(isinstance(m, PublishedCarries) for m in members(step.verify)):
             return row(Verdict.NOT_STARTED, Landing.PROPOSED, proposed, "waiting on the project's own library bump")
+        if step.run is not None and any(isinstance(m, (TagExists, ReleaseStates)) for m in members(step.verify)):
+            # The step's result is produced outside the branch, by a build its command dispatched.
+            return row(Verdict.NOT_STARTED, Landing.PROPOSED, proposed, "waiting on a build the adoption dispatched; dispatch the adoption again when the build has completed")
         return row(Verdict.FAILED, Landing.PROPOSED, proposed, "the adoption branch does not carry this step")
 
     def end_to_end(self) -> tuple[StepResult, ...]:
@@ -787,6 +834,9 @@ class GhHub:
     def __init__(self) -> None:
         self._default: dict[str, str] = {}
         self._tags: dict[str, tuple[str, ...]] = {}
+        self._releases: dict[str, list[Mapping[str, Any]]] = {}
+        self._heads: dict[tuple[str, int, str], str] = {}
+        self._head_commits: dict[str, str] = {}
 
     def _api(self, *args: str, missing: Any = None) -> Any:
         result = subprocess.run(["gh", "api", *args], capture_output=True, text=True, check=False)  # noqa: S603, S607
@@ -871,12 +921,45 @@ class GhHub:
             self._tags[repository] = tuple(ref["ref"].removeprefix("refs/tags/") for ref in refs)
         return self._tags[repository]
 
+    def released(self, repository: str, tag: str, asset: str) -> tuple[Released, ...]:
+        if repository not in self._releases:
+            self._releases[repository] = self._api(f"repos/{repository}/releases?per_page=100", missing=[])
+        found = []
+        for entry in self._releases[repository]:
+            if not fnmatch.fnmatchcase(entry["tag_name"], tag):
+                continue
+            wanted = next((item for item in entry.get("assets", ()) if item["name"] == asset), None)
+            found.append(Released(entry["tag_name"], entry["html_url"], tuple(item["name"] for item in entry.get("assets", ())), self._head(repository, wanted)))
+        return tuple(found)
+
+    def _head(self, repository: str, asset: Mapping[str, Any] | None) -> str:
+        """The first characters of a release asset. An asset is read once for each time it was uploaded."""
+        if asset is None:
+            return ""
+        key = (repository, asset["id"], asset.get("updated_at", ""))
+        if key not in self._heads:
+            done = subprocess.run(  # noqa: S603
+                ["gh", "api", "-H", "Accept: application/octet-stream", f"repos/{repository}/releases/assets/{asset['id']}"],  # noqa: S607
+                capture_output=True, check=False,
+            )  # fmt: skip
+            if done.returncode != 0:
+                raise Unreachable(f"{repository}: the asset {asset['name']} could not be read")
+            self._heads[key] = done.stdout[:HEAD_BYTES].decode("utf-8", errors="replace")
+        return self._heads[key]
+
     def run(self, repository: str, workflow: str, release: Release) -> Run | None:
         payload = self._api(f"repos/{repository}/actions/workflows/{workflow}/runs?per_page=30&event=workflow_dispatch", missing={})
         for run in payload.get("workflow_runs") or []:
-            if release.full() in (run.get("display_title") or ""):
-                return Run(run["html_url"], run["conclusion"] if run["status"] == "completed" else None)
+            # The release is matched as a whole number. Looked for as a substring, 6.1.0 would be
+            # found in the title of a run for 26.1.0.
+            if re.search(rf"(?<![\d.]){re.escape(release.full())}(?![\d.])", run.get("display_title") or ""):
+                return Run(run["html_url"], run["conclusion"] if run["status"] == "completed" else None, run.get("head_sha") or "")
         return None
+
+    def head(self, repository: str) -> str:
+        if repository not in self._head_commits:
+            self._head_commits[repository] = (self._api(f"repos/{repository}/commits/{self._default_branch(repository)}", "--jq", "{sha: .sha}") or {}).get("sha", "")
+        return self._head_commits[repository]
 
     def get(self, url: str) -> str | None:
         try:
