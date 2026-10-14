@@ -19,6 +19,7 @@ from check_consumer_self import check_self
 from check_consumers import check_register
 from consumers import (
     Declaration,
+    GOVERNED_PACKAGES,
     LocatorError,
     Register,
     agreement_key,
@@ -453,3 +454,23 @@ def test_the_shipped_register_is_well_formed() -> None:
     register = Register.from_toml(data)
     assert len(register.consumers) == 9
     assert {s.host for s in register.surfaces} == {"developers.idfkit.com", "py.idfkit.com", "js.idfkit.com"}
+
+
+def test_every_package_the_register_governs_is_known_to_the_consumer_tooling() -> None:
+    """A package in the naming register's `governs` list must be one this tooling can see.
+
+    The two lists are deliberately not equal, and the test is one-directional for that reason.
+    `GOVERNED_PACKAGES` is wider: it carries `@idfkit/schemas`, whose public surface is generated
+    rather than named, and the facade, which is a door rather than a surface. What it must never be
+    is narrower, because a package the register governs and this file has not heard of is invisible
+    to `detect_text`, and therefore to `sweep_consumers` and `check_consumer_self`. A consumer can
+    then declare it and no gate notices.
+
+    That is not hypothetical. `@idfkit/geometry` entered the register's `governs` list when geometry
+    extraction landed, was published on 2026-09-23, and was absent here until the change that added
+    this test, which blocked feature 009's T074 with no failing gate to say so.
+    """
+    governs = tomllib.loads((ROOT / "governance" / "naming.toml").read_text())["register"]["governs"]
+    known = GOVERNED_PACKAGES["python"] | GOVERNED_PACKAGES["javascript"]
+    missing = [package for package in governs if package not in known]
+    assert not missing, f"governed by the register, unknown to the consumer tooling: {missing}"
