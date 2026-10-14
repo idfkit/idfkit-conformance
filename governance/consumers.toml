@@ -291,6 +291,10 @@ regenerate the whole file, which src/save/write.test.ts asserts against by the a
     path = "package.json"
     locator = 'dependencies["@idfkit/weather"]'
     form = "exact"
+    [[consumer.libraries.declared_at]]
+    path = "package.json"
+    locator = 'dependencies["@idfkit/geometry"]'
+    form = "exact"
     [consumer.libraries.lag]
     kind = "not-yet"
     issue = "https://github.com/idfkit/idfkit-app/issues/226"
