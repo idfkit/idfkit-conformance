@@ -41,16 +41,24 @@ class FakeRunner:
     fail: str = ""
     touch: str = ""
     commands: list[str] = field(default_factory=list)
+    staged: list[str] = field(default_factory=list)
+    readme: str = ""
+    says: str = ""
 
     def run(self, command: str, cwd: Path) -> Ran:
         self.commands.append(command)
         if command == self.fail:
             return Ran(3, "the command failed")
+        if command == "make check":
+            self.staged = subprocess.run(["git", "-C", str(cwd), "diff", "--cached", "--name-only"], capture_output=True, text=True, check=True).stdout.split()
         if command.startswith("echo"):
+            self.readme = (cwd / "README.md").read_text()
             (cwd / "versions.py").write_text(VERSIONS_NEXT)
             (cwd / "ci.yml").write_text((cwd / "ci.yml").read_text() + 'version: "26.2.0"\n')
             if self.touch:
+                (cwd / self.touch).parent.mkdir(parents=True, exist_ok=True)
                 (cwd / self.touch).write_text("changed\n")
+            return Ran(0, self.says)
         return Ran(0, "")
 
 
@@ -63,7 +71,7 @@ def test_steps_run_in_roster_order_and_only_the_declared_commands_are_executed(t
     result = _adopt(tree, runner)
     assert result.result is Result.PROPOSED
     assert runner.commands == ["echo 26.2.0", "make check"]
-    assert result.performed == ("registry",) and result.files_changed == ("README.md", "ci.yml", "versions.py")
+    assert result.performed == ("registry", "statements") and result.files_changed == ("README.md", "ci.yml", "versions.py")
 
 
 def test_statements_are_rewritten_in_every_form(tree: Path) -> None:
@@ -98,7 +106,7 @@ def test_when_everything_holds_nothing_is_written(tree: Path) -> None:
 def test_a_step_with_no_command_is_verified_and_not_performed(tree: Path) -> None:
     runner = FakeRunner()
     result = _adopt(tree, runner)
-    assert "sweep-row" not in result.performed and "statements" not in result.performed
+    assert "sweep-row" not in result.performed and "gate" not in result.performed
     app = adopt(ROSTERED, ROSTERED.project("app"), NEXT, tree, FakeSource(organisation()), FakeHub(), packages(released=True), UPSTREAM, FakeRunner())
     assert app.result is Result.WAITING and app.waiting == ("level",) and not app.result.failed()
 
@@ -160,3 +168,40 @@ def test_the_pull_request_body_states_each_step_and_what_to_inspect(tree: Path) 
     assert "| Add the sweep row | reviewed | to be accepted by a person |" in text
     assert "- **Add the sweep row** (reviewed). The findings count in the new row." in text
     assert "never merges, publishes, releases or deploys" in text and "https://github.com/o/host/issues/1" in text
+
+
+# What the first adoptions of real projects required of the run.
+
+
+def test_statements_are_written_before_any_command_runs(tree: Path) -> None:
+    runner = FakeRunner()
+    _adopt(tree, runner)
+    assert "through v26.2" in runner.readme
+
+
+def test_the_gate_judges_a_staged_tree(tree: Path) -> None:
+    runner = FakeRunner()
+    _adopt(tree, runner)
+    assert sorted(runner.staged) == ["README.md", "ci.yml", "versions.py"]
+
+
+def test_a_generated_file_under_a_pin_may_change(tree: Path) -> None:
+    roster = Roster.from_text(ROSTER.replace('glob = "ci.yml"\n  by_step = "sweep-row"', 'glob = "ci.yml"\n  by_step = "sweep-row"\n\n  [[project.generated]]\n  glob = "tests/generated.py"\n  by_step = "registry"'))
+    assert _adopt(tree, FakeRunner(touch="tests/generated.py"), roster).result is Result.PROPOSED
+
+
+def test_a_run_stops_at_the_first_step_it_waits_on(tree: Path) -> None:
+    waits = ROSTER.replace('  run = "echo {full}"\n', "", 1)
+    runner = FakeRunner()
+    result = _adopt(tree, runner, Roster.from_text(waits))
+    assert result.result is Result.WAITING and result.waiting == ("registry",)
+    assert runner.commands == [] and "no later step was run" in result.detail
+
+
+def test_what_a_reviewed_steps_command_printed_reaches_the_pull_request_body(tree: Path) -> None:
+    reviewed = ROSTER.replace('  class = "reviewed"\n', '  class = "reviewed"\n  run = "echo sweep {full}"\n', 1)
+    roster = Roster.from_text(reviewed.replace('  run = "echo {full}"\n', '  run = "true"\n', 1))
+    result = _adopt(tree, FakeRunner(says="findings: 3"), roster)
+    assert result.result is Result.PROPOSED and [item.step for item in result.prepared] == ["sweep-row"]
+    text = body(roster.project("lib"), NEXT, result, "")
+    assert "What the run printed for: Add the sweep row" in text and "findings: 3" in text

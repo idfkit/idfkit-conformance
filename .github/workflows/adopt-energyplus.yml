@@ -124,6 +124,8 @@ jobs:
         run: |
           echo ".governance/" >> .git/info/exclude
           echo "adoption-body.md" >> .git/info/exclude
+          # What a command prepares for a person to inspect, and that is no part of the change.
+          echo ".energyplus-adoption/" >> .git/info/exclude
           git remote set-head origin --auto
 
       - uses: actions/setup-python@v5
@@ -164,6 +166,14 @@ jobs:
             --roster governance/energyplus.toml --tree "$GITHUB_WORKSPACE" --issue "$ISSUE" \
             --body "$GITHUB_WORKSPACE/adoption-body.md" | tee -a "$GITHUB_STEP_SUMMARY"
           exit "${PIPESTATUS[0]}"
+
+      - name: Upload what the run prepared for a person
+        if: always() && hashFiles('.energyplus-adoption/**') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: adoption-prepared
+          path: .energyplus-adoption/
+          include-hidden-files: true
 
       # The branch is pushed with this repository's token and the pull request is opened by the
       # application. A pull request opened with the default token triggers no workflow, so the

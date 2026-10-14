@@ -34,7 +34,7 @@ from sweep_consumers import Source, Unreachable
 
 from .checklist import recorded_source
 from .evaluate import CONTENT_KINDS, CheckOutcome, Evaluator, GhHub, HttpPackages, Hub, Packages, Recorded, branch_for, consumed, source_changes
-from .roster import Project, PublishedCarries, Release, Roster, Step, StepClass, Target, members
+from .roster import Project, Release, Roster, StatementsCurrent, StepClass, Target, members
 from .scan import GitHubArchive, glob_pattern
 from .upstream import GhReleases, UpstreamError, UpstreamRelease, find, releases
 
@@ -60,6 +60,14 @@ class Result(Enum):
 
 
 @dataclass(frozen=True, slots=True)
+class Prepared:
+    """The output of the command of a step that a person accepts."""
+
+    step: str
+    output: str
+
+
+@dataclass(frozen=True, slots=True)
 class AdoptionResult:
     result: Result
     detail: str
@@ -71,6 +79,8 @@ class AdoptionResult:
     #: For `BRANCH_EDITED`: the files where this generation differs from the branch a person edited.
     differing: tuple[str, ...] = ()
     log: str = ""
+    #: What the commands of reviewed and manual steps printed, for the pull request body.
+    prepared: tuple[Prepared, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -185,10 +195,6 @@ def differing_from(tree: Path, branch: str) -> tuple[str, ...]:
 # ── The adoption ───────────────────────────────────────────────────────────────────────────────────
 
 
-def _content(step: Step) -> bool:
-    return any(isinstance(member, CONTENT_KINDS) for member in members(step.verify))
-
-
 def adopt(
     roster: Roster,
     project: Project,
@@ -220,50 +226,73 @@ def adopt(
     changed = source_changes(recorded, upstream.commit if upstream else "", consumed(upstream, roster.ubuntu_builds()))
     if changed:
         return AdoptionResult(Result.SOURCE_CHANGED, "; ".join(f"{change.what}: recorded {change.recorded}, now {change.live}" for change in changed))
+    # Statements are written before any command runs, because a command may read a file that holds
+    # one: a generator whose templates state the release would otherwise bake the previous release.
     try:
-        rewritten(project, tree, evaluator.target)
+        statements = rewrite_statements(project, tree, evaluator.target)
     except StatementMismatch as mismatch:
         return AdoptionResult(Result.STATEMENT_MISMATCH, str(mismatch))
 
-    performed, present, waiting = [], [], []
+    performed, present, waiting, prepared = [], [], [], []
     for step in project.steps:
         judge = fresh()
-        holds = _content(step) and all(judge.holds(m, project).holds for m in members(step.verify) if isinstance(m, CONTENT_KINDS))
+        content = [member for member in members(step.verify) if isinstance(member, CONTENT_KINDS)]
+        holds = bool(content) and all(judge.holds(member, project).holds for member in content)
         if holds:
-            present.append(step.id)
+            written = statements > 0 and any(isinstance(member, StatementsCurrent) for member in content)
+            (performed if written else present).append(step.id)
         elif step.run is None:
-            # A step with no command is verified and not performed: a library level moved by the
-            # project's own bump workflow, or a judgement a person makes on the pull request.
-            if any(isinstance(member, PublishedCarries) for member in members(step.verify)):
+            if content:
+                # Content that this run has no command for is moved elsewhere: a library level by the
+                # project's own bump workflow, a vendored artifact by the workflow that vendors it.
+                # The run stops here. A later command would run on a tree that lacks what it needs,
+                # and its failure would hide that the project is only waiting.
                 waiting.append(step.id)
+                break
+            # No content and no command: a judgement a person makes on the pull request.
         else:
             ran = runner.run(release.substitute(step.run), tree / project.workdir)
             if ran.returncode != 0:
                 return AdoptionResult(Result.STEP_FAILED, f"step {step.id} exited {ran.returncode}", tuple(performed), tuple(present), log=ran.output)
             performed.append(step.id)
+            if step.step_class is not StepClass.AUTOMATED and ran.output.strip():
+                prepared.append(Prepared(step.id, ran.output))
     if waiting:
-        return AdoptionResult(Result.WAITING, f"waiting on: {', '.join(waiting)}. The project's own bump workflow moves a library level.", tuple(performed), tuple(present), tuple(waiting))
+        detail = f"waiting on: {', '.join(waiting)}. Another workflow of the project moves it, and no later step was run."
+        return AdoptionResult(Result.WAITING, detail, tuple(performed), tuple(present), tuple(waiting))
     try:
-        statements = rewrite_statements(project, tree, evaluator.target)
+        # A command may have regenerated a file that holds a statement.
+        statements += rewrite_statements(project, tree, evaluator.target)
     except StatementMismatch as mismatch:
         return AdoptionResult(Result.STATEMENT_MISMATCH, str(mismatch), tuple(performed), tuple(present))
     files = changed_files(tree)
     pins = [(pin.glob, glob_pattern(pin.glob)) for pin in (*roster.default_pins, *project.pins)]
+    # A statement and a generated file are declared to change at an adoption. Where a pin's glob also
+    # covers one, the narrower declaration decides.
+    declared = [glob_pattern(generated.glob) for generated in project.generated]
     statement_paths = {statement.path for statement in project.statements}
-    touched = [f"{name} (pin {glob})" for name in files for glob, pattern in pins if pattern.match(name) and name not in statement_paths]
+    touched = [
+        f"{name} (pin {glob})"
+        for name in files
+        for glob, pattern in pins
+        if pattern.match(name) and name not in statement_paths and not any(allowed.match(name) for allowed in declared)
+    ]
     if touched:
         return AdoptionResult(Result.PIN_TOUCHED, f"the run changed a pinned path: {', '.join(touched)}", tuple(performed), tuple(present), files_changed=files)
     if not files:
         return AdoptionResult(Result.NOTHING_TO_DO, "no file changed", tuple(performed), tuple(present))
     if project.gate:
+        # The gate judges the tree as the commit will hold it. A check that compares generated files
+        # with `git diff --exit-code` reads the index, and fails on any tree that is not staged.
+        _git(tree, "add", "--all")
         gate = runner.run(project.gate, tree / project.workdir)
         if gate.returncode != 0:
             return AdoptionResult(Result.GATE_FAILED, f"the gate exited {gate.returncode}", tuple(performed), tuple(present), (), statements, files, log=gate.output)
     if remote_branch is not None and (people := foreign_authors(tree, remote_branch, base)):
         differing = differing_from(tree, remote_branch)
         detail = f"the branch holds commits by {', '.join(people)} and was left as it is"
-        return AdoptionResult(Result.BRANCH_EDITED, detail, tuple(performed), tuple(present), (), statements, files, differing)
-    return AdoptionResult(Result.PROPOSED, f"{len(files)} file(s) changed", tuple(performed), tuple(present), (), statements, files)
+        return AdoptionResult(Result.BRANCH_EDITED, detail, tuple(performed), tuple(present), (), statements, files, differing, prepared=tuple(prepared))
+    return AdoptionResult(Result.PROPOSED, f"{len(files)} file(s) changed", tuple(performed), tuple(present), (), statements, files, prepared=tuple(prepared))
 
 
 # ── The pull request body (contract section 5) ─────────────────────────────────────────────────────
@@ -289,6 +318,9 @@ def body(project: Project, release: Release, result: AdoptionResult, issue: str)
         for step in review:
             prepared = f" Prepared: {step.prepares}" if step.prepares else ""
             lines.append(f"- **{step.title}** ({step.step_class.value}). {step.inspect}{prepared}")
+        titles = {step.id: step.title for step in project.steps}
+        for item in result.prepared:
+            lines += ["", f"<details><summary>What the run printed for: {titles[item.step]}</summary>", "", "```text", item.output.strip().replace("```", "'''"), "```", "", "</details>"]
         lines += ["", "This pull request stays a draft until those steps are accepted. An approving review is the acceptance."]
     if project.merge_effect:
         lines += ["", f"**{project.merge_effect}**"]
