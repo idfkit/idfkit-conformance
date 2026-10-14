@@ -1,0 +1,355 @@
+# Adopt one EnergyPlus release inside one project (feature 012).
+#
+# A reusable workflow. Every rostered project carries a caller of about twenty lines and no other
+# logic, for the reason check-consumer.yml states: one implementation with many callers, because a
+# procedure copied into repositories that cannot see each other does not stay one procedure.
+#
+#   jobs:
+#     adopt:
+#       uses: idfkit/idfkit-conformance/.github/workflows/adopt-energyplus.yml@governance-2026.25
+#       with:
+#         project: idfkit-mcp
+#         governance_level: governance-2026.25
+#         release: ${{ inputs.release }}
+#       secrets:
+#         APP_ID: ${{ secrets.APP_ID }}
+#         APP_PRIVATE_KEY: ${{ secrets.APP_PRIVATE_KEY }}
+#
+# The caller sets `run-name: Adopt EnergyPlus ${{ inputs.release }}`, which is how an evaluation
+# finds the run for a release, and grants `contents: write` and `pull-requests: write` only.
+#
+# WHAT IT DOES
+#
+#   1. Refuses a run that was not dispatched on the project's default branch. Verifies that the tag
+#      on `uses:` and the `governance_level` input are the same string, and reads the roster and the
+#      tools at that tag, outside the project's tree. A tag that cannot be read fails the run.
+#      Nothing falls back to a branch.
+#   2. Runs tools/energyplus/adopt.py in the project's working tree: the rewriting of declared
+#      statements, the roster's commands for the steps that do not already hold, and the project's
+#      gate.
+#   3. Pushes the branch energyplus/X.Y.Z and opens the pull request, both with the application's
+#      token, so that the project's pull request checks run on it.
+#   4. Dispatches the watch, so that the tracking issue is evaluated again at once.
+#
+# One run at a time adopts a release in a project. A second run for the same release waits.
+#
+# WHAT IT NEVER DOES
+#
+#   It never merges, enables auto-merge, marks a pull request ready, publishes a package or deploys.
+#   It executes no command the roster does not declare, and it fails when its changes touch a path
+#   the roster pins. It never pushes to a branch that holds a commit made by a person.
+#
+# WHAT BOUNDS IT
+#
+#   The caller's `permissions:` block bounds only the default token, which this workflow uses for
+#   nothing but reading. What the run can do is bounded by the application tokens minted below, each
+#   for one purpose and no wider:
+#
+#     reading    every repository of the organisation, read only. The roster's commands and the
+#                project's gate run with this token and with no other, so a project's tests, hooks
+#                and dependencies never hold a token that can write.
+#     dispatch   Actions write in this repository only, and only for a project whose roster entry
+#                says `dispatches = true`: the engine, whose commands start its own builds. Those
+#                builds create prereleases with the repository's own token.
+#     proposing  contents, pull requests and workflows write in this repository only, minted after
+#                the gate has passed and used by the two steps that push and open the pull request.
+#                Workflows write is needed because an adoption of either library adds a row to a
+#                matrix in a workflow file.
+#     watch      Actions write in idfkit-conformance only, to dispatch the watch.
+#
+#   The application itself must hold contents, pull requests, workflows, actions and issues.
+name: adopt-energyplus
+
+on:
+  workflow_call:
+    inputs:
+      project:
+        description: The project's id in the version roster.
+        required: true
+        type: string
+      governance_level:
+        description: The governance-YYYY.N tag of idfkit-conformance, identical to the @ref on the caller's uses line.
+        required: true
+        type: string
+      release:
+        description: The EnergyPlus release to adopt, as X.Y.Z.
+        required: true
+        type: string
+    secrets:
+      APP_ID:
+        required: false
+      APP_PRIVATE_KEY:
+        required: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  adopt:
+    name: adopt EnergyPlus ${{ inputs.release }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    # Two runs for one release would each regenerate and push the same branch.
+    concurrency:
+      group: adopt-energyplus-${{ github.repository }}-${{ inputs.release }}
+      cancel-in-progress: false
+    env:
+      LEVEL: ${{ inputs.governance_level }}
+      RELEASE: ${{ inputs.release }}
+      PROJECT: ${{ inputs.project }}
+      CALLER: ${{ github.workflow_ref }}
+      HAS_APP: ${{ secrets.APP_ID != '' && secrets.APP_PRIVATE_KEY != '' }}
+    steps:
+      # The roster, the tools and the pull request body are kept outside the project's tree. A gate
+      # that reads the whole tree, such as a formatter, would otherwise judge them.
+      - name: Refuse anything but a governance tag and a release
+        run: |
+          echo "GOVERNANCE=$RUNNER_TEMP/governance" >> "$GITHUB_ENV"
+          echo "BODY=$RUNNER_TEMP/adoption-body.md" >> "$GITHUB_ENV"
+          if [[ ! "$LEVEL" =~ ^governance-[0-9]{4}\.[0-9]+$ ]]; then
+            echo "::error title=Not a governance tag::'$LEVEL' is not governance-YYYY.N. The roster is read at an immutable tag, never a branch."
+            exit 2
+          fi
+          if [[ ! "$RELEASE" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error title=Not a release::'$RELEASE' is not X.Y.Z."
+            exit 2
+          fi
+
+      # The adoption is generated from the tree the run checks out and proposed against the default
+      # branch. Dispatched elsewhere, it would propose that branch's content as the adoption.
+      - name: Refuse a run that was not dispatched on the default branch
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          if [[ "$GITHUB_REF" != "refs/heads/$DEFAULT_BRANCH" ]]; then
+            echo "::error title=Not the default branch::The run was dispatched on $GITHUB_REF. An adoption is generated from $DEFAULT_BRANCH only."
+            exit 2
+          fi
+
+      - name: Refuse without the application's credentials
+        if: env.HAS_APP != 'true'
+        run: |
+          echo "::error title=No app credentials::APP_ID and APP_PRIVATE_KEY are not set in this repository. A pull request opened with the default token runs no checks, so the adoption could not be verified. By hand: python -m tools.energyplus.adopt --project $PROJECT --release $RELEASE --roster governance/energyplus.toml --tree <checkout> --body body.md"
+          exit 2
+
+      # The default token is not left in the checkout. The caller grants it contents write, and the
+      # project's gate runs in this tree.
+      - name: Check out the project
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: The tag on uses and the tag passed in are one fact
+        run: |
+          path="${CALLER#*/*/}"
+          path="${path%@*}"
+          if ! grep -Eq "idfkit-conformance/\.github/workflows/adopt-energyplus\.yml@${LEVEL//./\\.}([[:space:]]|$)" "$path"; then
+            echo "::error file=$path,title=Two pins::$path passes governance_level=$LEVEL but does not call adopt-energyplus.yml@$LEVEL. State the tag once on uses: and once as the input, identically."
+            exit 2
+          fi
+
+      # Fetched by its tag ref, so that a branch of the same name cannot stand for it.
+      - name: Read the roster and the tools at the tag
+        run: |
+          git init --quiet "$GOVERNANCE"
+          if ! git -C "$GOVERNANCE" fetch --quiet --depth 1 https://github.com/idfkit/idfkit-conformance.git "refs/tags/$LEVEL:refs/tags/$LEVEL"; then
+            echo "::error title=Roster unreadable::governance/energyplus.toml could not be read at $LEVEL. Nothing was adopted and nothing falls back to a branch."
+            exit 2
+          fi
+          git -C "$GOVERNANCE" checkout --quiet "refs/tags/$LEVEL"
+
+      - name: Keep what a command prepares out of the change
+        id: branch
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          # What a command prepares for a person to inspect, and that is no part of the change.
+          echo ".energyplus-adoption/" >> .git/info/exclude
+          git symbolic-ref refs/remotes/origin/HEAD "refs/remotes/origin/$DEFAULT_BRANCH"
+          echo "seen=$(git rev-parse --verify --quiet "origin/energyplus/$RELEASE" || true)" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: astral-sh/setup-uv@v6
+
+      # A project that states the Node it supports is judged on that Node, as its own checks are.
+      - name: Read the Node the project states
+        id: node
+        run: |
+          if [[ -f package.json ]] && python3 -c "import json,sys; sys.exit(0 if json.load(open('package.json')).get('engines',{}).get('node') else 1)"; then
+            echo "file=package.json" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-node@v4
+        if: steps.node.outputs.file != ''
+        with:
+          node-version-file: ${{ steps.node.outputs.file }}
+
+      - uses: actions/setup-node@v4
+        if: steps.node.outputs.file == ''
+        with:
+          node-version: "22"
+
+      - name: Mint the reading token
+        id: read-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          permission-contents: read
+          permission-pull-requests: read
+          permission-issues: read
+          permission-actions: read
+
+      - name: Read what the project's commands need
+        id: needs
+        working-directory: ${{ env.GOVERNANCE }}
+        run: python -m tools.energyplus.adopt --project "$PROJECT" --release "$RELEASE" --roster governance/energyplus.toml --describe
+
+      - name: Mint the dispatch token
+        id: dispatch-token
+        if: steps.needs.outputs.dispatches == 'true'
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-actions: write
+          permission-contents: read
+
+      - name: Find the tracking issue
+        id: issue
+        env:
+          GH_TOKEN: ${{ steps.read-token.outputs.token }}
+        run: |
+          url=$(gh issue list --repo idfkit/idfkit-conformance --label energyplus-adoption --state all --limit 200 --json url,body \
+            --jq "[.[] | select(.body | startswith(\"<!-- energyplus-adoption: $RELEASE -->\"))][0].url // \"\"")
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+
+      # The roster's commands and the project's gate run here, with a token that can only read. A
+      # command that dispatches a build of its own repository finds the token for that in
+      # ADOPTION_DISPATCH_TOKEN, which is empty for every other project.
+      - name: Adopt
+        id: adopt
+        env:
+          GH_TOKEN: ${{ steps.read-token.outputs.token }}
+          ADOPTION_DISPATCH_TOKEN: ${{ steps.dispatch-token.outputs.token }}
+          ISSUE: ${{ steps.issue.outputs.url }}
+        working-directory: ${{ env.GOVERNANCE }}
+        run: |
+          python -m tools.energyplus.adopt --project "$PROJECT" --release "$RELEASE" \
+            --roster governance/energyplus.toml --tree "$GITHUB_WORKSPACE" --issue "$ISSUE" \
+            --body "$BODY" | tee -a "$GITHUB_STEP_SUMMARY"
+          exit "${PIPESTATUS[0]}"
+
+      - name: Upload what the run prepared for a person
+        if: always() && hashFiles('.energyplus-adoption/**') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: adoption-prepared
+          path: .energyplus-adoption/
+          include-hidden-files: true
+
+      # The gate takes minutes. A person may have committed to the adoption branch since the run
+      # looked at it, and the push below would replace that commit.
+      - name: Refuse to push over a branch that moved during the run
+        if: steps.adopt.outputs.result == 'proposed'
+        env:
+          SEEN: ${{ steps.branch.outputs.seen }}
+          GH_TOKEN: ${{ steps.read-token.outputs.token }}
+        run: |
+          # A missing branch is an answer, HTTP 404, and reads as absent. On an error `gh api` prints
+          # the response body on stdout, so a failed read is never taken as a commit, and any other
+          # failure stops the run rather than being read as absent.
+          if now=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/energyplus/$RELEASE" --jq .object.sha 2>"$RUNNER_TEMP/branch-read.err"); then
+            :
+          elif grep -q "HTTP 404" "$RUNNER_TEMP/branch-read.err"; then
+            now=""
+          else
+            echo "::error title=Branch unreadable::energyplus/$RELEASE could not be read: $(cat "$RUNNER_TEMP/branch-read.err"). Nothing was pushed."
+            exit 1
+          fi
+          if [[ "$now" != "$SEEN" ]]; then
+            echo "::error title=Branch moved::energyplus/$RELEASE was at '${SEEN:-absent}' when the run began and is at '${now:-absent}' now. Nothing was pushed. Dispatch the adoption again."
+            exit 1
+          fi
+
+      - name: Mint the proposing token
+        id: write-token
+        if: steps.adopt.outputs.result == 'proposed' || steps.adopt.outputs.result == 'branch-edited'
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-contents: write
+          permission-pull-requests: write
+          permission-workflows: write
+
+      # The branch is pushed and the pull request opened by the application. A pull request opened
+      # with the default token triggers no workflow, so the project's own checks would never run on
+      # it. The branch is pushed by the application as well, because an adoption may add a row to a
+      # matrix in a workflow file, and the default token cannot push a change to one.
+      - name: Open or update the pull request
+        if: steps.adopt.outputs.result == 'proposed'
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ steps.write-token.outputs.token }}
+          branch: energyplus/${{ inputs.release }}
+          title: Adopt EnergyPlus ${{ inputs.release }}
+          commit-message: Adopt EnergyPlus ${{ inputs.release }}
+          # The action's default author is the person who dispatched the run. adopt.py reads any
+          # author but the workflow's as a person's commit, and would never regenerate the branch.
+          author: github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>
+          body-path: ${{ env.BODY }}
+          draft: ${{ steps.adopt.outputs.draft == 'true' && 'always-true' || 'false' }}
+          delete-branch: false
+
+      # A person committed to the adoption branch. Nothing is pushed. The fresh generation is kept
+      # as an artifact and the differences are stated once on the pull request.
+      - name: Keep the fresh generation
+        if: steps.adopt.outputs.result == 'branch-edited'
+        run: git add -A && git diff --cached --binary > "$RUNNER_TEMP/fresh-generation.patch" && git reset -q
+
+      - name: Upload the fresh generation
+        if: steps.adopt.outputs.result == 'branch-edited'
+        uses: actions/upload-artifact@v4
+        with:
+          name: fresh-generation
+          path: ${{ runner.temp }}/fresh-generation.patch
+
+      - name: State the differences on the pull request
+        if: steps.adopt.outputs.result == 'branch-edited'
+        env:
+          GH_TOKEN: ${{ steps.write-token.outputs.token }}
+        run: gh pr comment "energyplus/$RELEASE" --body-file "$BODY"
+
+      - name: Mint the watch token
+        id: watch-token
+        if: always() && env.HAS_APP == 'true'
+        continue-on-error: true
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          owner: idfkit
+          repositories: idfkit-conformance
+          permission-actions: write
+
+      - name: Ask the watch to evaluate again
+        if: always() && steps.watch-token.outputs.token != ''
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ steps.watch-token.outputs.token }}
+          RESULT: ${{ steps.adopt.outputs.result || 'did not complete' }}
+        run: |
+          gh workflow run energyplus-watch.yml --repo idfkit/idfkit-conformance \
+            -f release="$RELEASE" -f reason="$PROJECT adoption run: $RESULT" \
+            || echo "::warning title=Watch not dispatched::The daily schedule evaluates the adoption instead."

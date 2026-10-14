@@ -221,6 +221,26 @@ class EntryPointRow:
     scoped_level: str | None
 
 
+@dataclass(frozen=True, slots=True)
+class DisabledSchedule:
+    """A workflow whose schedule stopped without anyone deciding that it should."""
+
+    repository: str
+    workflow: str
+    path: str
+
+
+@dataclass(frozen=True, slots=True)
+class RosterFinding:
+    """One finding of the version roster's scan, in the consumer report."""
+
+    kind: str
+    project: str
+    path: str
+    line: int
+    detail: str
+
+
 @dataclass
 class Report:
     governance_level: str
@@ -233,6 +253,10 @@ class Report:
     unexplained: list[str] = field(default_factory=list)
     strangers: list[dict[str, Any]] = field(default_factory=list)
     unreachable: list[dict[str, str]] = field(default_factory=list)
+    #: Scheduled workflows that GitHub disabled for inactivity (feature 012, research R3.1).
+    disabled_schedules: list[DisabledSchedule] = field(default_factory=list)
+    #: What the version roster does not account for: stale, missing and stranger (feature 012).
+    roster_findings: list[RosterFinding] = field(default_factory=list)
 
     def to_json(self) -> dict[str, Any]:
         body = asdict(self)
@@ -469,6 +493,46 @@ def sweep(register: Register, source: Source, registry: Registry, governance_lev
     return report
 
 
+# ── Schedules that stopped ─────────────────────────────────────────────────────────────────────────
+
+
+class Schedules(Protocol):
+    """The workflows of a repository with their state, as GitHub reports them."""
+
+    def workflows(self, repository: str) -> list[Mapping[str, Any]]: ...
+
+
+class GhSchedules:
+    def workflows(self, repository: str) -> list[Mapping[str, Any]]:
+        result = subprocess.run(["gh", "api", f"repos/{repository}/actions/workflows?per_page=100"], capture_output=True, text=True, check=False)  # noqa: S603, S607
+        if result.returncode != 0:
+            raise Unreachable(result.stderr.strip().splitlines()[-1] if result.stderr.strip() else "gh api failed")
+        return list(json.loads(result.stdout).get("workflows", []))
+
+
+def find_disabled_schedules(repositories: Iterable[str], schedules: Schedules) -> tuple[list[DisabledSchedule], list[dict[str, str]]]:
+    """Every workflow GitHub disabled for inactivity. A workflow a person disabled is not reported.
+
+    GitHub disables a scheduled workflow after 60 days without repository activity and sends no
+    notice. The only detection of new EnergyPlus releases was disabled that way for 85 days. A
+    repository whose workflows cannot be listed is unreachable, and is never counted as clean.
+    """
+    disabled: list[DisabledSchedule] = []
+    unreachable: list[dict[str, str]] = []
+    for repository in repositories:
+        try:
+            listing = schedules.workflows(repository)
+        except Unreachable as error:
+            unreachable.append({"repository": repository, "reason": f"workflows: {error}"})
+            continue
+        disabled += [
+            DisabledSchedule(repository, str(workflow.get("name", "")), str(workflow.get("path", "")))
+            for workflow in listing
+            if workflow.get("state") == "disabled_inactivity"
+        ]
+    return disabled, unreachable
+
+
 def render(report: Report) -> str:
     lines = [f"consumer sweep against governance/consumers.toml at {report.governance_level}", ""]
     for current in report.current:
@@ -494,11 +558,19 @@ def render(report: Report) -> str:
     lines.append(f"  strangers:   {len(report.strangers)}" + "".join(f"\n    {s['repository']}: {s['declarations']}" for s in report.strangers))
     lines.append(f"  unreachable: {len(report.unreachable)}" + "".join(f"\n    {u['repository']}: {u['reason']}" for u in report.unreachable))
     lines.append(f"  unexplained: {len(report.unexplained)}" + "".join(f"\n    {u}" for u in report.unexplained))
+    lines.append(
+        f"  schedules disabled for inactivity: {len(report.disabled_schedules)}"
+        + "".join(f"\n    {d.repository}: {d.path}" for d in report.disabled_schedules)
+    )
+    lines.append(
+        f"  version roster findings: {len(report.roster_findings)}"
+        + "".join(f"\n    {f.kind:<8} {f.project} {f.path}:{f.line}  {f.detail}" for f in report.roster_findings)
+    )
     return "\n".join(lines)
 
 
 def exit_code(report: Report) -> int:
-    if report.strangers:
+    if report.strangers or report.disabled_schedules or report.roster_findings:
         return 1
     if report.unreachable:
         return 2
@@ -515,6 +587,30 @@ def _governance_level() -> str:
     return described.stdout.strip() or "(unknown)"
 
 
+def roster_findings(roster_path: Path, workspace: Path | None) -> tuple[list[RosterFinding], list[dict[str, str]]]:
+    """Scan every rostered project against the version roster (feature 012, research R11).
+
+    The scan is imported here and not at module level, because it imports this module for `Source`.
+    """
+    import tempfile
+
+    sys.path.insert(0, str(ROOT))
+    # When this file runs as a script it is `__main__`, and the scan imports a second copy of it
+    # under its own name. The scan raises that copy's `Unreachable`, so both are caught.
+    from sweep_consumers import Unreachable as ScanUnreachable
+
+    from tools.energyplus.roster import Roster
+    from tools.energyplus.scan import scan, source_for
+
+    with tempfile.TemporaryDirectory() as scratch:
+        try:
+            report = scan(Roster.load(roster_path), source_for(workspace, Path(scratch)))
+        except (Unreachable, ScanUnreachable) as error:
+            return [], [{"repository": "version roster", "reason": str(error)}]
+    findings = [RosterFinding(f.kind.value, f.project, f.path, f.line, f.detail) for f in report.findings]
+    return findings, [{"repository": unread.project, "reason": f"version roster: {unread.cause}"} for unread in report.unread]
+
+
 def main(argv: Sequence[str] | None = None, *, registry_factory: Callable[[], Registry] = HttpRegistry) -> int:
     parser = argparse.ArgumentParser(description="Read every consumer's declared level and find unregistered consumers.")
     parser.add_argument("--register", type=Path, default=ROOT / "governance" / "consumers.toml")
@@ -523,6 +619,7 @@ def main(argv: Sequence[str] | None = None, *, registry_factory: Callable[[], Re
     parser.add_argument(
         "--workspace", type=Path, help="read sibling checkouts in this directory instead of GitHub (strangers are skipped)"
     )
+    parser.add_argument("--roster", type=Path, default=ROOT / "governance" / "energyplus.toml", help="the version roster to scan against")
     args = parser.parse_args(argv)
 
     register = Register.load(args.register)
@@ -531,6 +628,18 @@ def main(argv: Sequence[str] | None = None, *, registry_factory: Callable[[], Re
     else:
         source = GitHubSource(args.org)
     report = sweep(register, source, registry_factory(), _governance_level(), strangers=not args.workspace)
+    if not args.workspace:
+        try:
+            repositories = source.repositories()
+        except Unreachable as error:
+            repositories = []
+            report.unreachable.append({"repository": args.org, "reason": f"repositories: {error}"})
+        report.disabled_schedules, unreachable = find_disabled_schedules(repositories, GhSchedules())
+        report.unreachable += unreachable
+    if args.roster.is_file():
+        findings, unreachable = roster_findings(args.roster, args.workspace)
+        report.roster_findings = findings
+        report.unreachable += unreachable
     args.out.write_text(json.dumps(report.to_json(), indent=2) + "\n", encoding="utf-8")
     print(render(report))
     return exit_code(report)
