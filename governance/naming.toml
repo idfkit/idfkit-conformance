@@ -1037,8 +1037,8 @@ ledger under `generated-object-types` rather than left here.
 notes = """
 The TypeScript name was `@idfkit/core/types` until the maps were split out of core, which took
 `@idfkit/core` from 7.2 MB to 285 KB and made the types an opt-in install. There is one package per
-EnergyPlus version, `@idfkit/types-v26-1` and `@idfkit/types-v9-4` today, and this entry names the
-package per EnergyPlus version: `@idfkit/types-v26-1` and `@idfkit/types-v9-4` today.
+published EnergyPlus version: `@idfkit/types-v26-2`, `@idfkit/types-v26-1` and `@idfkit/types-v9-4`
+today. This entry names `@idfkit/types-v26-1`.
 
 This entry names one of those packages rather than a `@idfkit/types-*` pattern, because the gate
 resolves a registered name against the public surface and a pattern matches nothing. It was tried:
