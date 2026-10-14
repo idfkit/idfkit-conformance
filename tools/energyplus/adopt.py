@@ -48,6 +48,8 @@ class Result(Enum):
     WAITING = "waiting"
     LAG = "lag"
     BRANCH_EDITED = "branch-edited"
+    NOT_OPEN = "not-open"
+    NOT_NEWEST = "not-newest"
     PRE_EXISTING = "pre-existing"
     SOURCE_CHANGED = "source-changed"
     STATEMENT_MISMATCH = "statement-mismatch"
@@ -56,7 +58,7 @@ class Result(Enum):
     GATE_FAILED = "gate-failed"
 
     def failed(self) -> bool:
-        return self in (Result.PRE_EXISTING, Result.SOURCE_CHANGED, Result.STATEMENT_MISMATCH, Result.STEP_FAILED, Result.PIN_TOUCHED, Result.GATE_FAILED)
+        return self in (Result.NOT_NEWEST, Result.PRE_EXISTING, Result.SOURCE_CHANGED, Result.STATEMENT_MISMATCH, Result.STEP_FAILED, Result.PIN_TOUCHED, Result.GATE_FAILED)
 
 
 @dataclass(frozen=True, slots=True)
@@ -220,6 +222,14 @@ def adopt(
     evaluator = fresh()
     if evaluator.carries(project, None).holds:
         return AdoptionResult(Result.NOTHING_TO_DO, f"{project.id} already carries {release.full()}", present=tuple(step.id for step in project.steps))
+    # The watch dispatches a project only when these two hold. A person who dispatches by hand is
+    # held to the same conditions, so that a run cannot propose a release out of order.
+    if release < evaluator.target.release:
+        newest = evaluator.target.release.full()
+        return AdoptionResult(Result.NOT_NEWEST, f"{release.full()} is older than {newest}, the newest supported release, and {project.id} does not carry it. An adoption adds the newest release only.")
+    opened, awaited = evaluator.opening_holds(project)
+    if not opened:
+        return AdoptionResult(Result.NOT_OPEN, f"{project.id} does not open yet: waiting on {awaited}")
     base_checks = hub.checks(project.repository, None, project.checks)
     if base_checks.outcome is CheckOutcome.FAILURE:
         return AdoptionResult(Result.PRE_EXISTING, f"the default branch's checks were failing before this run: {', '.join(base_checks.failing)}")
@@ -258,7 +268,7 @@ def adopt(
             if step.step_class is not StepClass.AUTOMATED and ran.output.strip():
                 prepared.append(Prepared(step.id, ran.output))
     if waiting:
-        detail = f"waiting on: {', '.join(waiting)}. Another workflow of the project moves it, and no later step was run."
+        detail = f"waiting on: {', '.join(waiting)}. No command of the adoption produces it: another workflow of the project, or a person, moves it. No later step was run."
         return AdoptionResult(Result.WAITING, detail, tuple(performed), tuple(present), tuple(waiting))
     try:
         # A command may have regenerated a file that holds a statement.
@@ -357,17 +367,27 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--roster", type=Path, required=True)
     parser.add_argument("--tree", type=Path, default=Path.cwd())
     parser.add_argument("--issue", default="", help="the URL of the tracking issue")
-    parser.add_argument("--body", type=Path, required=True, help="where to write the pull request body, or the comment for an edited branch")
+    parser.add_argument("--body", type=Path, help="where to write the pull request body, or the comment for an edited branch")
+    parser.add_argument("--describe", action="store_true", help="state what the project's commands need, and adopt nothing")
     arguments = parser.parse_args(argv)
     roster = Roster.load(arguments.roster)
     project = roster.project(arguments.project)
+    if arguments.describe:
+        # Read by the workflow before it mints a token, so that a token which can dispatch is
+        # given only to a project whose roster entry says its commands dispatch.
+        _output(f"dispatches={'true' if project.dispatches else 'false'}")
+        print(f"{project.id}: its commands {'dispatch' if project.dispatches else 'do not dispatch'} workflows of its own repository")
+        return 0
+    if arguments.body is None:
+        parser.error("--body is required to adopt")
     release = Release.parse(arguments.release)
     tree = arguments.tree.resolve()
     branch = f"origin/{branch_for(release)}"
     remote = branch if _git(tree, "rev-parse", "--verify", "--quiet", branch).strip() else None
     with tempfile.TemporaryDirectory() as scratch:
         try:
-            upstream = find(releases(GhReleases(roster.upstream)), release)
+            # A project with a recorded lag adopts nothing, whatever upstream has published.
+            upstream = None if project.lag is not None else find(releases(GhReleases(roster.upstream)), release)
             result = adopt(
                 roster, project, release, tree, GitHubArchive(Path(scratch)), GhHub(), HttpPackages(), upstream, ShellRunner(),
                 recorded=recorded_at(arguments.issue), remote_branch=remote,
@@ -380,10 +400,14 @@ def main(argv: Sequence[str] | None = None) -> int:
     if result.log:
         print(result.log)
     draft = any(step.step_class is not StepClass.AUTOMATED for step in project.steps)
+    _output(f"result={result.result.value}", f"draft={'true' if draft else 'false'}")
+    return 1 if result.result.failed() else 0
+
+
+def _output(*lines: str) -> None:
     if output := os.environ.get("GITHUB_OUTPUT"):
         with Path(output).open("a", encoding="utf-8") as handle:
-            handle.write(f"result={result.result.value}\ndraft={'true' if draft else 'false'}\n")
-    return 1 if result.result.failed() else 0
+            handle.write("".join(f"{line}\n" for line in lines))
 
 
 if __name__ == "__main__":

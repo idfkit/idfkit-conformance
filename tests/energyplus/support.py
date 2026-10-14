@@ -206,10 +206,11 @@ def organisation() -> dict[str, dict[str, str] | None]:
 
 # ── Fakes for the evaluation ───────────────────────────────────────────────────────────────────────
 
+import fnmatch  # noqa: E402
 from dataclasses import dataclass, field  # noqa: E402
 from datetime import datetime, timezone  # noqa: E402
 
-from energyplus.evaluate import CheckOutcome, CheckState, PullRequest, Run  # noqa: E402
+from energyplus.evaluate import CheckOutcome, CheckState, PullRequest, Released, Run  # noqa: E402
 from energyplus.roster import Release  # noqa: E402
 from energyplus.upstream import FixtureReleases, find, releases  # noqa: E402
 
@@ -229,6 +230,8 @@ class FakeHub:
     pulls: dict[str, PullRequest] = field(default_factory=dict)
     tagged: dict[str, tuple[str, ...]] = field(default_factory=dict)
     runs: dict[str, Run] = field(default_factory=dict)
+    releases: dict[str, tuple[Released, ...]] = field(default_factory=dict)
+    heads: dict[str, str] = field(default_factory=dict)
     pages: dict[str, str] = field(default_factory=dict)
 
     def read(self, repository: str, path: str, ref: str) -> str:
@@ -248,6 +251,12 @@ class FakeHub:
 
     def tags(self, repository: str) -> tuple[str, ...]:
         return self.tagged.get(repository, ())
+
+    def released(self, repository: str, tag: str, asset: str) -> tuple[Released, ...]:
+        return tuple(found for found in self.releases.get(repository, ()) if fnmatch.fnmatchcase(found.tag, tag))
+
+    def head(self, repository: str) -> str:
+        return self.heads.get(repository, "c0ffee")
 
     def run(self, repository: str, workflow: str, release: Release) -> Run | None:
         return self.runs.get(repository)

@@ -81,7 +81,9 @@ def caller_problems(text: str) -> list[str]:
         problems.append(f"passes governance_level {levels}, which is not the tag on uses: ({refs[0]})")
     if "run-name: Adopt EnergyPlus ${{ inputs.release }}" not in text:
         problems.append("does not set run-name, so an evaluation cannot find the run for a release")
-    if re.search(r"id-token|packages:\s*write|deployments:", text):
+    # Comments are not judged: a caller may say in prose that it grants no such permission.
+    keys = "\n".join(line for line in text.splitlines() if not line.lstrip().startswith("#"))
+    if re.search(r"id-token|packages:\s*write|deployments:", keys):
         problems.append("grants a permission that publishing or deploying needs")
     return problems
 
@@ -118,5 +120,10 @@ def test_the_adoption_workflow_requests_nothing_that_publishes_or_deploys() -> N
     text = (ROOT / ".github" / "workflows" / "adopt-energyplus.yml").read_text()
     body = "\n".join(line for line in text.splitlines() if not line.lstrip().startswith("#"))
     assert "id-token" not in body and "packages:" not in body and "deployments:" not in body
-    assert "gh pr merge" not in body and "--auto" not in body.replace("set-head origin --auto", "")
-    assert r"^governance-[0-9]{4}\.[0-9]+$" in body and "refs/tags/${{ inputs.governance_level }}" in body
+    assert "gh pr merge" not in body and "--auto" not in body
+    assert r"^governance-[0-9]{4}\.[0-9]+$" in body and "refs/tags/$LEVEL:refs/tags/$LEVEL" in body
+
+
+def test_a_caller_may_name_a_permission_it_does_not_grant_in_a_comment() -> None:
+    assert caller_problems("# It grants no id-token and no deployments: permission.\n" + GOOD_CALLER) == []
+    assert caller_problems(GOOD_CALLER + "permissions:\n  id-token: write\n") != []

@@ -7,9 +7,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import pytest
+from energyplus import adopt as adopting
 from energyplus.adopt import Ran, Result, adopt, body, edited_comment
 from energyplus.evaluate import Recorded, consumed
-from energyplus.roster import Roster
+from energyplus.roster import Release, Roster
 from support import NEXT, RED, ROSTER, UPSTREAM, VERSIONS_NEXT, FakeHub, FakeSource, organisation, packages
 
 ROSTERED = Roster.from_text(ROSTER)
@@ -195,7 +196,7 @@ def test_a_run_stops_at_the_first_step_it_waits_on(tree: Path) -> None:
     runner = FakeRunner()
     result = _adopt(tree, runner, Roster.from_text(waits))
     assert result.result is Result.WAITING and result.waiting == ("registry",)
-    assert runner.commands == [] and "no later step was run" in result.detail
+    assert runner.commands == [] and "No later step was run" in result.detail
 
 
 def test_what_a_reviewed_steps_command_printed_reaches_the_pull_request_body(tree: Path) -> None:
@@ -205,3 +206,32 @@ def test_what_a_reviewed_steps_command_printed_reaches_the_pull_request_body(tre
     assert result.result is Result.PROPOSED and [item.step for item in result.prepared] == ["sweep-row"]
     text = body(roster.project("lib"), NEXT, result, "")
     assert "What the run printed for: Add the sweep row" in text and "findings: 3" in text
+
+
+# A hand dispatch is held to the conditions the watch applies before it dispatches.
+
+
+def test_a_project_whose_opening_does_not_hold_is_not_adopted(tree: Path) -> None:
+    runner = FakeRunner()
+    app = adopt(ROSTERED, ROSTERED.project("app"), NEXT, tree, FakeSource(organisation()), FakeHub(), packages(released=False), UPSTREAM, runner)
+    assert app.result is Result.NOT_OPEN and not app.result.failed() and "waiting on" in app.detail
+    assert runner.commands == [] and _git(tree, "status", "--porcelain") == ""
+
+
+def test_a_release_older_than_the_newest_supported_is_refused(tree: Path) -> None:
+    runner = FakeRunner()
+    result = adopt(ROSTERED, LIB, Release(20, 1, 0), tree, FakeSource(organisation()), FakeHub(), packages(released=False), UPSTREAM, runner)
+    assert result.result is Result.NOT_NEWEST and result.result.failed() and "older than 26.1.0" in result.detail
+    assert runner.commands == [] and _git(tree, "status", "--porcelain") == ""
+
+
+def test_describe_states_whether_the_projects_commands_dispatch(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    out = tmp_path / "out"
+    monkeypatch.setenv("GITHUB_OUTPUT", str(out))
+    plain = tmp_path / "plain.toml"
+    plain.write_text(ROSTER)
+    assert adopting.main(["--project", "lib", "--release", "26.2.0", "--roster", str(plain), "--describe"]) == 0
+    dispatching = tmp_path / "dispatching.toml"
+    dispatching.write_text(ROSTER.replace('gate = "make check"', 'gate = "make check"\ndispatches = true', 1))
+    assert adopting.main(["--project", "lib", "--release", "26.2.0", "--roster", str(dispatching), "--describe"]) == 0
+    assert out.read_text() == "dispatches=false\ndispatches=true\n"

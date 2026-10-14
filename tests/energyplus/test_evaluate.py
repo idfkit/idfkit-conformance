@@ -11,6 +11,7 @@ from energyplus.evaluate import (
     Landing,
     PullRequest,
     Recorded,
+    Released,
     Run,
     SourceAsset,
     StepResult,
@@ -240,3 +241,44 @@ def test_a_comment_does_not_replace_an_approval_and_a_bot_does_not_approve() -> 
     ]
     found = approval(reviews, "h2")
     assert found is not None and found.by == "ada"
+
+
+# A release is identified by what it holds, where its tag counts something else.
+
+BUILT = LIB.replace(
+    '  [[project.step]]\n  id = "statements"',
+    """  [[project.step]]
+  id = "build"
+  title = "Build the engine"
+  class = "automated"
+  run = "true"
+    [project.step.verify]
+    kind = "release-states"
+    tag = "wasm-v{line}.*"
+    asset = "Energy+.idd"
+    pattern = '^!IDD_Version (?P<release>\\d+\\.\\d+\\.\\d+)'
+    form = "full"
+    beside = ["engine.wasm"]
+
+  [[project.step]]
+  id = "statements\"""",
+)
+BUILDS = Roster.from_text(HEADER + BUILT + NONE + VERIFICATIONS)
+
+
+def _built(*found: Released) -> StepResult:
+    return _row(_evaluate(roster=BUILDS, hub=FakeHub(releases={"o/lib": found})), "lib", "build")
+
+
+def test_a_rebuild_tagged_with_the_next_patch_does_not_stand_for_that_release() -> None:
+    rebuild = Released("wasm-v26.2.0", "u", ("Energy+.idd", "engine.wasm"), "!IDD_Version 26.1.0\n")
+    assert _built(rebuild).verdict is not Verdict.PASSED
+
+
+def test_a_release_that_states_the_adopted_release_holds_whatever_its_patch() -> None:
+    assert _built(Released("wasm-v26.2.3", "u", ("Energy+.idd", "engine.wasm"), "!IDD_Version 26.2.0\n")).verdict is Verdict.PASSED
+
+
+def test_a_release_without_the_assets_named_beside_does_not_hold() -> None:
+    row = _built(Released("wasm-v26.2.0", "u", ("Energy+.idd",), "!IDD_Version 26.2.0\n"))
+    assert row.verdict is not Verdict.PASSED and "lacks engine.wasm" in (row.detail or "")
