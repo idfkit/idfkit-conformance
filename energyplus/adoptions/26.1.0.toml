@@ -1,0 +1,460 @@
+# The adoption record of EnergyPlus 26.1.0. Written once by tools/energyplus/record.py.
+# Never edited after merge. A correction is a new file beside it with a reason.
+
+[adoption]
+release = "26.1.0"
+completed_at = 2026-10-13T22:54:31Z
+tracking_issue = "none: the baseline record, written for the release already supported when the process began"
+process_revision = "a24b89a81ebad0997c4157844b8d21424f715afb"
+
+[upstream]
+repository = "NatLabRockies/EnergyPlus"
+tag = "v26.1.0"
+commit = "6f2e40d10250a105b49966baa24d843711e61048"
+published_at = 2026-03-31T21:33:27Z
+
+  [[upstream.asset]]
+  role = "linux-x86_64"
+  name = "EnergyPlus-26.1.0-6f2e40d102-Linux-Ubuntu24.04-x86_64.tar.gz"
+  size = 240273063
+  sha256 = "b651f4197bfc147a0f66dc92c58895d1748bdadb7a0288145fa9d50375edfbca"
+
+  [[upstream.asset]]
+  role = "linux-arm64"
+  name = "EnergyPlus-26.1.0-6f2e40d102-Linux-Ubuntu24.04-arm64.tar.gz"
+  size = 232423092
+  sha256 = "1a27eb6a5be69ac1fbfb591b206c1cce5bf02a973c92d207b9fd7da459984208"
+
+[[step]]
+project = "idfkit-conformance"
+id = "record-adoption"
+class = "automated"
+verdict = "passed"
+evidence = "energyplus/adoptions/26.1.0.toml"
+
+[[step]]
+project = "idfkit"
+id = "registry"
+class = "automated"
+verdict = "passed"
+evidence = "https://github.com/idfkit/idfkit/blob/HEAD/src/idfkit/versions.py#L31"
+
+[[step]]
+project = "idfkit"
+id = "bundle-schema"
+class = "automated"
+verdict = "passed"
+evidence = "https://github.com/idfkit/idfkit/blob/HEAD/src/idfkit/schemas/V26-1-0/Energy+.schema.epJSON.gz"
+
+[[step]]
+project = "idfkit"
+id = "regenerate-stubs"
+class = "automated"
+verdict = "passed"
+evidence = "https://github.com/idfkit/idfkit/actions/runs/38468095261"
+
+[[step]]
+project = "idfkit"
+id = "regenerate-references"
+class = "automated"
+verdict = "passed"
+evidence = "https://github.com/idfkit/idfkit/actions/runs/38468095261"
+
+[[step]]
+project = "idfkit"
+id = "sweep-row"
+class = "reviewed"
+verdict = "passed"
+evidence = "https://github.com/idfkit/idfkit/blob/HEAD/.github/workflows/main.yml#L126"
+
+[[step]]
+project = "idfkit"
+id = "statements"
+class = "automated"
+verdict = "passed"
+evidence = "https://github.com/idfkit/idfkit/blob/HEAD/README.md"
+
+[[step]]
+project = "idfkit"
+id = "gate"
+class = "automated"
+verdict = "passed"
+evidence = "https://github.com/idfkit/idfkit/actions/runs/38468095261"
+
+[[step]]
+project = "idfkit-engine"
+id = "toolchain-row"
+class = "reviewed"
+verdict = "passed"
+evidence = "https://github.com/idfkit/idfkit-engine/blob/HEAD/.github/energyplus-builds.json#L47"
+
+[[step]]
+project = "idfkit-engine"
+id = "build-engine"
+class = "automated"
+verdict = "passed"
+evidence = "https://github.com/idfkit/idfkit-engine/releases/tag/wasm-v26.1.0"
+
+[[step]]
+project = "idfkit-engine"
+id = "source-patches"
+class = "reviewed"
+verdict = "passed"
+evidence = "https://github.com/idfkit/idfkit-engine/commits"
+
+[[step]]
+project = "idfkit-engine"
+id = "build-preprocessors"
+class = "automated"
+verdict = "passed"
+evidence = "https://github.com/idfkit/idfkit-engine/releases/tag/preprocessors-v26.1.0"
+
+[[step]]
+project = "idfkit-engine"
+id = "compose-assets"
+class = "automated"
+verdict = "passed"
+evidence = "https://github.com/idfkit/idfkit-engine/blob/HEAD/packages/engine-assets/package.json#L3"
+
+[[step]]
+project = "idfkit-engine"
+id = "asset-package"
+class = "automated"
+verdict = "passed"
+evidence = "https://github.com/idfkit/idfkit-engine/blob/HEAD/packages/engine-assets/index.js#L19"
+
+[[step]]
+project = "idfkit-engine"
+id = "third-party-notices"
+class = "reviewed"
+verdict = "passed"
+evidence = "https://github.com/idfkit/idfkit-engine/commits"
+
+[[step]]
+project = "idfkit-engine"
+id = "e2e-fixtures"
+class = "automated"
+verdict = "passed"
+evidence = "https://github.com/idfkit/idfkit-engine/blob/HEAD/packages/engine/tests/fixtures/26.1.0"
+
+[[step]]
+project = "idfkit-engine"
+id = "differential-references"
+class = "automated"
+verdict = "passed"
+evidence = "https://github.com/idfkit/idfkit-engine/blob/HEAD/packages/engine/tests/differential/reference/26.1.0"
+
+[[step]]
+project = "idfkit-engine"
+id = "differential-comparison"
+class = "automated"
+verdict = "passed"
+evidence = "https://github.com/idfkit/idfkit-engine/actions/runs/37121533578"
+
+[[step]]
+project = "idfkit-engine"
+id = "mark-verified"
+class = "reviewed"
+verdict = "passed"
+evidence = "https://github.com/idfkit/idfkit-engine/blob/HEAD/.github/energyplus-builds.json#L47"
+
+[[step]]
+project = "idfkit-engine"
+id = "statements"
+class = "automated"
+verdict = "passed"
+evidence = "https://github.com/idfkit/idfkit-engine/blob/HEAD/README.md"
+
+[[step]]
+project = "idfkit-js"
+id = "rebuild-bundle"
+class = "automated"
+verdict = "passed"
+evidence = "https://github.com/idfkit/idfkit-js/blob/HEAD/packages/schemas/data/manifest-26-1-0.json.gz"
+
+[[step]]
+project = "idfkit-js"
+id = "documented-versions"
+class = "automated"
+verdict = "passed"
+evidence = "https://github.com/idfkit/idfkit-js/blob/HEAD/packages/core/src/docs-url/index.ts#L62"
+
+[[step]]
+project = "idfkit-js"
+id = "sweep-row"
+class = "reviewed"
+verdict = "passed"
+evidence = "https://github.com/idfkit/idfkit-js/blob/HEAD/.github/workflows/main.yml#L355"
+
+[[step]]
+project = "idfkit-js"
+id = "type-package"
+class = "manual"
+verdict = "passed"
+evidence = "https://github.com/idfkit/idfkit-js/commits"
+
+[[step]]
+project = "idfkit-js"
+id = "statements"
+class = "automated"
+verdict = "passed"
+evidence = "https://github.com/idfkit/idfkit-js/blob/HEAD/mkdocs.yml"
+
+[[step]]
+project = "idfkit-js"
+id = "gate"
+class = "automated"
+verdict = "passed"
+evidence = "https://github.com/idfkit/idfkit-js/actions/runs/36140258936"
+
+[[step]]
+project = "idfkit-mcp"
+id = "library-level"
+class = "automated"
+verdict = "passed"
+evidence = "https://pypi.org/project/idfkit/0.15.0/"
+
+[[step]]
+project = "idfkit-mcp"
+id = "statements"
+class = "automated"
+verdict = "passed"
+evidence = "https://github.com/idfkit/idfkit-mcp/blob/HEAD/README.md"
+
+[[step]]
+project = "idfkit-mcp"
+id = "gate"
+class = "automated"
+verdict = "passed"
+evidence = "https://github.com/idfkit/idfkit-mcp/actions/runs/34639468640"
+
+[[step]]
+project = "idfkit-lsp"
+id = "library-levels"
+class = "automated"
+verdict = "passed"
+evidence = "https://pypi.org/project/idfkit/1.0.0rc1/"
+
+[[step]]
+project = "idfkit-lsp"
+id = "gate"
+class = "automated"
+verdict = "passed"
+evidence = "https://github.com/idfkit/idfkit-lsp/actions/runs/34894932946"
+
+[[step]]
+project = "idfkit-docs"
+id = "library-level"
+class = "automated"
+verdict = "passed"
+evidence = "https://pypi.org/project/idfkit/0.12.1/"
+
+[[step]]
+project = "idfkit-docs"
+id = "target-list"
+class = "automated"
+verdict = "passed"
+evidence = "https://github.com/idfkit/idfkit-docs/blob/HEAD/scripts/config.py#L23"
+
+[[step]]
+project = "idfkit-docs"
+id = "documentation-sets"
+class = "reviewed"
+verdict = "passed"
+evidence = "https://github.com/idfkit/idfkit-docs/commits"
+
+[[step]]
+project = "idfkit-docs"
+id = "statements"
+class = "automated"
+verdict = "passed"
+evidence = "https://github.com/idfkit/idfkit-docs/blob/HEAD/CLAUDE.md"
+
+[[step]]
+project = "idfkit-docs"
+id = "gate"
+class = "automated"
+verdict = "passed"
+evidence = "https://github.com/idfkit/idfkit-docs/actions/runs/38467625374"
+
+[[step]]
+project = "idfkit-developers"
+id = "library-level"
+class = "automated"
+verdict = "passed"
+evidence = "https://pypi.org/project/idfkit/1.0.0rc6/"
+
+[[step]]
+project = "idfkit-developers"
+id = "documentation-artifact"
+class = "automated"
+verdict = "passed"
+evidence = "https://github.com/idfkit/idfkit-developers/blob/HEAD/docs/snippets/js/reference/versions/reading_the_list_at_runtime.ts#L6"
+
+[[step]]
+project = "idfkit-developers"
+id = "statements"
+class = "automated"
+verdict = "passed"
+evidence = "https://github.com/idfkit/idfkit-developers/blob/HEAD/docs/api/versions.md"
+
+[[step]]
+project = "idfkit-developers"
+id = "gate"
+class = "automated"
+verdict = "passed"
+evidence = "https://github.com/idfkit/idfkit-developers/actions/runs/36089891749"
+
+[[step]]
+project = "envelop"
+id = "library-level"
+class = "automated"
+verdict = "passed"
+evidence = "https://www.npmjs.com/package/@idfkit/schemas/v/0.4.0-rc.1"
+
+[[step]]
+project = "envelop"
+id = "statements"
+class = "automated"
+verdict = "passed"
+evidence = "https://github.com/idfkit/idfkit-app/blob/HEAD/src/model/schemaBundle.test.ts"
+
+[[step]]
+project = "envelop"
+id = "gate"
+class = "automated"
+verdict = "passed"
+evidence = "https://github.com/idfkit/idfkit-app/actions/runs/36716858901"
+
+[[step]]
+project = "idfkit-shoebox"
+id = "release-constant"
+class = "automated"
+verdict = "passed"
+evidence = "https://github.com/idfkit/idfkit-shoebox/blob/HEAD/src/version.js#L32"
+
+[[step]]
+project = "idfkit-shoebox"
+id = "gate"
+class = "automated"
+verdict = "passed"
+evidence = "https://github.com/idfkit/idfkit-shoebox/actions/runs/37087209085"
+
+[[step]]
+project = "idfkit-shoebox"
+id = "model-outside-browser"
+class = "manual"
+verdict = "passed"
+evidence = "https://github.com/idfkit/idfkit-shoebox/commits"
+
+[[step]]
+project = "idfkit-shoebox"
+id = "statements"
+class = "automated"
+verdict = "passed"
+evidence = "https://github.com/idfkit/idfkit-shoebox/blob/HEAD/index.html"
+
+[[step]]
+project = "idfkit.com"
+id = "statements"
+class = "automated"
+verdict = "passed"
+evidence = "https://github.com/idfkit/idfkit.com/blob/HEAD/index.html"
+
+[[step]]
+project = "idfkit-plugin"
+id = "delivery-pins"
+class = "automated"
+verdict = "passed"
+evidence = "https://pypi.org/project/idfkit/0.12.1/"
+
+[[step]]
+project = "idfkit-plugin"
+id = "statements"
+class = "automated"
+verdict = "passed"
+evidence = "https://github.com/idfkit/idfkit-plugin/blob/HEAD/skills/idf-conventions/SKILL.md"
+
+[[step]]
+project = "idfkit-mcp-deployment"
+id = "engine-archive"
+class = "automated"
+verdict = "not-applicable"
+reason = "Deliberate lag: The hosted service adopts an EnergyPlus release only together with a reviewed change of its platform and billing, which no adoption run performs. Its default branch is behind the supported set by more than one release."
+
+[[step]]
+project = "idfkit-mcp-deployment"
+id = "smoke-constants"
+class = "automated"
+verdict = "not-applicable"
+reason = "Deliberate lag: The hosted service adopts an EnergyPlus release only together with a reviewed change of its platform and billing, which no adoption run performs. Its default branch is behind the supported set by more than one release."
+
+[[step]]
+project = "idfkit-mcp-deployment"
+id = "image-build"
+class = "automated"
+verdict = "not-applicable"
+reason = "Deliberate lag: The hosted service adopts an EnergyPlus release only together with a reviewed change of its platform and billing, which no adoption run performs. Its default branch is behind the supported set by more than one release."
+
+[[step]]
+project = "idfkit-mcp-deployment"
+id = "gate"
+class = "automated"
+verdict = "not-applicable"
+reason = "Deliberate lag: The hosted service adopts an EnergyPlus release only together with a reviewed change of its platform and billing, which no adoption run performs. Its default branch is behind the supported set by more than one release."
+
+[[step]]
+project = "idfkit-mcp-deployment"
+id = "billable-smoke"
+class = "manual"
+verdict = "not-applicable"
+reason = "Deliberate lag: The hosted service adopts an EnergyPlus release only together with a reviewed change of its platform and billing, which no adoption run performs. Its default branch is behind the supported set by more than one release."
+
+[[step]]
+project = "end-to-end"
+id = "parses-and-validates"
+class = "automated"
+verdict = "passed"
+evidence = "https://github.com/idfkit/idfkit/actions/runs/38468095261"
+
+[[step]]
+project = "end-to-end"
+id = "round-trips"
+class = "automated"
+verdict = "passed"
+evidence = "https://github.com/idfkit/idfkit/actions/runs/38468095261"
+
+[[step]]
+project = "end-to-end"
+id = "migrates"
+class = "automated"
+verdict = "passed"
+evidence = "https://github.com/idfkit/idfkit-engine/actions/runs/37121533578"
+
+[[step]]
+project = "end-to-end"
+id = "simulates"
+class = "automated"
+verdict = "passed"
+evidence = "https://github.com/idfkit/idfkit-engine/actions/runs/37121533578"
+
+[[step]]
+project = "end-to-end"
+id = "documentation-published"
+class = "automated"
+verdict = "passed"
+evidence = "https://docs.idfkit.com/versions.json"
+
+[[step]]
+project = "end-to-end"
+id = "range-stated"
+class = "automated"
+verdict = "passed"
+evidence = "https://github.com/idfkit/idfkit/blob/HEAD/README.md"
+
+[[step]]
+project = "end-to-end"
+id = "conformance-passes"
+class = "automated"
+verdict = "passed"
+evidence = "https://github.com/idfkit/idfkit/actions/runs/38468095279"

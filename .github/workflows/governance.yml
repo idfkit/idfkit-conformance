@@ -28,6 +28,7 @@ on:
       - "runners/**"
       - "tools/**"
       - "tests/**"
+      - "energyplus/**"
       - ".github/workflows/**"
   push:
     branches: [main]
@@ -58,6 +59,12 @@ jobs:
       # formed, and it runs here so a malformed roster cannot reach an immutable tag (T025).
       - name: Validate the consumer register
         run: python tools/check_consumers.py
+
+      # The fifth artifact (feature 012): the version roster. The validator reads only the file, so a
+      # project that drifted cannot fail this job. Whether the projects match the roster is the
+      # scan's question, asked by the scheduled sweep.
+      - name: Validate the version roster
+        run: python -m tools.energyplus.check_roster
 
       # The register's tools each carry tests that prove the check can fail: a schema rule, a
       # sweep, a rename scan and an ordering that never reject anything are indistinguishable from
