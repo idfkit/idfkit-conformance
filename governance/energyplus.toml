@@ -2003,6 +2003,11 @@ checks = "check.yml"
 gate = "npm ci && npm run build"
 after_merge = "Deploy the page by the project's own workflow."
 
+  # The steps below are kept so that lifting the lag is the removal of this table and nothing else.
+  [project.lag]
+  kind = "deliberate"
+  reason = "The page is a fixed demonstration pinned to one engine release, the one its own `src/version.js` names, so that its stated results and timings stay reproducible. It moves to a newer release only by a deliberate decision, never by an adoption run."
+
   [[project.opens_on]]
   kind = "published"
   index = "npm"
