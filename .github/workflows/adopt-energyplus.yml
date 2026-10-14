@@ -25,8 +25,9 @@
 #      falls back to a branch.
 #   2. Runs tools/energyplus/adopt.py in the project's working tree: the roster's commands for the
 #      steps that do not already hold, the rewriting of declared statements, and the project's gate.
-#   3. Pushes the branch energyplus/X.Y.Z with the project's own token and opens the pull request
-#      with the application's token, so that the project's pull request checks run on it.
+#   3. Pushes the branch energyplus/X.Y.Z and opens the pull request, both with the application's
+#      token, so that the project's pull request checks run on it. The application needs
+#      `contents: write`, `pull-requests: write` and `workflows: write` on the project.
 #   4. Dispatches the watch, so that the tracking issue is evaluated again at once.
 #
 # WHAT IT NEVER DOES
@@ -175,15 +176,15 @@ jobs:
           path: .energyplus-adoption/
           include-hidden-files: true
 
-      # The branch is pushed with this repository's token and the pull request is opened by the
-      # application. A pull request opened with the default token triggers no workflow, so the
-      # project's own checks would never run on it.
+      # The branch is pushed and the pull request opened by the application. A pull request opened
+      # with the default token triggers no workflow, so the project's own checks would never run on
+      # it. The branch is pushed by the application as well, because an adoption may add a row to a
+      # matrix in a workflow file, and the default token cannot push a change to one.
       - name: Open or update the pull request
         if: steps.adopt.outputs.result == 'proposed'
         uses: peter-evans/create-pull-request@v7
         with:
           token: ${{ steps.app-token.outputs.token }}
-          branch-token: ${{ github.token }}
           branch: energyplus/${{ inputs.release }}
           title: Adopt EnergyPlus ${{ inputs.release }}
           commit-message: Adopt EnergyPlus ${{ inputs.release }}
