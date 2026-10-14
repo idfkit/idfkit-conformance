@@ -244,6 +244,7 @@ def adopt(
         return AdoptionResult(Result.STATEMENT_MISMATCH, str(mismatch))
 
     performed, present, waiting, prepared = [], [], [], []
+    ran_commands = False
     for step in project.steps:
         judge = fresh()
         content = [member for member in members(step.verify) if isinstance(member, CONTENT_KINDS)]
@@ -264,12 +265,17 @@ def adopt(
             ran = runner.run(release.substitute(step.run), tree / project.workdir)
             if ran.returncode != 0:
                 return AdoptionResult(Result.STEP_FAILED, f"step {step.id} exited {ran.returncode}", tuple(performed), tuple(present), log=ran.output)
+            ran_commands = True
             performed.append(step.id)
             if step.step_class is not StepClass.AUTOMATED and ran.output.strip():
                 prepared.append(Prepared(step.id, ran.output))
-    if waiting:
-        detail = f"waiting on: {', '.join(waiting)}. No command of the adoption produces it: another workflow of the project, or a person, moves it. No later step was run."
-        return AdoptionResult(Result.WAITING, detail, tuple(performed), tuple(present), tuple(waiting))
+    waited = f"waiting on: {', '.join(waiting)}. No command of the adoption produces it: another workflow of the project, or a person, moves it. No later step was run."
+    # Stopping before any command ran leaves nothing the gate could judge: the step waited on is what
+    # the rest needs. Stopping after commands ran must not discard what they wrote. A reviewed step
+    # with content and no command, such as a status a person sets after reading a report, comes after
+    # the commands that produce that report, and is only ever reached on a branch that holds them.
+    if waiting and not ran_commands:
+        return AdoptionResult(Result.WAITING, waited, tuple(performed), tuple(present), tuple(waiting))
     try:
         # A command may have regenerated a file that holds a statement.
         statements += rewrite_statements(project, tree, evaluator.target)
@@ -302,7 +308,8 @@ def adopt(
         differing = differing_from(tree, remote_branch)
         detail = f"the branch holds commits by {', '.join(people)} and was left as it is"
         return AdoptionResult(Result.BRANCH_EDITED, detail, tuple(performed), tuple(present), (), statements, files, differing, prepared=tuple(prepared))
-    return AdoptionResult(Result.PROPOSED, f"{len(files)} file(s) changed", tuple(performed), tuple(present), (), statements, files, prepared=tuple(prepared))
+    detail = f"{len(files)} file(s) changed" + (f"; {waited}" if waiting else "")
+    return AdoptionResult(Result.PROPOSED, detail, tuple(performed), tuple(present), tuple(waiting), statements, files, prepared=tuple(prepared))
 
 
 # ── The pull request body (contract section 5) ─────────────────────────────────────────────────────

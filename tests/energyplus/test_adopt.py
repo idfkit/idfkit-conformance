@@ -199,6 +199,19 @@ def test_a_run_stops_at_the_first_step_it_waits_on(tree: Path) -> None:
     assert runner.commands == [] and "No later step was run" in result.detail
 
 
+def test_a_wait_after_commands_ran_proposes_what_they_wrote(tree: Path) -> None:
+    # idfkit-engine's shape: commands build and report, then a reviewed step with no command waits on
+    # a status a person sets after reading that report. The commands' work must reach a branch.
+    waits_late = ROSTER.replace("path = \"ci.yml\"\n      pattern = 'version:", "path = \"ci.yml\"\n      pattern = 'verified:", 1)
+    assert waits_late != ROSTER
+    runner = FakeRunner()
+    result = _adopt(tree, runner, Roster.from_text(waits_late))
+    assert result.result is Result.PROPOSED and result.waiting == ("sweep-row",)
+    assert result.performed == ("registry",) and "versions.py" in result.files_changed
+    assert runner.commands == ["echo 26.2.0", "make check"]
+    assert "waiting on: sweep-row" in result.detail
+
+
 def test_what_a_reviewed_steps_command_printed_reaches_the_pull_request_body(tree: Path) -> None:
     reviewed = ROSTER.replace('  class = "reviewed"\n', '  class = "reviewed"\n  run = "echo sweep {full}"\n', 1)
     roster = Roster.from_text(reviewed.replace('  run = "echo {full}"\n', '  run = "true"\n', 1))
