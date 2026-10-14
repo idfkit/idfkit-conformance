@@ -115,7 +115,7 @@ python -m tools.energyplus.checklist evaluation.json
 
 The engine's builds are identified by what they hold, not by their tag. Its prereleases are tagged
 `wasm-vX.Y.Z`, and the patch slot counts that project's own rebuilds, because a published package
-version can never be replaced: `wasm-v26.1.1` is a rebuild of 26.1.0. The `Energy+.idd` a prerelease
+version can never be replaced: `wasm-vX.Y.1` is a rebuild of release X.Y.0. The `Energy+.idd` a prerelease
 carries states the release it was built from, and the roster verifies that. Should upstream publish
 a patch release, the engine's dispatch command refuses to write to a tag that already holds another
 release, and a maintainer chooses the tag.

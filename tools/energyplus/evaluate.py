@@ -950,8 +950,8 @@ class GhHub:
     def run(self, repository: str, workflow: str, release: Release) -> Run | None:
         payload = self._api(f"repos/{repository}/actions/workflows/{workflow}/runs?per_page=30&event=workflow_dispatch", missing={})
         for run in payload.get("workflow_runs") or []:
-            # The release is matched as a whole number. Looked for as a substring, 6.1.0 would be
-            # found in the title of a run for 26.1.0.
+            # The release is matched as a whole number. Looked for as a substring, a release X.Y.Z would
+            # be found in the title of a run for the release one more digit wide, 1X.Y.Z.
             if re.search(rf"(?<![\d.]){re.escape(release.full())}(?![\d.])", run.get("display_title") or ""):
                 return Run(run["html_url"], run["conclusion"] if run["status"] == "completed" else None, run.get("head_sha") or "")
         return None

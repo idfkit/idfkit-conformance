@@ -370,7 +370,7 @@ class ReleaseStates:
 
     Used where a tag cannot be trusted to name the release. The engine tags its prereleases
     `wasm-vX.Y.Z` and counts its own rebuilds in the patch slot, because a published package version
-    can never be replaced: `wasm-v26.1.1` is a rebuild of 26.1.0. What a prerelease was built from
+    can never be replaced: `wasm-vX.Y.1` is a rebuild of release X.Y.0. What a prerelease was built from
     is stated by the first line of the `Energy+.idd` it carries. `tag` is a glob with renderings
     substituted, and the verification holds when one matching release has `asset` naming the
     release, and every asset in `beside` as well.
