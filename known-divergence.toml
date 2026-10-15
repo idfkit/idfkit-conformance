@@ -17,15 +17,16 @@
 # read that such issues "must land together"; idfkit-js 10 landed alone on 2026-09-10 and the
 # register followed it, one entry at a time, with the python half of the same bug still recorded.
 #
-# Counts, against idfkit 1.0.0rc2 and @idfkit/core 0.3.0-rc.3 with idfkit-js#60 applied,
-# EnergyPlus 26.1.0: 21 entries over
-# 11 issues and 13 cases, 16 against python and 5 against typescript, on a corpus of 69 cases and
-# 211 assertions. Four entries went away in e60b74d, when both libraries started agreeing about
-# blank names, and the typescript half of types-choice-field-casing went away with idfkit-js 10.
-# This header stated 22 entries over 47 cases until 2026-09-04, 20 over 12 cases until the
-# preserved-text assertion landed, and 22 over 12 issues until choice casing was fixed in the
-# second language; it is recounted from the file and from the runner's own tally rather than
-# adjusted, and it is recounted again whenever a case lands.
+# Counts, recounted from this file after idfkit#179 to idfkit#182 were fixed: 12 entries over 6
+# issues and 9 cases, 7 against python and 5 against typescript, on a corpus of 69 cases and 211
+# assertions. Before that change the file held 17 entries, although this paragraph still stated the
+# 21 counted against idfkit 1.0.0rc2 and @idfkit/core 0.3.0-rc.3 with idfkit-js#60 applied. Four
+# entries went away in e60b74d, when both libraries started agreeing about blank names, and the
+# typescript half of types-choice-field-casing went away with idfkit-js 10. This header stated 22
+# entries over 47 cases until 2026-09-04, 20 over 12 cases until the preserved-text assertion
+# landed, and 22 over 12 issues until choice casing was fixed in the second language; it is
+# recounted from the file and from the runner's own tally rather than adjusted, and it is recounted
+# again whenever a case lands.
 
 #
 # The tier1-introspection-field-shapes entry was removed on 2026-09-04, in the change that closed
@@ -74,14 +75,6 @@ expected  = '''The Material:NoMass object is keyed "试验", carrying {"roughnes
 # extensible
 # ---------------------------------------------------------------------------
 
-[[divergence]]
-case      = "extensible-schedule-compact-numeric-field"
-library   = "python"
-assertion = "epjson"
-issue     = "https://github.com/idfkit/idfkit/issues/179"
-observed  = '''/Schedule:Compact/Untyped Extensible Schedule/data/3/field, /data/5/field and /data/7/field are the JSON strings "0", "0.75" and "1". Python does not coerce a numeric value inside the untyped extensible field whose schema type is anyOf [number, string], so every numeric schedule value ships as text. This was the single largest finding in the bootstrap sweep: 67,341 occurrences across 729 example files.'''
-expected  = '''The same three pointers are the JSON numbers 0, 0.75 and 1, while the keyword entries "Through: 12/31", "For: AllDays", "Until: 08:00", "Until: 18:00" and "Until: 24:00" stay JSON strings. One field, two types, decided per value.'''
-
 # ---------------------------------------------------------------------------
 # malformed
 # ---------------------------------------------------------------------------
@@ -116,14 +109,6 @@ expected  = '''All three are "Autosize". The three coils differ only in the casi
 
 [[divergence]]
 case      = "numeric-sentinel-schema-remap"
-library   = "python"
-assertion = "epjson"
-issue     = "https://github.com/idfkit/idfkit/issues/181"
-observed  = '''/AirTerminal:SingleDuct:VAV:Reheat/Reheat Terminal/maximum_flow_fraction_during_reheat is "Autocalculate". Python canonicalises the sentinel word the file happened to write rather than the sentinel the field's own schema declares: that field's enum is ["", "Autosize"] and holds no autocalculate spelling at all, so "Autocalculate" is not a legal value there.'''
-expected  = '''"Autosize". The schema, not the file, decides which sentinel a field accepts. Every other pointer in this case agrees on all three sides, so exactly one value differs. This is the three-way split: Python says "Autocalculate", TypeScript says "AUTOCALCULATE", the oracle says "Autosize", and it is the case that proves agreement between the two libraries would not have been correctness.'''
-
-[[divergence]]
-case      = "numeric-sentinel-schema-remap"
 library   = "typescript"
 assertion = "epjson"
 issue     = "https://github.com/idfkit/idfkit-js/issues/9"
@@ -141,22 +126,6 @@ expected  = '''Re-parsing deep-equals the original document. Either the parser s
 # ---------------------------------------------------------------------------
 # positional
 # ---------------------------------------------------------------------------
-
-[[divergence]]
-case      = "positional-extensible-group-trailing-unset"
-library   = "python"
-assertion = "epjson"
-issue     = "https://github.com/idfkit/idfkit/issues/182"
-observed  = '''Both extensible entries carry six keys, the last two being the empty string: /ZoneHVAC:EquipmentList/Main Zone Equipment/equipment/0 and /equipment/1 each hold zone_equipment_sequential_cooling_fraction_schedule_name = "" and zone_equipment_sequential_heating_fraction_schedule_name = "". The epJSON writer strips an empty string in the fixed-field section, which is why positional-trailing-unset-before-extensible passes on that same path, but not inside an extensible group.'''
-expected  = '''Each entry has exactly four keys: zone_equipment_object_type, zone_equipment_name, zone_equipment_cooling_sequence and zone_equipment_heating_or_no_load_sequence. Neither fraction-schedule key appears on either entry. The sweep found this shape 5,558 times across 579 example files, over 16 distinct field pairs.'''
-
-[[divergence]]
-case      = "positional-extensible-group-trailing-unset"
-library   = "python"
-assertion = "round-trip"
-issue     = "https://github.com/idfkit/idfkit/issues/182"
-observed  = '''write_idf drops the two blanks that close the object at its semicolon but keeps the two that close the first group, so the two groups come back asymmetric: re-parsing loses zone_equipment_sequential_cooling_fraction_schedule_name and its heating counterpart from /ZoneHVAC:EquipmentList/0/fields/1/value/1, the last group only.'''
-expected  = '''Re-parsing deep-equals the original document, with both extensible groups holding the same field count after the write. A blank that ends the last group and a blank that ends any other group are the same thing and must survive the same way.'''
 
 [[divergence]]
 case      = "positional-trailing-unset-no-extensible"
@@ -184,24 +153,18 @@ The same root cause as this case's accepted parse-outcome divergence, and the sa
 # types
 # ---------------------------------------------------------------------------
 
-[[divergence]]
-case      = "types-choice-field-casing"
-library   = "python"
-assertion = "epjson"
-issue     = "https://github.com/idfkit/idfkit/issues/180"
-observed  = '''Choice values are echoed as the file wrote them: /GlobalGeometryRules/GlobalGeometryRules 1/vertex_entry_direction "CounterClockWise", /ScheduleTypeLimits/Any Number Limits/numeric_type "CONTINUOUS", /Output:Variable/Output:Variable 1/reporting_frequency "hourly".'''
-expected  = '''The casing the schema declares for each choice: "Counterclockwise", "Continuous", "Hourly". ConvertInputFormat normalises a choice field to its schema spelling, so a consumer may compare a choice value for equality without folding case.'''
-
 # The typescript entry on this case was removed on 2026-09-10, in the change that landed choice
 # canonicalisation in the JavaScript library (idfkit-js#60, closing idfkit-js#10). Its case now
 # passes, and a passing case with an entry still standing is a failure the runner reports, so the
 # entry goes with the fix rather than after it.
 #
-# The python entry stays. idfkit#180 is unfixed, so it is not stale. This header once said the four
-# entries on the two both-language bugs "must land together"; the pairing is real for the bug and
-# not for the register, which records one entry per case, library and assertion and goes stale one
-# entry at a time. Choice casing is now the proof: one language fixed it, one entry left, the other
-# still failing and still recorded.
+# The python entry was removed in the change that fixed idfkit#180, which canonicalises a choice
+# value to the schema's spelling in the epJSON writer, as idfkit-js#60 does. The same change fixed
+# idfkit#181 and removed the python entry on numeric-sentinel-schema-remap; the typescript entry on
+# that case stays until idfkit-js#9 is fixed. This header once said the four entries on the two
+# both-language bugs "must land together"; the pairing is real for the bug and not for the
+# register, which records one entry per case, library and assertion and goes stale one entry at a
+# time.
 
 # ---------------------------------------------------------------------------
 # versions
