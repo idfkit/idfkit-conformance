@@ -150,9 +150,6 @@ to the deferred text-editor slice.
     path = "levels.json"
     locator = "libraries[name=idfkit].level"
     form = "exact"
-    [consumer.libraries.lag]
-    kind = "not-yet"
-    issue = "https://github.com/idfkit/idfkit-lsp/issues/17"
 
   # The model server, which serves IDF text through the language service. Scoped, and not behind on
   # that account: its optional peer on the shared name exists so it can tell a user what to install.
