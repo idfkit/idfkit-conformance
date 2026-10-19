@@ -668,8 +668,13 @@ class Evaluator:
 # ── The next action ────────────────────────────────────────────────────────────────────────────────
 
 
-def next_action(roster: Roster, rows: Sequence[StepResult], states: Sequence[ProjectState]) -> NextAction | None:
-    """The one action owed by a person, or `None` when nothing is owed (rule C6)."""
+def next_action(roster: Roster, rows: Sequence[StepResult], states: Sequence[ProjectState], strangers: Sequence[Occurrence] = ()) -> NextAction | None:
+    """The one action owed by a person, or `None` when nothing is owed (rule C6).
+
+    An occurrence under no declaration refuses the record (rule R1) and no step resolves it, so it is
+    owed by a person once nothing earlier is: without it, an adoption whose steps are all resolved
+    would report that nothing is owed while its record is refused.
+    """
     for row in rows:
         if row.verdict is Verdict.AWAITING_PERSON:
             return NextAction(f"review {row.project}: {row.title}", f"a maintainer of {row.project}", row.evidence)
@@ -699,6 +704,12 @@ def next_action(roster: Roster, rows: Sequence[StepResult], states: Sequence[Pro
             waiting = sum(1 for item in states if not item.opened and opening.stated() in item.waits_on)
             who = f"a maintainer of {owner.id}" if owner else "a maintainer"
             return NextAction(f"publish {package} with the release. {waiting} project(s) are waiting on it.", who)
+    if strangers:
+        named = ", ".join(sorted({occurrence.project for occurrence in strangers}))
+        return NextAction(
+            f"account for {len(strangers)} occurrence(s) under no declaration in {named}: declare each in governance/energyplus.toml, or change it.",
+            "a maintainer",
+        )
     return None
 
 
@@ -785,7 +796,7 @@ def evaluate(
         unread=tuple(f"{unread.project}: {unread.cause}" for unread in report.unread) if report else (),
         projects=tuple(states),
         rows=tuple(rows),
-        next_action=next_action(roster, rows, states),
+        next_action=next_action(roster, rows, states, strangers),
         changes=changes,
     )
 

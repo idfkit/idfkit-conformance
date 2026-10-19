@@ -169,6 +169,19 @@ def test_g5_a_complete_adoption_writes_only_the_record(tmp_path: Path) -> None:
     assert "**Next action**: none is owed." in issues.issues[NEXT].body
 
 
+def test_a_stranger_after_every_step_is_resolved_is_owed_and_writes_no_record(tmp_path: Path) -> None:
+    repos = adopted()
+    files = repos["o/lib"]
+    assert files is not None
+    files["notes.md"] = "The latest is 26.2.0.\n"
+    outcome, issues = _run(tmp_path, repos=repos, published=packages(released=True))
+    assert outcome.records == () and not (tmp_path / "26.2.0.toml").exists()
+    assert outcome.exit_code == EXIT_WAITING
+    assert not any("none owed by a person" in line for line in outcome.lines)
+    assert any("account for 1 occurrence(s) under no declaration in lib" in line for line in outcome.lines)
+    assert "**Next action**: account for 1 occurrence(s)" in issues.issues[NEXT].body
+
+
 def test_a_changed_source_withholds_dispatch(tmp_path: Path) -> None:
     _, issues = _run(tmp_path)
     tampered = issues.issues[NEXT]
