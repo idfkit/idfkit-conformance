@@ -206,7 +206,7 @@ def dispatch(roster: Roster, evaluation: Evaluation, dispatcher: Dispatcher) -> 
         except DispatchError as error:
             failures.append(f"{project_id}: {error}")
     rows = tuple(replace(row, reason=DISPATCHED) if row.project in sent and row.reason == NOT_DISPATCHED else row for row in evaluation.rows)
-    return replace(evaluation, rows=rows, next_action=next_action(roster, rows, evaluation.projects)), tuple(failures)
+    return replace(evaluation, rows=rows, next_action=next_action(roster, rows, evaluation.projects, evaluation.strangers)), tuple(failures)
 
 
 # ── One run ────────────────────────────────────────────────────────────────────────────────────────
