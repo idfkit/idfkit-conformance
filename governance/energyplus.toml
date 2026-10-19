@@ -351,6 +351,10 @@ after_merge = "Publish an idfkit version to the package index. Every project tha
   glob = "src/idfkit/writers.py"
   reason = "The comment uses 26.1 as an example of a four-character version identifier when describing column drift."
 
+  [[project.ignore]]
+  pattern = 'scripts/adopt_energyplus\.py (register|sweep-row) \d+\.\d+\.\d+|python -m idfkit\.download \d+\.\d+\.\d+'
+  reason = "A usage example in a module docstring. The argument illustrates the form of the command, and does not state the supported range."
+
 # ── The engine ────────────────────────────────────────────────────────────────────────────────────
 #
 # The engine resolves neither library and is out of scope of the consumer register. It appears here
@@ -1196,8 +1200,8 @@ after_merge = "Publish an idfkit-js version to the package index. Every project 
   by_step = "sweep-row"
 
   [[project.pin]]
-  glob = "packages/types-v26-1/**"
-  reason = "The per-release type package for 26.1.0. A later release receives its own package or none, and this package is not renamed."
+  glob = "packages/types-v*/**"
+  reason = "A per-release type package, which names its own release throughout. A later release receives its own package or none, and an existing package is not renamed."
 
   [[project.pin]]
   glob = "packages/*/tests/**"
@@ -1832,6 +1836,10 @@ after_merge = "None. The site deploys from its default branch by its own workflo
   reason = "Test fixtures reproduce an install instruction verbatim to exercise the surface check."
 
   # ── Ignores ───────────────────────────────────────────────────────────────────────────────────────
+
+  [[project.ignore]]
+  pattern = 'scripts/adopt_release\.py \d+\.\d+\.\d+'
+  reason = "A usage example in a module docstring. The argument illustrates the form of the command, and does not state the supported range."
 
   [[project.ignore]]
   pattern = '@idfkit/types-v\d+-\d+'
