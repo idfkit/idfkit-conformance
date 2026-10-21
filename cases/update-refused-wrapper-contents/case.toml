@@ -1,0 +1,19 @@
+title = "A group whose wrapper list holds an unknown group member is refused and changes nothing"
+why = """
+The claim is that the multi-field update examines the contents of the extensible wrapper key's list
+before it applies any entry, not only that the value is a list. The group sets the Office Wall's
+Surface Type to Roof and gives `vertices` three groups, the second of which carries `bogus`, which
+is not one of the type's extensible field names. Single assignment of that list is rejected, so the
+whole group is refused, and Surface Type keeps its value.
+
+Before this case, both languages checked only that the wrapper value was a list. Each then applied
+Surface Type and failed while replacing the list, leaving the object half edited, which neither
+update-wrapper-key nor any refused case exercised (idfkit-unification feature 015, FR-003,
+FR-004 (d)). after.idf is byte-identical to the input, so post-operation-epjson is the
+assertion that shows nothing was applied; preserved-text excludes the touched surface and holds
+only the rest of the file. The runner requires the error to name `vertices` as a refused entry.
+"""
+tags = ["tier1", "extensible"]
+energyplus_version = "26.1.0"
+truth = "convention"
+assertions = ["parse-outcome", "post-operation-epjson", "preserved-text"]

@@ -1,0 +1,43 @@
+Version,
+  26.1;
+
+Building,
+  Office Block,            !- Name
+  0.0,                     !- North Axis {deg}
+  City,                    !- Terrain
+  0.04,                    !- Loads Convergence Tolerance Value {W}
+  0.4,                     !- Temperature Convergence Tolerance Value {deltaC}
+  FullExterior,            !- Solar Distribution
+  25,                      !- Maximum Number of Warmup Days
+  6;                       !- Minimum Number of Warmup Days
+
+GlobalGeometryRules,
+  UpperLeftCorner,         !- Starting Vertex Position
+  Counterclockwise,        !- Vertex Entry Direction
+  Relative;                !- Coordinate System
+
+Zone,
+  Office,                  !- Name
+  0,                       !- Direction of Relative North {deg}
+  0,                       !- X Origin {m}
+  0,                       !- Y Origin {m}
+  0,                       !- Z Origin {m}
+  1,                       !- Type
+  1;                       !- Multiplier
+
+BuildingSurface:Detailed,
+  Office Wall,             !- Name
+  Wall,                    !- Surface Type
+  Exterior Wall,           !- Construction Name
+  Office,                  !- Zone Name
+  ,                        !- Space Name
+  Outdoors,                !- Outside Boundary Condition
+  ,                        !- Outside Boundary Condition Object
+  SunExposed,              !- Sun Exposure
+  WindExposed,             !- Wind Exposure
+  0.5,                     !- View Factor to Ground
+  4,                       !- Number of Vertices
+  0, 0, 3,                 !- X,Y,Z Vertex 1 {m}
+  0, 0, 0,                 !- X,Y,Z Vertex 2 {m}
+  10, 0, 0,                !- X,Y,Z Vertex 3 {m}
+  10, 0, 3;                !- X,Y,Z Vertex 4 {m}

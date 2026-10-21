@@ -18,10 +18,20 @@
 # locally are skipped, and every skip is reported at the end: a full set of installs is
 # roughly 13.6 GB, so working from a partial set is the normal case, not a failure.
 #
-# A case with truth = "convention" has no oracle. It is skipped without error (FR-020).
+# Separately, for every case that declares the post-operation-epjson assertion, it runs
+# the same converter on cases/<id>/after.idf, the input with the case's operations made
+# textually, and places the result at cases/<id>/expected.after.epJSON. This happens
+# whatever the case's truth, because the two files answer different questions: a
+# convention case still has no expected.epJSON, since nothing external rules on how its
+# input is read, while its post-operation expectation is still produced by the oracle
+# from a committed input rather than written by hand.
+#
+# A case with truth = "convention" that declares no post-operation-epjson has nothing
+# to regenerate. It is skipped without error (FR-020).
 #
 # Usage:
-#   tools/regenerate.sh                 regenerate every oracle case
+#   tools/regenerate.sh                 regenerate every oracle case and every
+#                                       case declaring post-operation-epjson
 #   tools/regenerate.sh <id> [<id>...]  regenerate only the named cases
 #   tools/regenerate.sh --help
 #
@@ -41,7 +51,9 @@ readonly REPO_ROOT
 readonly CASES_DIR="$REPO_ROOT/cases"
 
 usage() {
-    sed -n '3,32p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+    # Every comment line of the header, from the title to the blank line that ends it, so
+    # the help cannot fall out of step with the header when either is edited.
+    awk 'NR > 2 && /^#/ { sub(/^# ?/, ""); print; next } NR > 2 { exit }' "${BASH_SOURCE[0]}"
 }
 
 if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
@@ -65,6 +77,30 @@ read_toml_string() {
                 }
             }
         }
+    ' "$file"
+}
+
+# Succeed when the case.toml's assertions list names the given assertion, whether the
+# array sits on one line or spans several. Like read_toml_string, this ignores
+# triple-quoted blocks, so prose in `why` cannot count.
+declares_assertion() {
+    local assertion="$1" file="$2"
+    awk -v want="\"$assertion\"" '
+        { line = $0; probe = line; fences = gsub(/"""/, "", probe) }
+        inblock { if (fences % 2 == 1) inblock = 0; next }
+        inarray {
+            if (index(line, want) > 0) { found = 1; exit }
+            if (line ~ /\]/) inarray = 0
+            next
+        }
+        {
+            if (fences % 2 == 1) { inblock = 1; next }
+            if (line ~ /^[ \t]*assertions[ \t]*=/) {
+                if (index(line, want) > 0) { found = 1; exit }
+                if (line !~ /\]/) inarray = 1
+            }
+        }
+        END { exit found ? 0 : 1 }
     ' "$file"
 }
 
@@ -121,7 +157,11 @@ while IFS= read -r case_id; do
     fi
 
     truth="$(read_toml_string truth "$manifest")"
-    if [[ "$truth" != "oracle" ]]; then
+    post_operation=0
+    if declares_assertion post-operation-epjson "$manifest"; then
+        post_operation=1
+    fi
+    if [[ "$truth" != "oracle" && "$post_operation" -eq 0 ]]; then
         # truth = "convention" has no external authority to ask, and forbids
         # expected.epJSON. Not an error.
         skipped_convention+=("$case_id")
@@ -130,53 +170,72 @@ while IFS= read -r case_id; do
 
     version="$(read_toml_string energyplus_version "$manifest")"
     if [[ -z "$version" ]]; then
-        echo "FAIL  $case_id: truth = \"oracle\" but no energyplus_version" >&2
+        echo "FAIL  $case_id: an oracle expectation is owed but there is no energyplus_version" >&2
         failed+=("$case_id: missing energyplus_version")
         continue
     fi
 
-    input="$case_dir/input.idf"
-    if [[ ! -f "$input" ]]; then
-        # The oracle converts IDF to epJSON. A case whose input is already epJSON has
-        # nothing to regenerate here.
-        skipped_no_input+=("$case_id")
-        continue
+    # Each conversion is a source in the case directory and the expectation it produces.
+    conversions=()
+    if [[ "$truth" == "oracle" ]]; then
+        conversions+=("input.idf expected.epJSON")
+    fi
+    if [[ "$post_operation" -eq 1 ]]; then
+        conversions+=("after.idf expected.after.epJSON")
     fi
 
-    if ! converter="$(find_converter "$version")"; then
-        skipped_no_install+=("$case_id ($version)")
-        missing_versions+=("$version")
-        continue
-    fi
+    for conversion in "${conversions[@]}"; do
+        source_name="${conversion%% *}"
+        target_name="${conversion##* }"
+        label="$case_id/$target_name"
+        input="$case_dir/$source_name"
+        if [[ ! -f "$input" ]]; then
+            if [[ "$source_name" == "after.idf" ]]; then
+                echo "FAIL  $case_id: declares post-operation-epjson but has no after.idf" >&2
+                failed+=("$case_id: missing after.idf")
+            else
+                # The oracle converts IDF to epJSON. A case whose input is already epJSON
+                # has nothing to regenerate here.
+                skipped_no_input+=("$case_id")
+            fi
+            continue
+        fi
 
-    out_dir="$tmp_dir/$case_id"
-    rm -rf "$out_dir"
-    mkdir -p "$out_dir"
+        if ! converter="$(find_converter "$version")"; then
+            skipped_no_install+=("$label ($version)")
+            missing_versions+=("$version")
+            continue
+        fi
 
-    if ! "$converter" -f epJSON -o "$out_dir/" "$input" >"$out_dir/converter.log" 2>&1; then
-        echo "FAIL  $case_id: ConvertInputFormat $version exited non-zero" >&2
-        sed 's/^/      /' "$out_dir/converter.log" >&2
-        failed+=("$case_id: converter rejected the input")
-        continue
-    fi
+        out_dir="$tmp_dir/$case_id/${source_name%.idf}"
+        rm -rf "$out_dir"
+        mkdir -p "$out_dir"
 
-    produced="$out_dir/input.epJSON"
-    if [[ ! -f "$produced" ]]; then
-        echo "FAIL  $case_id: ConvertInputFormat $version produced no epJSON" >&2
-        sed 's/^/      /' "$out_dir/converter.log" >&2
-        failed+=("$case_id: no output produced")
-        continue
-    fi
+        if ! "$converter" -f epJSON -o "$out_dir/" "$input" >"$out_dir/converter.log" 2>&1; then
+            echo "FAIL  $label: ConvertInputFormat $version exited non-zero" >&2
+            sed 's/^/      /' "$out_dir/converter.log" >&2
+            failed+=("$label: converter rejected $source_name")
+            continue
+        fi
 
-    expected="$case_dir/expected.epJSON"
-    if [[ -f "$expected" ]] && cmp -s "$produced" "$expected"; then
-        unchanged+=("$case_id")
-        echo "ok    $case_id ($version) unchanged"
-    else
-        cp "$produced" "$expected"
-        updated+=("$case_id")
-        echo "ok    $case_id ($version) written"
-    fi
+        produced="$out_dir/${source_name%.idf}.epJSON"
+        if [[ ! -f "$produced" ]]; then
+            echo "FAIL  $label: ConvertInputFormat $version produced no epJSON" >&2
+            sed 's/^/      /' "$out_dir/converter.log" >&2
+            failed+=("$label: no output produced")
+            continue
+        fi
+
+        expected="$case_dir/$target_name"
+        if [[ -f "$expected" ]] && cmp -s "$produced" "$expected"; then
+            unchanged+=("$label")
+            echo "ok    $label ($version) unchanged"
+        else
+            cp "$produced" "$expected"
+            updated+=("$label")
+            echo "ok    $label ($version) written"
+        fi
+    done
 done <<<"$case_ids"
 
 # Report. Skips are the expected outcome on a partial set of installs, so they are
@@ -202,7 +261,7 @@ fi
 
 if ((${#skipped_convention[@]} > 0)); then
     echo
-    echo "Convention cases, which have no oracle and no expected.epJSON:"
+    echo "Convention cases with no post-operation-epjson, which have nothing to regenerate:"
     printf '  %s\n' "${skipped_convention[@]}"
 fi
 

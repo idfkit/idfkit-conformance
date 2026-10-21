@@ -84,8 +84,8 @@ jobs:
 
       # The second language's half of the same contract, against the same tables. Named files
       # rather than the directory, because `node --test <dir>` is resolved as a module by some Node
-      # versions and the directory also holds the Python half. All three, not two: `test-compare`
-      # carries 117 of the 202 and leaving it out would run the smaller half of the mirror.
+      # versions and the directory also holds the Python half. Every one, not a subset: `test-compare`
+      # carries 117 of the 230 and leaving it out would run the smaller half of the mirror.
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
@@ -95,7 +95,8 @@ jobs:
           node --test \
             runners/tests/test-compare.mjs \
             runners/tests/test-guard.mjs \
-            runners/tests/test-ring.mjs
+            runners/tests/test-ring.mjs \
+            runners/tests/test-update.mjs
 
       # The case manifest is the corpus's own index. A case that does not agree with it reaches a
       # runner as an unexplained error rather than a failed assertion, so this loads the whole
