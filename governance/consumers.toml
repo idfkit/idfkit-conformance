@@ -172,9 +172,6 @@ to the deferred text-editor slice.
     path = "levels.json"
     locator = "libraries[name=@idfkit/core].level"
     form = "exact"
-    [consumer.libraries.lag]
-    kind = "not-yet"
-    issue = "https://github.com/idfkit/idfkit-lsp/issues/17"
 
   # CLAUDE.md and README.md teach calls in prose to every agent and reader of this repository, and no
   # type checker reads either. The rename scan does (R5, T046).
