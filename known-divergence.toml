@@ -224,3 +224,67 @@ unterminated tail matches nothing at all.'''
 expected  = '''Reading fails, as it does in the TypeScript core, which reports an unterminated
 object. Losing an object in silence is the hazard, and the corpus settled that reasoning in
 malformed-truncated-object before this case existed.'''
+
+[[divergence]]
+case      = "update-all-valid"
+library   = "python"
+assertion = "post-operation-epjson"
+issue     = "https://github.com/idfkit/idfkit/issues/235"
+observed  = '''idfkit has no IDFObject.update, so the runner reports that the library has no update method on objects and applies nothing further. Removed by the idfkit pull request that adds the method.'''
+expected  = '''The Office zone's X, Y and Z origins become 10, 5 and 2.5 and its multiplier 3, and every other byte of the file is unchanged.'''
+
+[[divergence]]
+case      = "update-all-valid"
+library   = "python"
+assertion = "preserved-text"
+issue     = "https://github.com/idfkit/idfkit/issues/235"
+observed  = '''idfkit has no IDFObject.update, so the runner reports that the library has no update method on objects and applies nothing further. Removed by the idfkit pull request that adds the method.'''
+expected  = '''The Office zone's X, Y and Z origins become 10, 5 and 2.5 and its multiplier 3, and every other byte of the file is unchanged.'''
+
+[[divergence]]
+case      = "update-refused-unknown-name"
+library   = "python"
+assertion = "post-operation-epjson"
+issue     = "https://github.com/idfkit/idfkit/issues/235"
+observed  = '''idfkit has no IDFObject.update, so the runner reports that the library has no update method on objects and applies nothing further. Removed by the idfkit pull request that adds the method.'''
+expected  = '''The group is refused because x_orign is not a field of Zone, and the Office zone, including its valid x_origin entry, is unchanged.'''
+
+[[divergence]]
+case      = "update-refused-unknown-name"
+library   = "python"
+assertion = "preserved-text"
+issue     = "https://github.com/idfkit/idfkit/issues/235"
+observed  = '''idfkit has no IDFObject.update, so the runner reports that the library has no update method on objects and applies nothing further. Removed by the idfkit pull request that adds the method.'''
+expected  = '''The group is refused because x_orign is not a field of Zone, and the Office zone, including its valid x_origin entry, is unchanged.'''
+
+[[divergence]]
+case      = "update-refused-name"
+library   = "python"
+assertion = "post-operation-epjson"
+issue     = "https://github.com/idfkit/idfkit/issues/235"
+observed  = '''idfkit has no IDFObject.update, so the runner reports that the library has no update method on objects and applies nothing further. Removed by the idfkit pull request that adds the method.'''
+expected  = '''The group is refused because it names name, and the Office zone, including its valid x_origin entry, is unchanged.'''
+
+[[divergence]]
+case      = "update-refused-name"
+library   = "python"
+assertion = "preserved-text"
+issue     = "https://github.com/idfkit/idfkit/issues/235"
+observed  = '''idfkit has no IDFObject.update, so the runner reports that the library has no update method on objects and applies nothing further. Removed by the idfkit pull request that adds the method.'''
+expected  = '''The group is refused because it names name, and the Office zone, including its valid x_origin entry, is unchanged.'''
+
+[[divergence]]
+case      = "update-wrapper-key"
+library   = "python"
+assertion = "post-operation-epjson"
+issue     = "https://github.com/idfkit/idfkit/issues/235"
+observed  = '''idfkit has no IDFObject.update, so the runner reports that the library has no update method on objects and applies nothing further. Removed by the idfkit pull request that adds the method.'''
+expected  = '''The Office Wall's four vertices are replaced by the three given and its Number of Vertices becomes 3, and every other byte of the file is unchanged.'''
+
+[[divergence]]
+case      = "update-wrapper-key"
+library   = "python"
+assertion = "preserved-text"
+issue     = "https://github.com/idfkit/idfkit/issues/235"
+observed  = '''idfkit has no IDFObject.update, so the runner reports that the library has no update method on objects and applies nothing further. Removed by the idfkit pull request that adds the method.'''
+expected  = '''The Office Wall's four vertices are replaced by the three given and its Number of Vertices becomes 3, and every other byte of the file is unchanged.'''

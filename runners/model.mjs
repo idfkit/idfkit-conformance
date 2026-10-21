@@ -56,6 +56,7 @@ export const EXPECTED_VALIDATION = 'expected.validation.json';
 export const EXPECTED_INTROSPECTION = 'expected.introspection.json';
 export const EXPECTED_DOCS_URL = 'expected.docs-url.json';
 export const EXPECTED_TYPE_LOOKUP = 'expected.type-lookup.json';
+export const EXPECTED_AFTER_EPJSON = 'expected.after.epJSON';
 
 export const CASES_DIR = 'cases';
 export const MANIFEST_FILE = 'manifest.json';
@@ -103,6 +104,7 @@ export const Assertion = Object.freeze({
   DOCS_URL: 'docs-url',
   TYPE_LOOKUP: 'type-lookup',
   PRESERVED_TEXT: 'preserved-text',
+  POST_OPERATION_EPJSON: 'post-operation-epjson',
 });
 
 /**
@@ -145,6 +147,12 @@ export const EXPECTATION_FILES = Object.freeze([
     key: 'expected_type_lookup',
     property: 'expectedTypeLookup',
     file: EXPECTED_TYPE_LOOKUP,
+  },
+  {
+    assertion: 'post-operation-epjson',
+    key: 'expected_after_epjson',
+    property: 'expectedAfterEpjson',
+    file: EXPECTED_AFTER_EPJSON,
   },
 ]);
 
@@ -214,11 +222,14 @@ export const Library = Object.freeze({
 });
 
 /**
- * The four changes a case may declare between reading and writing.
+ * The five changes a case may declare between reading and writing.
  *
- * Four, and no more: they are the four the touched record has to get right, which is what the
- * `preserved-text` assertion narrows to when a case declares them. A fifth is added when a claim
- * needs it, not in advance.
+ * The first four are the four the touched record has to get right, which is what the
+ * `preserved-text` assertion narrows to when a case declares them. The fifth, `update`, was added
+ * for a claim the four cannot express: that a group of field values applied to one object in one
+ * call is examined in full before any of it is applied, so that a refused group leaves the object
+ * as it was. A sequence of `set-field` operations applies each value on its own and cannot state
+ * that. A further kind is added when a claim needs it, not in advance.
  *
  * @readonly
  * @enum {string}
@@ -228,6 +239,18 @@ export const OperationKind = Object.freeze({
   RENAME: 'rename',
   REMOVE: 'remove',
   ADD: 'add',
+  UPDATE: 'update',
+});
+
+/**
+ * What an `update` operation is declared to do: apply its whole group, or refuse all of it.
+ *
+ * @readonly
+ * @enum {string}
+ */
+export const OperationOutcome = Object.freeze({
+  APPLIED: 'applied',
+  REFUSED: 'refused',
 });
 
 // ---------------------------------------------------------------------------
@@ -361,13 +384,25 @@ export class Operation {
    * than a property access failing inside a run where it reads as a library failure.
    *
    * `value` and the members of `fields` are text, because a case says what a file would have said
-   * and each runner coerces it the way its own reader coerces a value read from a file.
+   * and each runner coerces it the way its own reader coerces a value read from a file. The one
+   * exception is an extensible wrapper key such as `vertices`, whose value is the whole list of
+   * groups; each member of each group is text, coerced the same way.
    *
    * @param {{ op: OperationKind, type: string, name: string, field?: string | null,
    *           value?: string | null, to?: string | null,
-   *           fields?: Readonly<Record<string, string>> | null }} fields
+   *           fields?: Readonly<Record<string, FieldValue>> | null,
+   *           outcome?: OperationOutcome }} fields
    */
-  constructor({ op, type, name, field = null, value = null, to = null, fields = null }) {
+  constructor({
+    op,
+    type,
+    name,
+    field = null,
+    value = null,
+    to = null,
+    fields = null,
+    outcome = OperationOutcome.APPLIED,
+  }) {
     /** @type {OperationKind} */
     this.op = op;
     /** @type {string} */
@@ -381,7 +416,21 @@ export class Operation {
     /** @type {string | null} */
     this.to = to ?? null;
     /** @type {Readonly<Record<string, string>> | null} */
-    this.fields = fields === null ? null : Object.freeze({ ...fields });
+    this.fields =
+      fields === null
+        ? null
+        : Object.freeze(
+            Object.fromEntries(
+              Object.entries(fields).map(([key, value]) => [
+                key,
+                Array.isArray(value)
+                  ? Object.freeze(value.map((group) => Object.freeze({ ...group })))
+                  : value,
+              ])
+            )
+          );
+    /** @type {OperationOutcome} */
+    this.outcome = outcome;
 
     checkNonEmpty(this.type, 'type', ManifestError);
 
@@ -404,8 +453,14 @@ export class Operation {
       throw new ManifestError(`operation ${repr(this.op)} takes no 'to'`);
     }
 
-    if (this.op !== OperationKind.ADD && this.fields !== null) {
+    if (this.op !== OperationKind.ADD && this.op !== OperationKind.UPDATE && this.fields !== null) {
       throw new ManifestError(`operation ${repr(this.op)} takes no 'fields'`);
+    }
+    if (this.op === OperationKind.UPDATE && this.fields === null) {
+      throw new ManifestError("operation 'update' requires 'fields', which may be empty");
+    }
+    if (this.op !== OperationKind.UPDATE && this.outcome !== OperationOutcome.APPLIED) {
+      throw new ManifestError(`operation ${repr(this.op)} takes no 'outcome'`);
     }
     Object.freeze(this);
   }
@@ -421,7 +476,15 @@ export class Operation {
     if (this.field !== null) entry.field = this.field;
     if (this.value !== null) entry.value = this.value;
     if (this.to !== null) entry.to = this.to;
-    if (this.fields !== null) entry.fields = { ...this.fields };
+    if (this.fields !== null) {
+      entry.fields = Object.fromEntries(
+        Object.entries(this.fields).map(([key, value]) => [
+          key,
+          Array.isArray(value) ? value.map((group) => ({ ...group })) : value,
+        ])
+      );
+    }
+    if (this.outcome !== OperationOutcome.APPLIED) entry.outcome = this.outcome;
     return entry;
   }
 }
@@ -504,6 +567,7 @@ export class ManifestEntry {
     expectedIntrospection = null,
     expectedDocsUrl = null,
     expectedTypeLookup = null,
+    expectedAfterEpjson = null,
     writerOptions = null,
     operations = [],
   }) {
@@ -535,6 +599,8 @@ export class ManifestEntry {
     this.expectedDocsUrl = expectedDocsUrl ?? null;
     /** @type {string | null} */
     this.expectedTypeLookup = expectedTypeLookup ?? null;
+    /** @type {string | null} */
+    this.expectedAfterEpjson = expectedAfterEpjson ?? null;
     /** @type {WriterOptions | null} */
     this.writerOptions = writerOptions ?? null;
     /** @type {readonly Operation[]} */
@@ -1745,6 +1811,7 @@ const ENTRY_KEYS = new Set([
   'expected_introspection',
   'expected_docs_url',
   'expected_type_lookup',
+  'expected_after_epjson',
   'writer_options',
   'operations',
 ]);
@@ -1845,12 +1912,53 @@ function loadEntry(rawEntry, truth, path, index) {
     expectedIntrospection: readOptionalString(raw, 'expected_introspection', options),
     expectedDocsUrl: readOptionalString(raw, 'expected_docs_url', options),
     expectedTypeLookup: readOptionalString(raw, 'expected_type_lookup', options),
+    expectedAfterEpjson: readOptionalString(raw, 'expected_after_epjson', options),
     writerOptions: readWriterOptions(raw, options),
     operations: readOperations(raw, options),
   });
 }
 
-const OPERATION_KEYS = new Set(['op', 'type', 'name', 'field', 'value', 'to', 'fields']);
+/**
+ * One value in an operation's `fields`: text, or, for an extensible wrapper key, the whole list of
+ * groups, each a mapping from inner field name to text.
+ *
+ * @typedef {string | readonly Readonly<Record<string, string>>[]} FieldValue
+ */
+
+/**
+ * One value of an operation's `fields`: text, or a list of groups whose members are text.
+ *
+ * The list form is the extensible wrapper key's whole-list value, such as a surface's `vertices`.
+ * Its members are text for the same reason a plain value is.
+ *
+ * @param {unknown} value
+ * @param {string} path
+ * @param {string} where
+ * @returns {FieldValue}
+ */
+function readFieldValue(value, path, where) {
+  if (typeof value === 'string') return value;
+  if (Array.isArray(value)) {
+    return value.map((rawGroup, index) => {
+      const group = readMapping(rawGroup, path, `${where}[${index}]`, ManifestError);
+      for (const [member, memberValue] of Object.entries(group)) {
+        if (typeof memberValue !== 'string') {
+          throw new ManifestError(
+            `${path}: ${where}[${index}].${member}: must be a string, because a case says what a ` +
+              `file would have said, got ${repr(memberValue)}`
+          );
+        }
+      }
+      return /** @type {Record<string, string>} */ ({ ...group });
+    });
+  }
+  throw new ManifestError(
+    `${path}: ${where}: must be a string or a list of groups, because a case says what a file ` +
+      `would have said, got ${repr(value)}`
+  );
+}
+
+const OPERATION_KEYS = new Set(['op', 'type', 'name', 'field', 'value', 'to', 'fields', 'outcome']);
 
 /**
  * Read the optional `operations` list, or an empty array when the case declares none.
@@ -1885,19 +1993,13 @@ function readOperations(raw, options) {
     rejectUnknownKeys(block, OPERATION_KEYS, inner);
 
     const rawFields = block['fields'];
-    /** @type {Record<string, string> | null} */
+    /** @type {Record<string, FieldValue> | null} */
     let fields = null;
     if (rawFields !== undefined && rawFields !== null) {
       const table = readMapping(rawFields, options.path, `${at}.fields`, ManifestError);
       fields = {};
       for (const [fieldName, fieldValue] of Object.entries(table)) {
-        if (typeof fieldValue !== 'string') {
-          throw new ManifestError(
-            `${options.path}: ${at}.fields.${fieldName}: must be a string, because a case says ` +
-              `what a file would have said, got ${repr(fieldValue)}`
-          );
-        }
-        fields[fieldName] = fieldValue;
+        fields[fieldName] = readFieldValue(fieldValue, options.path, `${at}.fields.${fieldName}`);
       }
     }
 
@@ -1910,16 +2012,28 @@ function readOperations(raw, options) {
       );
     }
 
+    const kind = readEnum(block, 'op', OperationKind, inner);
+    // Rejected on the key rather than on its value, because `outcome = "applied"` written on another
+    // kind reads as a claim that the operation could have been refused, and none can.
+    const rawOutcome = block['outcome'];
+    if (kind !== OperationKind.UPDATE && rawOutcome !== undefined) {
+      throw new ManifestError(`${options.path}: ${at}: operation ${repr(kind)} takes no 'outcome'`);
+    }
+
     const rawValue = block['value'];
     try {
       return new Operation({
-        op: readEnum(block, 'op', OperationKind, inner),
+        op: kind,
         type: readString(block, 'type', inner),
         name,
         field: readOptionalString(block, 'field', inner),
         value: typeof rawValue === 'string' ? rawValue : null,
         to: readOptionalString(block, 'to', inner),
         fields,
+        outcome:
+          rawOutcome === undefined || rawOutcome === null
+            ? OperationOutcome.APPLIED
+            : readEnum(block, 'outcome', OperationOutcome, inner),
       });
     } catch (error) {
       // Re-thrown with the file and the case position, so a malformed operation names the case

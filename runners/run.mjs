@@ -23,6 +23,13 @@
  * 8. `type-lookup`   naming an object type through the library's own collection accessor returns
  *                    what `expected.type-lookup.json` says, for canonical, mis-cased and unknown
  *                    names alike, and leaves the document unchanged.
+ * 9. `preserved-text` a preserving read, the case's operations, and a write reproduce the input byte
+ *                    for byte outside the objects the operations touched.
+ * 10. `post-operation-epjson` after the case's operations, the library's canonical epJSON equals
+ *                    `expected.after.epJSON`, which `ConvertInputFormat` generated from the case's
+ *                    committed `after.idf`. An `update` declared `refused` must be refused, and one
+ *                    declared `applied` must not be; either mismatch fails the case and names the
+ *                    operation.
  *
  * This file is a section-by-section mirror of `run.py`: the same section headers, the same shapes,
  * the same statuses, the same reconciliation, and byte-for-byte the same report strings apart from
@@ -100,6 +107,7 @@ import {
   CORPUS_LEVEL_PATTERN,
   CorpusError,
   DIVERGENCE_FILE,
+  EXPECTED_AFTER_EPJSON,
   EXPECTED_DOCS_URL,
   EXPECTED_EPJSON,
   EXPECTED_DIAGNOSTICS,
@@ -110,6 +118,7 @@ import {
   Library,
   MANIFEST_FILE,
   OperationKind,
+  OperationOutcome,
   ParseOutcome,
   Tag,
   Truth,
@@ -141,6 +150,7 @@ const ASSERTION_ORDER = Object.freeze([
   Assertion.DOCS_URL,
   Assertion.TYPE_LOOKUP,
   Assertion.PRESERVED_TEXT,
+  Assertion.POST_OPERATION_EPJSON,
 ]);
 
 const DEFAULT_DIFFERENCE_LIMIT = 20;
@@ -302,6 +312,11 @@ export class CaseJob {
   /** The committed expectation. Present only when `truth = oracle`. */
   get expectedEpjsonPath() {
     return join(this.caseDir, EXPECTED_EPJSON);
+  }
+
+  /** The committed expectation after the operations. Present when the case declares assertion 10. */
+  get expectedAfterEpjsonPath() {
+    return join(this.caseDir, EXPECTED_AFTER_EPJSON);
   }
 }
 
@@ -982,6 +997,9 @@ async function runAssertion(library, job, assertion, parse, limit) {
   if (assertion === Assertion.PRESERVED_TEXT) {
     return await assertPreservedText(library, job, limit);
   }
+  if (assertion === Assertion.POST_OPERATION_EPJSON) {
+    return await assertPostOperationEpjson(library, job, limit);
+  }
   // A ninth assertion added to model.mjs without a runner change lands here. Saying so beats
   // falling through to whichever branch happened to be last.
   return errored(
@@ -1128,6 +1146,9 @@ async function preservedTextOf(library, job, label, path, limit) {
   try {
     preserved = await preservingRoundTrip(library, job, path);
   } catch (error) {
+    if (error instanceof OutcomeMismatch) {
+      return mismatched(job, Assertion.PRESERVED_TEXT, `${label}: ${error.message}`);
+    }
     if (error instanceof ExtentUnknown) {
       // Never a pass. A runner that cannot say where a touched object sits cannot say which bytes
       // the assertion excludes, so it has no verdict to give.
@@ -1151,6 +1172,76 @@ async function preservedTextOf(library, job, label, path, limit) {
 
 /** The runner could not place a touched object's text on one side or the other. */
 class ExtentUnknown extends RunnerError {}
+
+/**
+ * An `update` the case declares applied was refused, or one it declares refused was applied.
+ *
+ * A finding about the library rather than a fault of the runner, so it is reported as a failure,
+ * which `known-divergence.toml` may accept while a library is catching up, and never as an error.
+ */
+class OutcomeMismatch extends RunnerError {}
+
+/**
+ * The failure for an `OutcomeMismatch`, which names the operation that disagreed.
+ *
+ * @param {CaseJob} job
+ * @param {Assertion} assertion
+ * @param {string} reason
+ * @returns {AssertionOutcome}
+ */
+function mismatched(job, assertion, reason) {
+  return new AssertionOutcome({
+    caseId: job.caseId,
+    assertion,
+    status: Status.FAILED,
+    reason,
+    lines: block(job.caseId, assertion, reason),
+    firstDifference: reason,
+  });
+}
+
+/**
+ * Assertion 10: canonical epJSON after the case's operations against `expected.after.epJSON`.
+ *
+ * This assertion does its own read, as assertion 9 does, because applying operations changes the
+ * document and every other assertion shares the run's one parse. The expectation is produced by
+ * `ConvertInputFormat` from the case's committed `after.idf`, whatever section the case sits in.
+ *
+ * @param {LibraryUnderTest} library
+ * @param {CaseJob} job
+ * @param {number} limit
+ * @returns {Promise<AssertionOutcome>}
+ */
+async function assertPostOperationEpjson(library, job, limit) {
+  if (!isFile(job.expectedAfterEpjsonPath)) {
+    return errored(
+      job.caseId,
+      Assertion.POST_OPERATION_EPJSON,
+      `${EXPECTED_AFTER_EPJSON} is missing while the case declares 'post-operation-epjson'. ` +
+        'Generate it from after.idf with tools/regenerate.sh and commit it'
+    );
+  }
+
+  const text = readFileSync(job.inputPath).toString(IDF_ENCODING);
+  const schema = await library.node.schemaFor(library.core.getIdfVersion(text));
+  const { document } = library.core.parseIdf(text, schema);
+  try {
+    applyOperations(library, document, job.operations);
+  } catch (error) {
+    if (error instanceof OutcomeMismatch) {
+      return mismatched(job, Assertion.POST_OPERATION_EPJSON, error.message);
+    }
+    throw error;
+  }
+  const produced = JSON.parse(library.core.writeEpJson(document));
+  const expected = JSON.parse(readFileSync(job.expectedAfterEpjsonPath, 'utf8'));
+  return fromComparison(
+    job.caseId,
+    Assertion.POST_OPERATION_EPJSON,
+    compareEpjson(produced, expected),
+    limit
+  );
+}
 
 /**
  * Read `path` with preservation, apply the case's operations, and write it back.
@@ -1372,12 +1463,7 @@ function gapBefore(text, spans, index) {
 function applyOperations(library, document, operations) {
   for (const operation of operations) {
     if (operation.op === OperationKind.ADD) {
-      /** @type {Record<string, string | number>} */
-      const fields = {};
-      for (const [field, value] of Object.entries(operation.fields ?? {})) {
-        fields[field] = coerced(document, operation.type, field, value);
-      }
-      document.add(operation.type, operation.name, fields);
+      document.add(operation.type, operation.name, coercedFields(document, operation.type, operation.fields));
       continue;
     }
 
@@ -1390,12 +1476,76 @@ function applyOperations(library, document, operations) {
     }
     if (operation.op === OperationKind.SET_FIELD) {
       object.set(operation.field, coerced(document, operation.type, operation.field, operation.value));
+    } else if (operation.op === OperationKind.UPDATE) {
+      applyUpdate(document, object, operation);
     } else if (operation.op === OperationKind.RENAME) {
       object.name = operation.to;
     } else {
       document.remove(object);
     }
   }
+}
+
+/**
+ * Apply one `update` and hold the library to the outcome the case declares.
+ *
+ * Nothing is read from the call's return value: the two libraries return different things, a
+ * difference the naming register records.
+ *
+ * @param {*} document
+ * @param {*} object
+ * @param {*} operation
+ */
+function applyUpdate(document, object, operation) {
+  const subject = `operation 'update' on ${operation.type} ${quote(operation.name)}`;
+  if (typeof object.update !== 'function') {
+    throw new OutcomeMismatch(`${subject}: the library has no update method on objects`);
+  }
+  const group = coercedFields(document, operation.type, operation.fields);
+  try {
+    object.update(group);
+  } catch (error) {
+    // Whichever error the library throws for a refused group is its refusal.
+    if (operation.outcome === OperationOutcome.REFUSED) return;
+    throw new OutcomeMismatch(
+      `${subject} is declared applied, and the library refused it: ${describeError(error)}`
+    );
+  }
+  if (operation.outcome === OperationOutcome.REFUSED) {
+    throw new OutcomeMismatch(`${subject} is declared refused, and the library applied it`);
+  }
+}
+
+/**
+ * An operation's `fields` coerced value by value, a wrapper key's groups member by member.
+ *
+ * A group member is described by the type's extensible block rather than by its own fields, so it
+ * is looked up there and coerced by the same rule as a plain field.
+ *
+ * @param {*} document
+ * @param {string} typeName
+ * @param {Readonly<Record<string, *>> | null} fields
+ * @returns {Record<string, *>}
+ */
+function coercedFields(document, typeName, fields) {
+  /** @type {Record<string, *>} */
+  const result = {};
+  for (const [field, value] of Object.entries(fields ?? {})) {
+    if (Array.isArray(value)) {
+      const members = document.schema.require(typeName)?.x?.p ?? {};
+      result[field] = value.map((group) =>
+        Object.fromEntries(
+          Object.entries(group).map(([member, text]) => [
+            member,
+            coercedAs(members[member]?.t, text),
+          ])
+        )
+      );
+    } else {
+      result[field] = coerced(document, typeName, field, value);
+    }
+  }
+  return result;
 }
 
 /**
@@ -1412,8 +1562,17 @@ function applyOperations(library, document, operations) {
  * @returns {string | number}
  */
 function coerced(document, typeName, field, value) {
-  const description = document.schema.require(typeName)?.p?.[field];
-  const kind = description?.t;
+  return coercedAs(document.schema.require(typeName)?.p?.[field]?.t, value);
+}
+
+/**
+ * Text coerced under one schema type code: `n` a number, `i` an integer, anything else left as text.
+ *
+ * @param {string | undefined} kind
+ * @param {string} value
+ * @returns {string | number}
+ */
+function coercedAs(kind, value) {
   if (kind !== 'n' && kind !== 'i') return value;
   const number = Number(value);
   if (Number.isNaN(number) || value.trim() === '') return value;

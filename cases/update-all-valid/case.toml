@@ -1,0 +1,16 @@
+title = "A group of four valid fields is applied to one object in one call"
+why = """
+The claim is that the multi-field update, when every entry in its group is a field of the object's
+type, changes exactly those fields to exactly those values, as four single assignments would, and
+changes nothing else. The group sets the Office zone's X, Y and Z origins and its multiplier; the
+Corridor zone beside it is not named and must be written back byte for byte.
+
+The expected document after the update is not written by hand. after.idf is the input with the four
+values edited as text, and ConvertInputFormat turns it into expected.after.epJSON, so the oracle
+still states what the edited model is. What is convention is only the rule that the call applies the
+whole group, which the two libraries agreed in idfkit-unification feature 015 (FR-003, FR-007).
+"""
+tags = ["tier1"]
+energyplus_version = "26.1.0"
+truth = "convention"
+assertions = ["parse-outcome", "post-operation-epjson", "preserved-text"]

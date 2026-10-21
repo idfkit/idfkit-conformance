@@ -22,6 +22,13 @@ What it checks, per case, in this order:
 8. ``type-lookup``   naming an object type through the library's own collection accessor returns
                       what ``expected.type-lookup.json`` says, for canonical, mis-cased and unknown
                       names alike, and leaves the document unchanged.
+9. ``preserved-text`` a preserving read, the case's operations, and a write reproduce the input byte
+                      for byte outside the objects the operations touched.
+10. ``post-operation-epjson`` after the case's operations, the library's canonical epJSON equals
+                      ``expected.after.epJSON``, which ``ConvertInputFormat`` generated from the
+                      case's committed ``after.idf``. An ``update`` declared ``refused`` must be
+                      refused, and one declared ``applied`` must not be; either mismatch fails the
+                      case and names the operation.
 
 Assertions 5 to 7 have no oracle behind them: ``ConvertInputFormat`` converts a file, and does not
 validate one, describe a type, or build a documentation address. What rules them is written down
@@ -107,6 +114,7 @@ from model import (  # noqa: E402
     CASES_DIR,
     CORPUS_LEVEL_PATTERN,
     DIVERGENCE_FILE,
+    EXPECTED_AFTER_EPJSON,
     EXPECTED_DOCS_URL,
     EXPECTED_EPJSON,
     EXPECTED_DIAGNOSTICS,
@@ -118,11 +126,13 @@ from model import (  # noqa: E402
     Corpus,
     CorpusError,
     Divergence,
+    FieldValue,
     InputFile,
     Library,
     Manifest,
     Operation,
     OperationKind,
+    OperationOutcome,
     ParseOutcome,
     Tag,
     Truth,
@@ -167,6 +177,7 @@ ASSERTION_ORDER: Final = (
     Assertion.DOCS_URL,
     Assertion.TYPE_LOOKUP,
     Assertion.PRESERVED_TEXT,
+    Assertion.POST_OPERATION_EPJSON,
 )
 
 # The members of one field description, in the order ``compare.md`` writes them. Spelled out here
@@ -278,6 +289,11 @@ class CaseJob:
     def expected_epjson_path(self) -> Path:
         """The committed expectation. Present only when ``truth = oracle``."""
         return self.case_dir / EXPECTED_EPJSON
+
+    @property
+    def expected_after_epjson_path(self) -> Path:
+        """The committed expectation after the operations. Present when the case declares assertion 10."""
+        return self.case_dir / EXPECTED_AFTER_EPJSON
 
 
 @dataclass(frozen=True)
@@ -683,6 +699,8 @@ def _run_assertion(job: CaseJob, assertion: Assertion, parse: _Parse, limit: int
         return _assert_type_lookup(job, parse.document, limit)
     if assertion is Assertion.PRESERVED_TEXT:
         return _assert_preserved_text(job, limit)
+    if assertion is Assertion.POST_OPERATION_EPJSON:
+        return _assert_post_operation_epjson(job, limit)
     # A further assertion added to model.py without a runner change lands here. Saying so beats
     # falling through to whichever branch happened to be last.
     return _errored(job.case_id, assertion, f"this runner has no implementation for {assertion.value!r}")
@@ -815,6 +833,8 @@ def _preserved_text_of(job: CaseJob, label: str, path: Path, limit: int) -> Asse
     """One text: read it preserving, apply the case's operations, write, compare bytes."""
     try:
         preserved = _preserving_round_trip(job, path)
+    except _OutcomeMismatch as error:
+        return _mismatched(job, Assertion.PRESERVED_TEXT, f"{label}: {error}")
     except _ExtentUnknown as error:
         # Never a pass. A runner that cannot say where a touched object sits cannot say which bytes
         # the assertion excludes, so it has no verdict to give.
@@ -838,6 +858,46 @@ def _preserved_text_of(job: CaseJob, label: str, path: Path, limit: int) -> Asse
 
 class _ExtentUnknown(RunnerError):
     """The runner could not place a touched object's text on one side or the other."""
+
+
+class _OutcomeMismatch(RunnerError):
+    """An ``update`` the case declares applied was refused, or one it declares refused was applied.
+
+    A finding about the library rather than a fault of the runner, so it is reported as a failure,
+    which ``known-divergence.toml`` may accept while a library is catching up, and never as an error.
+    """
+
+
+def _mismatched(job: CaseJob, assertion: Assertion, reason: str) -> AssertionOutcome:
+    """The failure for an :class:`_OutcomeMismatch`, which names the operation that disagreed."""
+    return AssertionOutcome(job.case_id, assertion, Status.FAILED, reason, _block(job.case_id, assertion, reason), reason)
+
+
+def _assert_post_operation_epjson(job: CaseJob, limit: int) -> AssertionOutcome:
+    """Assertion 10: canonical epJSON after the case's operations against ``expected.after.epJSON``.
+
+    This assertion does its own read, as assertion 9 does, because applying operations changes the
+    document and every other assertion shares the run's one parse. The expectation is produced by
+    ``ConvertInputFormat`` from the case's committed ``after.idf``, whatever section the case sits in.
+    """
+    if not job.expected_after_epjson_path.is_file():
+        return _errored(
+            job.case_id,
+            Assertion.POST_OPERATION_EPJSON,
+            f"{EXPECTED_AFTER_EPJSON} is missing while the case declares 'post-operation-epjson'. Generate it "
+            f"from after.idf with tools/regenerate.sh and commit it",
+        )
+
+    import idfkit
+
+    document = idfkit.parse_idf(job.input_path, encoding=IDF_ENCODING)
+    try:
+        _apply_operations(document, job.operations)
+    except _OutcomeMismatch as error:
+        return _mismatched(job, Assertion.POST_OPERATION_EPJSON, str(error))
+    produced = json.loads(idfkit.write_epjson(document, preserve_formatting=False))
+    expected = json.loads(job.expected_after_epjson_path.read_text(encoding="utf-8"))
+    return _from_comparison(job.case_id, Assertion.POST_OPERATION_EPJSON, compare_epjson(produced, expected), limit)
 
 
 def _preserving_round_trip(job: CaseJob, path: Path) -> _Preserved:
@@ -990,10 +1050,7 @@ def _apply_operations(document: Any, operations: Sequence[Operation]) -> None:
     """
     for operation in operations:
         if operation.op is OperationKind.ADD:
-            fields = {
-                field: _coerced(document, operation.type, field, value)
-                for field, value in (operation.fields or {}).items()
-            }
+            fields = _coerced_fields(document, operation.type, operation.fields)
             document.add(operation.type, operation.name, **fields)
             continue
 
@@ -1006,10 +1063,60 @@ def _apply_operations(document: Any, operations: Sequence[Operation]) -> None:
         if operation.op is OperationKind.SET_FIELD:
             field = operation.field or ""
             setattr(obj, field, _coerced(document, operation.type, field, operation.value or ""))
+        elif operation.op is OperationKind.UPDATE:
+            _apply_update(document, obj, operation)
         elif operation.op is OperationKind.RENAME:
             obj.name = operation.to
         else:
             document.removeidfobject(obj)
+
+
+def _apply_update(document: Any, obj: Any, operation: Operation) -> None:
+    """Apply one ``update`` and hold the library to the outcome the case declares.
+
+    The method is looked up on the object's class rather than on the object. An object that has no
+    such method can still raise from attribute access on an unknown name, and that error must not
+    pass for a refusal. Nothing is read from the call's return value: the two libraries return
+    different things, a difference the naming register records.
+    """
+    method = getattr(type(obj), "update", None)
+    if not callable(method):
+        raise _OutcomeMismatch(
+            f"operation 'update' on {operation.type} {operation.name!r}: the library has no update method on objects"
+        )
+    group = _coerced_fields(document, operation.type, operation.fields)
+    try:
+        obj.update(group)
+    except Exception as error:  # whichever error the library raises for a refused group is its refusal
+        if operation.outcome is OperationOutcome.REFUSED:
+            return
+        raise _OutcomeMismatch(
+            f"operation 'update' on {operation.type} {operation.name!r} is declared applied, and the library "
+            f"refused it: {type(error).__name__}: {error}"
+        ) from error
+    if operation.outcome is OperationOutcome.REFUSED:
+        raise _OutcomeMismatch(
+            f"operation 'update' on {operation.type} {operation.name!r} is declared refused, and the library "
+            f"applied it"
+        )
+
+
+def _coerced_fields(document: Any, type_name: str, fields: Mapping[str, FieldValue] | None) -> dict[str, Any]:
+    """An operation's ``fields`` coerced value by value, a wrapper key's groups member by member.
+
+    The library's type description lists an extensible type's inner field names beside its own, so
+    a group member is coerced by the same rule as a plain field.
+    """
+    coerced: dict[str, Any] = {}
+    for field, value in (fields or {}).items():
+        if isinstance(value, list):
+            coerced[field] = [
+                {member: _coerced(document, type_name, member, text) for member, text in group.items()}
+                for group in value
+            ]
+        else:
+            coerced[field] = _coerced(document, type_name, field, value)
+    return coerced
 
 
 def _coerced(document: Any, type_name: str, field: str, value: str) -> Any:
@@ -1028,13 +1135,16 @@ def _coerced(document: Any, type_name: str, field: str, value: str) -> Any:
         (item for item in document.describe(type_name).fields if item.name == field),
         None,
     )
-    if description is None or description.field_type not in {"number", "integer"}:
+    # A field that also accepts a sizing keyword is described as a union, ``number|string``, and is
+    # numeric for the reader all the same.
+    kinds = set(description.field_type.split("|")) if description is not None else set()
+    if not kinds & {"number", "integer"}:
         return value
     try:
         number = float(value)
     except ValueError:
         return value  # a sentinel such as Autosize, which the reader also leaves as text
-    return int(number) if description.field_type == "integer" else number
+    return int(number) if "integer" in kinds and "number" not in kinds else number
 
 
 def _missing_expectation(job: CaseJob, assertion: Assertion, path: Path) -> AssertionOutcome | None:

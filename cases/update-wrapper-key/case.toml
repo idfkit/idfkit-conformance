@@ -1,0 +1,17 @@
+title = "A group naming the extensible wrapper key replaces the whole list"
+why = """
+The claim is that the multi-field update accepts the type's extensible wrapper key, here a
+surface's `vertices`, and replaces the whole list with the one given, as single assignment of the
+wrapper key does. The group also sets the plain field Number of Vertices, so one call mixes the two
+kinds of entry.
+
+The surface has four vertices and the group gives three, at coordinates that differ from the first
+three of the original. A library that truncated the list, or appended to it, rather than replacing
+it, produces a different document. Three vertices rather than two, so that the edited surface is
+still one EnergyPlus accepts. after.idf carries the replacement as text and ConvertInputFormat
+produces expected.after.epJSON from it (idfkit-unification feature 015, FR-004 (d), FR-007).
+"""
+tags = ["tier1", "extensible"]
+energyplus_version = "26.1.0"
+truth = "convention"
+assertions = ["parse-outcome", "post-operation-epjson", "preserved-text"]

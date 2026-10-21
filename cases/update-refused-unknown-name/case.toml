@@ -1,0 +1,16 @@
+title = "A group naming an unknown field is refused and changes nothing"
+why = """
+The claim is that the multi-field update examines every entry before it applies any. The group
+names one valid field, the Office zone's X origin, and then a misspelled one, `x_orign`. The whole
+group is refused, so the valid entry is not applied either.
+
+Before this case, the second language applied entries up to the first unknown name and then threw,
+leaving the object half edited. A refusal that leaves no change is the behaviour both languages now
+share (idfkit-unification feature 015, FR-003, FR-004 (a)). after.idf is byte-identical to the
+input, so post-operation-epjson asserts the converted input, and preserved-text, with no object
+touched, asserts the whole file.
+"""
+tags = ["tier1"]
+energyplus_version = "26.1.0"
+truth = "convention"
+assertions = ["parse-outcome", "post-operation-epjson", "preserved-text"]
