@@ -17,12 +17,13 @@
 # read that such issues "must land together"; idfkit-js 10 landed alone on 2026-09-10 and the
 # register followed it, one entry at a time, with the python half of the same bug still recorded.
 #
-# Counts, recounted from this file when idfkit landed IDFObject.update and its ten python entries
-# for the update cases were removed: 18 entries over 7 issues and 12 cases, 7 against python and 11
-# against typescript, on a corpus of 74 cases and 226 assertions. The six typescript entries for the
-# update cases track idfkit#235 and are removed when @idfkit/core lands its side. When the five
-# update cases landed, the file held 28 entries over 7 issues and 14 cases, 17 against python and
-# 11 against typescript. Before them, and after idfkit#179 to idfkit#182 were fixed,
+# Counts, recounted from this file when @idfkit/core landed its side of the multi-field update
+# (idfkit-js#80 and #81) and its six typescript entries for the update cases were removed: 12
+# entries over 6 issues and 9 cases, 7 against python and 5 against typescript, on a corpus of 74
+# cases and 226 assertions. No entry for the update cases remains, and none tracks idfkit#235. When
+# the five update cases landed, the file held 28 entries over 7 issues and 14 cases, 17 against
+# python and 11 against typescript; when idfkit landed IDFObject.update, its ten python entries went,
+# leaving 18. Before the update cases, and after idfkit#179 to idfkit#182 were fixed,
 # the file held 12 entries over 6 issues and 9 cases, 7 against python and 5 against typescript, on
 # a corpus of 69 cases and 211 assertions. Before that fix it held 17 entries, although this
 # paragraph still stated the 21 counted against idfkit 1.0.0rc2 and @idfkit/core 0.3.0-rc.3 with
@@ -230,60 +231,3 @@ expected  = '''Reading fails, as it does in the TypeScript core, which reports a
 object. Losing an object in silence is the hazard, and the corpus settled that reasoning in
 malformed-truncated-object before this case existed.'''
 
-# ---------------------------------------------------------------------------
-# update: the multi-field update, before @idfkit/core lands its side
-# ---------------------------------------------------------------------------
-#
-# idfkit#235 tracks both languages. The ten python entries, which recorded that idfkit main had no
-# IDFObject.update, were removed when idfkit landed it. The typescript entries record that @idfkit/core main applies entries up to the
-# first one it rejects, names that entry in its own wording rather than as a refused entry, and does
-# not examine the extensible list's groups. Measured against idfkit-js b44819b. update-all-valid and
-# update-wrapper-key pass in typescript already and carry no typescript entry.
-
-[[divergence]]
-case      = "update-refused-unknown-name"
-library   = "typescript"
-assertion = "post-operation-epjson"
-issue     = "https://github.com/idfkit/idfkit/issues/235"
-observed  = '''@idfkit/core main applies x_origin, then throws '"x_orign" is not a field of Zone', which names no refused entry in the shared form and leaves the zone half edited. Removed by the idfkit-js pull request that makes update all or nothing.'''
-expected  = '''The group is refused because x_orign is not a field of Zone, the error lists x_orign as a refused entry, and the Office zone, including its valid x_origin entry, is unchanged.'''
-
-[[divergence]]
-case      = "update-refused-unknown-name"
-library   = "typescript"
-assertion = "preserved-text"
-issue     = "https://github.com/idfkit/idfkit/issues/235"
-observed  = '''@idfkit/core main applies x_origin, then throws '"x_orign" is not a field of Zone', which names no refused entry in the shared form and leaves the zone half edited. Removed by the idfkit-js pull request that makes update all or nothing.'''
-expected  = '''The group is refused because x_orign is not a field of Zone, the error lists x_orign as a refused entry, and the Office zone, including its valid x_origin entry, is unchanged.'''
-
-[[divergence]]
-case      = "update-refused-name"
-library   = "typescript"
-assertion = "post-operation-epjson"
-issue     = "https://github.com/idfkit/idfkit/issues/235"
-observed  = '''@idfkit/core main applies x_origin, then throws '"name" is not a field of Zone', which names no refused entry in the shared form and leaves the zone half edited. Removed by the idfkit-js pull request that makes update all or nothing.'''
-expected  = '''The group is refused because it names name, the error lists name as a refused entry, and the Office zone, including its valid x_origin entry, is unchanged.'''
-
-[[divergence]]
-case      = "update-refused-name"
-library   = "typescript"
-assertion = "preserved-text"
-issue     = "https://github.com/idfkit/idfkit/issues/235"
-observed  = '''@idfkit/core main applies x_origin, then throws '"name" is not a field of Zone', which names no refused entry in the shared form and leaves the zone half edited. Removed by the idfkit-js pull request that makes update all or nothing.'''
-expected  = '''The group is refused because it names name, the error lists name as a refused entry, and the Office zone, including its valid x_origin entry, is unchanged.'''
-
-[[divergence]]
-case      = "update-refused-wrapper-contents"
-library   = "typescript"
-assertion = "post-operation-epjson"
-issue     = "https://github.com/idfkit/idfkit/issues/235"
-observed  = '''@idfkit/core main checks neither the wrapper value nor its groups, so it applies Surface Type and stores the three groups, bogus member included, and the update is applied rather than refused. Removed by the idfkit-js pull request that makes update all or nothing.'''
-expected  = '''The group is refused because the second vertices group carries bogus, which is not an extensible field of BuildingSurface:Detailed, and the Office Wall, including its Surface Type, is unchanged.'''
-
-[[divergence]]
-case      = "update-refused-wrapper-contents"
-library   = "typescript"
-assertion = "preserved-text"
-issue     = "https://github.com/idfkit/idfkit/issues/235"
-observed  = '''@idfkit/core main checks neither the wrapper value nor its groups, so it applies Surface Type and stores the three groups, bogus member included, and the update is applied rather than refused. Removed by the idfkit-js pull request that makes update all or nothing.'''
-expected  = '''The group is refused because the second vertices group carries bogus, which is not an extensible field of BuildingSurface:Detailed, and the Office Wall, including its Surface Type, is unchanged.'''
