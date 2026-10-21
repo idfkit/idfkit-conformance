@@ -34,7 +34,7 @@ from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Any, Final, NoReturn, TypeVar
+from typing import Any, Final, Generic, NoReturn, TypeVar, Union
 
 if sys.version_info >= (3, 11):
     import tomllib
@@ -50,6 +50,8 @@ __all__ = [
     "Divergence",
     "DivergenceError",
     "DivergenceRegister",
+    "FieldValue",
+    "GroupValue",
     "InputFile",
     "Library",
     "Manifest",
@@ -57,6 +59,7 @@ __all__ = [
     "ManifestError",
     "Operation",
     "OperationKind",
+    "OperationOutcome",
     "ParseOutcome",
     "Tag",
     "Truth",
@@ -83,6 +86,8 @@ EXPECTED_INTROSPECTION: Final = "expected.introspection.json"
 EXPECTED_DOCS_URL: Final = "expected.docs-url.json"
 EXPECTED_TYPE_LOOKUP: Final = "expected.type-lookup.json"
 EXPECTED_AFTER_EPJSON: Final = "expected.after.epJSON"
+#: The case input with its operations made textually, from which ``expected.after.epJSON`` is generated.
+AFTER_IDF: Final = "after.idf"
 
 CASES_DIR: Final = "cases"
 MANIFEST_FILE: Final = "manifest.json"
@@ -288,9 +293,63 @@ class Case:
         return Assertion.DIAGNOSTICS in self.assertions
 
 
+_K = TypeVar("_K")
+_V = TypeVar("_V")
+
+
+class FrozenMapping(Mapping[_K, _V], Generic[_K, _V]):
+    """A read-only mapping that, unlike ``types.MappingProxyType``, survives pickling.
+
+    The runner hands each case to a worker process, so everything an :class:`Operation` holds must
+    pickle. It compares equal to any mapping with the same items, a plain ``dict`` included.
+    """
+
+    __slots__ = ("_items",)
+
+    def __init__(self, items: Mapping[_K, _V]) -> None:
+        self._items: dict[_K, _V] = dict(items)
+
+    def __getitem__(self, key: _K) -> _V:
+        return self._items[key]
+
+    def __iter__(self) -> Iterator[_K]:
+        return iter(self._items)
+
+    def __len__(self) -> int:
+        return len(self._items)
+
+    def __repr__(self) -> str:
+        return f"FrozenMapping({self._items!r})"
+
+    def __getstate__(self) -> dict[_K, _V]:
+        return self._items
+
+    def __setstate__(self, state: dict[_K, _V]) -> None:
+        self._items = state
+
+
+@dataclass(frozen=True, slots=True)
+class GroupValue:
+    """One group of an extensible wrapper key's whole-list value, such as one vertex of ``vertices``.
+
+    ``members`` maps an inner field name to text, for the reason every other operation value is
+    text. It is held read-only, so an :class:`Operation` is frozen all the way down, as the
+    JavaScript model freezes it.
+    """
+
+    members: Mapping[str, str]
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "members", FrozenMapping(self.members))
+
+    def to_json_obj(self) -> dict[str, str]:
+        """The group as it is written to ``manifest.json``."""
+        return dict(self.members)
+
+
 #: One value in an operation's ``fields``: text, or, for an extensible wrapper key, the whole list
-#: of groups, each a mapping from inner field name to text.
-FieldValue = str | list[dict[str, str]]
+#: of groups, in order.
+FieldValue = Union[str, tuple[GroupValue, ...]]
 
 
 @dataclass(frozen=True, slots=True)
@@ -298,7 +357,7 @@ class Operation:
     """One change a case applies to its document between the read and the write.
 
     Language-neutral, exactly as :class:`WriterOptions` is: ``type`` and ``name`` identify the
-    object, and each runner maps the four kinds onto its own library's mutators. Parsed into this
+    object, and each runner maps the five kinds onto its own library's mutators. Parsed into this
     rather than left as a bare mapping so that a malformed operation is a load error naming the
     case, rather than an attribute error inside a run where it reads as a library failure.
 
@@ -306,6 +365,10 @@ class Operation:
     said and each runner coerces it the way its own reader coerces a value read from a file. The one
     exception is an extensible wrapper key such as ``vertices``, whose value is the whole list of
     groups; each member of each group is text, coerced the same way.
+
+    ``refused`` names, for an ``update`` declared refused, the entries the library must report as
+    refused. A refusal is only checkable if it says what was refused: without it, a library whose
+    ``update`` raised on every call would pass every refused case.
     """
 
     op: OperationKind
@@ -316,6 +379,7 @@ class Operation:
     to: str | None = None
     fields: Mapping[str, FieldValue] | None = None
     outcome: OperationOutcome = OperationOutcome.APPLIED
+    refused: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         _check_non_empty(self.type, "type", ManifestError)
@@ -339,8 +403,27 @@ class Operation:
             raise ManifestError("operation 'update' requires 'fields', which may be empty")
         if self.op is not OperationKind.UPDATE and self.outcome is not OperationOutcome.APPLIED:
             raise ManifestError(f"operation {self.op.value!r} takes no 'outcome'")
+        if self.outcome is OperationOutcome.REFUSED and not self.refused:
+            raise ManifestError("an 'update' declared refused requires 'refused', the entries the library must name")
+        if self.outcome is not OperationOutcome.REFUSED and self.refused:
+            raise ManifestError("'refused' belongs only to an 'update' declared refused")
         if self.fields is not None:
-            object.__setattr__(self, "fields", dict(self.fields))
+            unknown = [entry for entry in self.refused if entry not in self.fields]
+            if unknown:
+                raise ManifestError(f"'refused' names {unknown!r}, which the group does not contain")
+            object.__setattr__(
+                self,
+                "fields",
+                FrozenMapping(
+                    {
+                        key: value
+                        if isinstance(value, str)
+                        else tuple(group if isinstance(group, GroupValue) else GroupValue(group) for group in value)
+                        for key, value in self.fields.items()
+                    }
+                ),
+            )
+        object.__setattr__(self, "refused", tuple(self.refused))
 
     def to_json_obj(self) -> dict[str, Any]:
         """The operation as it is written to ``manifest.json``. The JSON boundary, not a model type."""
@@ -353,11 +436,13 @@ class Operation:
             entry["to"] = self.to
         if self.fields is not None:
             entry["fields"] = {
-                key: [dict(group) for group in value] if isinstance(value, list) else value
+                key: value if isinstance(value, str) else [group.to_json_obj() for group in value]
                 for key, value in self.fields.items()
             }
         if self.outcome is not OperationOutcome.APPLIED:
             entry["outcome"] = self.outcome.value
+        if self.refused:
+            entry["refused"] = list(self.refused)
         return entry
 
 
@@ -781,7 +866,7 @@ def _read_writer_options(raw: Mapping[str, Any], *, path: Path, where: str) -> W
     )
 
 
-_OPERATION_KEYS: Final = frozenset({"op", "type", "name", "field", "value", "to", "fields", "outcome"})
+_OPERATION_KEYS: Final = frozenset({"op", "type", "name", "field", "value", "to", "fields", "outcome", "refused"})
 
 
 def _read_operations(raw: Mapping[str, Any], *, path: Path, where: str) -> tuple[Operation, ...]:
@@ -825,6 +910,9 @@ def _read_operations(raw: Mapping[str, Any], *, path: Path, where: str) -> tuple
         # another kind reads as a claim that the operation could have been refused, and none can.
         if kind is not OperationKind.UPDATE and "outcome" in block:
             _fail(ManifestError, path, at, f"operation {kind.value!r} takes no 'outcome'")
+        refused_value: object = block.get("refused", [])
+        if not isinstance(refused_value, list) or not all(isinstance(item, str) and item for item in refused_value):
+            _fail(ManifestError, path, f"{at}.refused", f"must be a list of non-empty field names, got {refused_value!r}")
 
         try:
             operations.append(
@@ -841,6 +929,7 @@ def _read_operations(raw: Mapping[str, Any], *, path: Path, where: str) -> tuple
                         if block.get("outcome") is not None
                         else OperationOutcome.APPLIED
                     ),
+                    refused=tuple(str(item) for item in refused_value),
                 )
             )
         except ManifestError as error:
@@ -859,7 +948,7 @@ def _read_field_value(value: object, *, path: Path, where: str) -> FieldValue:
     if isinstance(value, str):
         return value
     if isinstance(value, list):
-        groups: list[dict[str, str]] = []
+        groups: list[GroupValue] = []
         for index, raw_group in enumerate(value):
             group = _read_mapping(raw_group, path, f"{where}[{index}]", ManifestError)
             for member, member_value in group.items():
@@ -870,8 +959,8 @@ def _read_field_value(value: object, *, path: Path, where: str) -> FieldValue:
                         f"{where}[{index}].{member}",
                         f"must be a string, because a case says what a file would have said, got {member_value!r}",
                     )
-            groups.append({str(member): str(member_value) for member, member_value in group.items()})
-        return groups
+            groups.append(GroupValue({str(member): str(member_value) for member, member_value in group.items()}))
+        return tuple(groups)
     _fail(
         ManifestError,
         path,
@@ -1191,6 +1280,43 @@ def _check_agreement(entry: ManifestEntry, case: Case, path: Path) -> None:
         )
 
 
+def _check_post_operation(entry: ManifestEntry, case_dir: Path) -> None:
+    """Tie a case's ``after.idf`` to the operations it declares, as far as bytes can.
+
+    ``expected.after.epJSON`` is the oracle's reading of ``after.idf``, so a wrong ``after.idf``
+    yields a wrong expectation that both libraries could still agree with. The oracle cannot say
+    whether the text matches the operations; these checks catch the two mistakes it can be held to.
+    A case whose every operation is an ``update`` declared refused claims that nothing changed, so
+    its ``after.idf`` must equal its input byte for byte. Any other case claims a change, so its
+    ``after.idf`` must differ from its input. An ``update`` is only visible to
+    ``post-operation-epjson``, so a case declaring one must declare that assertion too.
+    """
+    declares = Assertion.POST_OPERATION_EPJSON in entry.assertions
+    if not declares:
+        if any(operation.op is OperationKind.UPDATE for operation in entry.operations):
+            raise CaseError(
+                f"{case_dir}: declares an 'update' operation without 'post-operation-epjson', the only "
+                f"assertion that shows what an update produced"
+            )
+        return
+    if not entry.operations:
+        raise CaseError(f"{case_dir}: declares 'post-operation-epjson' but no operations")
+    after = case_dir / AFTER_IDF
+    if not after.is_file():
+        raise CaseError(f"{case_dir}: declares 'post-operation-epjson' but has no {AFTER_IDF}")
+    if entry.input is not InputFile.IDF:
+        return  # an object-notation input has no text to compare with after.idf byte for byte
+    unchanged = after.read_bytes() == (case_dir / entry.input.value).read_bytes()
+    refused_only = all(
+        operation.op is OperationKind.UPDATE and operation.outcome is OperationOutcome.REFUSED
+        for operation in entry.operations
+    )
+    if refused_only and not unchanged:
+        raise CaseError(f"{case_dir}: every operation is refused, so {AFTER_IDF} must equal the input byte for byte")
+    if not refused_only and unchanged:
+        raise CaseError(f"{case_dir}: the operations change the document, so {AFTER_IDF} must differ from the input")
+
+
 def load_corpus(root: Path, *, require_divergences: bool = True) -> Corpus:
     """Load the whole corpus at ``root`` and check every rule that spans more than one file.
 
@@ -1208,6 +1334,7 @@ def load_corpus(root: Path, *, require_divergences: bool = True) -> Corpus:
             raise ManifestError(f"{manifest_path}: case {entry.id!r} has no directory at {case_dir}")
         case = load_case(case_dir)
         _check_agreement(entry, case, manifest_path)
+        _check_post_operation(entry, case_dir)
         if not (case_dir / entry.input.value).is_file():
             raise CaseError(f"{case_dir}: declared input {entry.input.value!r} is missing")
         cases.append(case)

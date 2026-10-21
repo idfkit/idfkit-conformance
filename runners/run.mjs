@@ -27,9 +27,10 @@
  *                    for byte outside the objects the operations touched.
  * 10. `post-operation-epjson` after the case's operations, the library's canonical epJSON equals
  *                    `expected.after.epJSON`, which `ConvertInputFormat` generated from the case's
- *                    committed `after.idf`. An `update` declared `refused` must be refused, and one
- *                    declared `applied` must not be; either mismatch fails the case and names the
- *                    operation.
+ *                    committed `after.idf`. An `update` declared `refused` must be refused with an
+ *                    error that names each entry of its `refused` list on a line `  - <entry>:`,
+ *                    and one declared `applied` must not be refused; either mismatch fails the case
+ *                    and names the operation.
  *
  * This file is a section-by-section mirror of `run.py`: the same section headers, the same shapes,
  * the same statuses, the same reconciliation, and byte-for-byte the same report strings apart from
@@ -1000,7 +1001,7 @@ async function runAssertion(library, job, assertion, parse, limit) {
   if (assertion === Assertion.POST_OPERATION_EPJSON) {
     return await assertPostOperationEpjson(library, job, limit);
   }
-  // A ninth assertion added to model.mjs without a runner change lands here. Saying so beats
+  // A further assertion added to model.mjs without a runner change lands here. Saying so beats
   // falling through to whichever branch happened to be last.
   return errored(
     job.caseId,
@@ -1179,7 +1180,7 @@ class ExtentUnknown extends RunnerError {}
  * A finding about the library rather than a fault of the runner, so it is reported as a failure,
  * which `known-divergence.toml` may accept while a library is catching up, and never as an error.
  */
-class OutcomeMismatch extends RunnerError {}
+export class OutcomeMismatch extends RunnerError {}
 
 /**
  * The failure for an `OutcomeMismatch`, which names the operation that disagreed.
@@ -1222,9 +1223,16 @@ async function assertPostOperationEpjson(library, job, limit) {
     );
   }
 
-  const text = readFileSync(job.inputPath).toString(IDF_ENCODING);
-  const schema = await library.node.schemaFor(library.core.getIdfVersion(text));
-  const { document } = library.core.parseIdf(text, schema);
+  let document;
+  if (job.inputFile === InputFile.IDF) {
+    const text = readFileSync(job.inputPath).toString(IDF_ENCODING);
+    const schema = await library.node.schemaFor(library.core.getIdfVersion(text));
+    document = library.core.parseIdf(text, schema).document;
+  } else {
+    const text = readFileSync(job.inputPath, 'utf8');
+    const schema = await library.node.schemaFor(library.core.getEpJsonVersion(text));
+    document = library.core.parseEpJson(text, schema).document;
+  }
   try {
     applyOperations(library, document, job.operations);
   } catch (error) {
@@ -1505,8 +1513,11 @@ function applyUpdate(document, object, operation) {
   try {
     object.update(group);
   } catch (error) {
-    // Whichever error the library throws for a refused group is its refusal.
-    if (operation.outcome === OperationOutcome.REFUSED) return;
+    // Whichever error the library throws, it is a refusal only if it names the entries.
+    if (operation.outcome === OperationOutcome.REFUSED) {
+      requireNamed(subject, operation, error);
+      return;
+    }
     throw new OutcomeMismatch(
       `${subject} is declared applied, and the library refused it: ${describeError(error)}`
     );
@@ -1517,10 +1528,45 @@ function applyUpdate(document, object, operation) {
 }
 
 /**
+ * Hold a refusal to the entries the case says are refused.
+ *
+ * Both libraries list each refused entry on a line of its own, `  - <entry>: <reason> (<detail>)`.
+ * An error that names none of the declared entries is not this refusal: it may be any failure at
+ * all, and accepting it would let a library whose `update` threw on every call pass.
+ *
+ * @param {string} subject
+ * @param {*} operation
+ * @param {unknown} error
+ */
+export function requireNamed(subject, operation, error) {
+  const lines = describeMessage(error).split('\n');
+  const missing = operation.refused.filter(
+    (/** @type {string} */ entry) => !lines.some((line) => line.startsWith(`  - ${entry}:`))
+  );
+  if (missing.length > 0) {
+    throw new OutcomeMismatch(
+      `${subject} is declared refused for ${quoteList(operation.refused)}, and the library's error ` +
+        `names no refused entry for ${quoteList(missing)}: ${describeError(error)}`
+    );
+  }
+}
+
+/**
+ * A list of names spelled as Python spells a list of strings, so the report reads the same in both.
+ *
+ * @param {readonly string[]} items
+ * @returns {string}
+ */
+function quoteList(items) {
+  return `[${items.map((item) => quote(item)).join(', ')}]`;
+}
+
+/**
  * An operation's `fields` coerced value by value, a wrapper key's groups member by member.
  *
  * A group member is described by the type's extensible block rather than by its own fields, so it
- * is looked up there and coerced by the same rule as a plain field.
+ * is looked up there and coerced by the same rule as a plain field. The type is looked up once per
+ * operation, not once per value.
  *
  * @param {*} document
  * @param {string} typeName
@@ -1528,11 +1574,12 @@ function applyUpdate(document, object, operation) {
  * @returns {Record<string, *>}
  */
 function coercedFields(document, typeName, fields) {
+  const type = document.schema.require(typeName);
+  const members = type?.x?.p ?? {};
   /** @type {Record<string, *>} */
   const result = {};
   for (const [field, value] of Object.entries(fields ?? {})) {
     if (Array.isArray(value)) {
-      const members = document.schema.require(typeName)?.x?.p ?? {};
       result[field] = value.map((group) =>
         Object.fromEntries(
           Object.entries(group).map(([member, text]) => [
@@ -1542,7 +1589,7 @@ function coercedFields(document, typeName, fields) {
         )
       );
     } else {
-      result[field] = coerced(document, typeName, field, value);
+      result[field] = coercedAs(type?.p?.[field]?.t, value);
     }
   }
   return result;

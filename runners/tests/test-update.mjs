@@ -16,6 +16,7 @@ import { join } from 'node:path';
 import test from 'node:test';
 
 import {
+  AFTER_IDF,
   Assertion,
   CaseError,
   EXPECTED_AFTER_EPJSON,
@@ -24,8 +25,10 @@ import {
   OperationKind,
   OperationOutcome,
   loadCase,
+  loadCorpus,
   loadManifest,
 } from '../model.mjs';
+import { OutcomeMismatch, requireNamed } from '../run.mjs';
 
 const UPDATE = Object.freeze({
   op: 'update',
@@ -76,10 +79,33 @@ test('an update defaults to applied', () => {
 });
 
 test('a refused update round trips its outcome', () => {
-  const manifest = loadManifest(manifestWith({ ...UPDATE, outcome: 'refused' }));
+  const raw = { ...UPDATE, outcome: 'refused', refused: ['x_origin'] };
+  const manifest = loadManifest(manifestWith(raw));
   const [operation] = manifest.convention[0].operations;
   assert.equal(operation.outcome, OperationOutcome.REFUSED);
-  assert.deepEqual(operation.toJsonObj(), { ...UPDATE, outcome: 'refused' });
+  assert.deepEqual([...operation.refused], ['x_origin']);
+  assert.deepEqual(JSON.parse(JSON.stringify(operation.toJsonObj())), raw);
+});
+
+test('a refused update must name what is refused', () => {
+  assert.throws(
+    () => loadManifest(manifestWith({ ...UPDATE, outcome: 'refused' })),
+    (error) => error instanceof ManifestError && /requires 'refused'/.test(error.message)
+  );
+});
+
+test('refused belongs to a refused update alone', () => {
+  assert.throws(
+    () => loadManifest(manifestWith({ ...UPDATE, refused: ['x_origin'] })),
+    (error) => error instanceof ManifestError && /'refused' belongs only/.test(error.message)
+  );
+});
+
+test('refused names only entries of the group', () => {
+  assert.throws(
+    () => loadManifest(manifestWith({ ...UPDATE, outcome: 'refused', refused: ['y_origin'] })),
+    (error) => error instanceof ManifestError && /does not contain/.test(error.message)
+  );
 });
 
 test('an update may carry an empty group', () => {
@@ -98,6 +124,19 @@ test('a field value may be a list of groups', () => {
   const [operation] = loadManifest(manifestWith(raw)).convention[0].operations;
   assert.deepEqual(JSON.parse(JSON.stringify(operation.fields)), { vertices: [group, group] });
   assert.deepEqual(JSON.parse(JSON.stringify(operation.toJsonObj())), raw);
+});
+
+test('an operation is frozen all the way down', () => {
+  const group = { vertex_x_coordinate: '0' };
+  const raw = { ...UPDATE, fields: { x_origin: '1', vertices: [group] } };
+  const [operation] = loadManifest(manifestWith(raw)).convention[0].operations;
+  const vertices = operation.fields?.vertices;
+  assert.ok(Array.isArray(vertices));
+  assert.ok(Object.isFrozen(operation));
+  assert.ok(Object.isFrozen(operation.fields));
+  assert.ok(Object.isFrozen(vertices));
+  assert.ok(Object.isFrozen(vertices[0]));
+  assert.ok(Object.isFrozen(operation.refused));
 });
 
 test('a group member must be text', () => {
@@ -179,3 +218,120 @@ test('a case declaring post-operation-epjson needs the file', () => {
   writeFileSync(join(caseDir, EXPECTED_AFTER_EPJSON), '{}');
   assert.equal(loadCase(caseDir).truth, 'convention');
 });
+
+/**
+ * A one-case corpus whose input is `Version,26.1;` and whose after.idf is `after`.
+ *
+ * @param {Record<string, unknown>} operation
+ * @param {{ after: string | null, assertions?: string[] }} options
+ * @returns {string}
+ */
+function writeCorpus(operation, { after, assertions = ['parse-outcome', 'post-operation-epjson'] }) {
+  const root = mkdtempSync(join(tmpdir(), 'update-'));
+  const postOperation = assertions.includes('post-operation-epjson');
+  /** @type {Record<string, unknown>} */
+  const entry = {
+    id: 'update-example',
+    title: 'An update',
+    tags: ['tier1'],
+    energyplus_version: '26.1.0',
+    assertions,
+    input: 'input.idf',
+    parse_outcome: 'success',
+    operations: [operation],
+  };
+  if (postOperation) entry.expected_after_epjson = EXPECTED_AFTER_EPJSON;
+  writeFileSync(
+    join(root, 'manifest.json'),
+    JSON.stringify({ schema_version: 1, oracle: [], convention: [entry] })
+  );
+  const caseDir = join(root, 'cases', 'update-example');
+  mkdirSync(caseDir, { recursive: true });
+  writeFileSync(
+    join(caseDir, 'case.toml'),
+    'title = "An update"\n' +
+      'why = "Because."\n' +
+      'tags = ["tier1"]\n' +
+      'energyplus_version = "26.1.0"\n' +
+      'truth = "convention"\n' +
+      `assertions = ${JSON.stringify(assertions)}\n`
+  );
+  writeFileSync(join(caseDir, 'input.idf'), 'Version,26.1;\n');
+  if (postOperation) writeFileSync(join(caseDir, EXPECTED_AFTER_EPJSON), '{}');
+  if (after !== null) writeFileSync(join(caseDir, AFTER_IDF), after);
+  return root;
+}
+
+const REFUSED = Object.freeze({ ...UPDATE, outcome: 'refused', refused: ['x_origin'] });
+
+test('a refused case after.idf must equal its input', () => {
+  assert.throws(
+    () => loadCorpus(writeCorpus(REFUSED, { after: 'Version,26.2;\n' }), { requireDivergences: false }),
+    (error) => error instanceof CaseError && /must equal the input/.test(error.message)
+  );
+});
+
+test('an applied case after.idf must differ from its input', () => {
+  assert.throws(
+    () => loadCorpus(writeCorpus(UPDATE, { after: 'Version,26.1;\n' }), { requireDivergences: false }),
+    (error) => error instanceof CaseError && /must differ from the input/.test(error.message)
+  );
+});
+
+test('a post-operation case needs its after.idf', () => {
+  assert.throws(
+    () => loadCorpus(writeCorpus(UPDATE, { after: null }), { requireDivergences: false }),
+    (error) => error instanceof CaseError && error.message.includes(AFTER_IDF)
+  );
+});
+
+test('an update needs the post-operation assertion', () => {
+  assert.throws(
+    () =>
+      loadCorpus(writeCorpus(UPDATE, { after: null, assertions: ['parse-outcome'] }), {
+        requireDivergences: false,
+      }),
+    (error) => error instanceof CaseError && /without 'post-operation-epjson'/.test(error.message)
+  );
+});
+
+test('consistent after.idf loads', () => {
+  loadCorpus(writeCorpus(REFUSED, { after: 'Version,26.1;\n' }), { requireDivergences: false });
+});
+
+/**
+ * @param {...string} entries
+ * @returns {Operation}
+ */
+function refusedOperation(...entries) {
+  return new Operation({
+    op: OperationKind.UPDATE,
+    type: 'Zone',
+    name: 'Office',
+    fields: Object.fromEntries(entries.map((entry) => [entry, '1'])),
+    outcome: OperationOutcome.REFUSED,
+    refused: entries,
+  });
+}
+
+test('a refusal naming every entry is accepted', () => {
+  const error = new Error(
+    "Update of object type 'Zone' refused; no field was changed:\n" +
+      '  - x_orign: unknown (not a field of Zone)\n' +
+      '  - name: name (use rename)'
+  );
+  requireNamed('subject', refusedOperation('x_orign', 'name'), error);
+});
+
+for (const message of [
+  '"x_orign" is not a field of Zone',
+  "Update of object type 'Zone' refused; no field was changed:\n  - name: name (use rename)",
+  'Update refused: x_orign: unknown',
+]) {
+  test(`a refusal that does not name an entry is a mismatch: ${JSON.stringify(message)}`, () => {
+    assert.throws(
+      () => requireNamed('subject', refusedOperation('x_orign', 'name'), new Error(message)),
+      (error) => error instanceof OutcomeMismatch && /names no refused entry/.test(error.message)
+    );
+  });
+}

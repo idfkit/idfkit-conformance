@@ -1222,7 +1222,10 @@
             "x_origin": "10",
             "x_orign": "10"
           },
-          "outcome": "refused"
+          "outcome": "refused",
+          "refused": [
+            "x_orign"
+          ]
         }
       ]
     },
@@ -1251,7 +1254,10 @@
             "x_origin": "10",
             "name": "Lobby"
           },
-          "outcome": "refused"
+          "outcome": "refused",
+          "refused": [
+            "name"
+          ]
         }
       ]
     },
@@ -1296,6 +1302,55 @@
               }
             ]
           }
+        }
+      ]
+    },
+    {
+      "id": "update-refused-wrapper-contents",
+      "title": "A group whose wrapper list holds an unknown group member is refused and changes nothing",
+      "tags": [
+        "tier1",
+        "extensible"
+      ],
+      "energyplus_version": "26.1.0",
+      "assertions": [
+        "parse-outcome",
+        "post-operation-epjson",
+        "preserved-text"
+      ],
+      "input": "input.idf",
+      "parse_outcome": "success",
+      "expected_after_epjson": "expected.after.epJSON",
+      "operations": [
+        {
+          "op": "update",
+          "type": "BuildingSurface:Detailed",
+          "name": "Office Wall",
+          "fields": {
+            "surface_type": "Roof",
+            "vertices": [
+              {
+                "vertex_x_coordinate": "0",
+                "vertex_y_coordinate": "0",
+                "vertex_z_coordinate": "4"
+              },
+              {
+                "vertex_x_coordinate": "0",
+                "vertex_y_coordinate": "0",
+                "vertex_z_coordinate": "0",
+                "bogus": "1"
+              },
+              {
+                "vertex_x_coordinate": "5",
+                "vertex_y_coordinate": "0",
+                "vertex_z_coordinate": "0"
+              }
+            ]
+          },
+          "outcome": "refused",
+          "refused": [
+            "vertices"
+          ]
         }
       ]
     }

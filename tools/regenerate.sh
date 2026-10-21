@@ -30,7 +30,8 @@
 # to regenerate. It is skipped without error (FR-020).
 #
 # Usage:
-#   tools/regenerate.sh                 regenerate every oracle case
+#   tools/regenerate.sh                 regenerate every oracle case and every
+#                                       case declaring post-operation-epjson
 #   tools/regenerate.sh <id> [<id>...]  regenerate only the named cases
 #   tools/regenerate.sh --help
 #
@@ -50,7 +51,9 @@ readonly REPO_ROOT
 readonly CASES_DIR="$REPO_ROOT/cases"
 
 usage() {
-    sed -n '3,41p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+    # Every comment line of the header, from the title to the blank line that ends it, so
+    # the help cannot fall out of step with the header when either is edited.
+    awk 'NR > 2 && /^#/ { sub(/^# ?/, ""); print; next } NR > 2 { exit }' "${BASH_SOURCE[0]}"
 }
 
 if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
@@ -77,16 +80,25 @@ read_toml_string() {
     ' "$file"
 }
 
-# Succeed when the case.toml's assertions list names the given assertion. Like
-# read_toml_string, this ignores triple-quoted blocks, so prose in `why` cannot count.
+# Succeed when the case.toml's assertions list names the given assertion, whether the
+# array sits on one line or spans several. Like read_toml_string, this ignores
+# triple-quoted blocks, so prose in `why` cannot count.
 declares_assertion() {
     local assertion="$1" file="$2"
     awk -v want="\"$assertion\"" '
         { line = $0; probe = line; fences = gsub(/"""/, "", probe) }
         inblock { if (fences % 2 == 1) inblock = 0; next }
+        inarray {
+            if (index(line, want) > 0) { found = 1; exit }
+            if (line ~ /\]/) inarray = 0
+            next
+        }
         {
             if (fences % 2 == 1) { inblock = 1; next }
-            if (line ~ /^[ \t]*assertions[ \t]*=/ && index(line, want) > 0) { found = 1; exit }
+            if (line ~ /^[ \t]*assertions[ \t]*=/) {
+                if (index(line, want) > 0) { found = 1; exit }
+                if (line !~ /\]/) inarray = 1
+            }
         }
         END { exit found ? 0 : 1 }
     ' "$file"

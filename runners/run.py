@@ -27,8 +27,9 @@ What it checks, per case, in this order:
 10. ``post-operation-epjson`` after the case's operations, the library's canonical epJSON equals
                       ``expected.after.epJSON``, which ``ConvertInputFormat`` generated from the
                       case's committed ``after.idf``. An ``update`` declared ``refused`` must be
-                      refused, and one declared ``applied`` must not be; either mismatch fails the
-                      case and names the operation.
+                      refused with an error that names each entry of its ``refused`` list on a line
+                      ``  - <entry>:``, and one declared ``applied`` must not be refused; either
+                      mismatch fails the case and names the operation.
 
 Assertions 5 to 7 have no oracle behind them: ``ConvertInputFormat`` converts a file, and does not
 validate one, describe a type, or build a documentation address. What rules them is written down
@@ -890,7 +891,10 @@ def _assert_post_operation_epjson(job: CaseJob, limit: int) -> AssertionOutcome:
 
     import idfkit
 
-    document = idfkit.parse_idf(job.input_path, encoding=IDF_ENCODING)
+    if job.input_file is InputFile.IDF:
+        document = idfkit.parse_idf(job.input_path, encoding=IDF_ENCODING)
+    else:
+        document = idfkit.parse_epjson(job.input_path)
     try:
         _apply_operations(document, job.operations)
     except _OutcomeMismatch as error:
@@ -1087,8 +1091,9 @@ def _apply_update(document: Any, obj: Any, operation: Operation) -> None:
     group = _coerced_fields(document, operation.type, operation.fields)
     try:
         obj.update(group)
-    except Exception as error:  # whichever error the library raises for a refused group is its refusal
+    except Exception as error:  # whichever error the library raises, it is a refusal only if it names the entries
         if operation.outcome is OperationOutcome.REFUSED:
+            _require_named(operation, error)
             return
         raise _OutcomeMismatch(
             f"operation 'update' on {operation.type} {operation.name!r} is declared applied, and the library "
@@ -1101,22 +1106,53 @@ def _apply_update(document: Any, obj: Any, operation: Operation) -> None:
         )
 
 
+def _require_named(operation: Operation, error: Exception) -> None:
+    """Hold a refusal to the entries the case says are refused.
+
+    Both libraries list each refused entry on a line of its own, ``  - <entry>: <reason> (<detail>)``.
+    An error that names none of the declared entries is not this refusal: it may be any failure at
+    all, and accepting it would let a library whose ``update`` raised on every call pass.
+    """
+    lines = str(error).splitlines()
+    missing = [entry for entry in operation.refused if not any(line.startswith(f"  - {entry}:") for line in lines)]
+    if missing:
+        raise _OutcomeMismatch(
+            f"operation 'update' on {operation.type} {operation.name!r} is declared refused for "
+            f"{list(operation.refused)!r}, and the library's error names no refused entry for {missing!r}: "
+            f"{type(error).__name__}: {error}"
+        ) from error
+
+
 def _coerced_fields(document: Any, type_name: str, fields: Mapping[str, FieldValue] | None) -> dict[str, Any]:
     """An operation's ``fields`` coerced value by value, a wrapper key's groups member by member.
 
     The library's type description lists an extensible type's inner field names beside its own, so
-    a group member is coerced by the same rule as a plain field.
+    a group member is coerced by the same rule as a plain field. The description is read once per
+    operation, not once per value.
     """
+    kinds = _field_kinds(document, type_name)
     coerced: dict[str, Any] = {}
     for field, value in (fields or {}).items():
-        if isinstance(value, list):
+        if isinstance(value, str):
+            coerced[field] = _coerced_as(kinds.get(field, frozenset()), value)
+        else:
             coerced[field] = [
-                {member: _coerced(document, type_name, member, text) for member, text in group.items()}
+                {member: _coerced_as(kinds.get(member, frozenset()), text) for member, text in group.members.items()}
                 for group in value
             ]
-        else:
-            coerced[field] = _coerced(document, type_name, field, value)
     return coerced
+
+
+def _field_kinds(document: Any, type_name: str) -> dict[str, frozenset[str]]:
+    """Each field of a type mapped to the kinds its description names.
+
+    A field that also accepts a sizing keyword is described as a union, ``number|string``, and is
+    numeric for the reader all the same. A description with no type is no kind at all.
+    """
+    return {
+        item.name: frozenset((item.field_type or "").split("|")) - {""}
+        for item in document.describe(type_name).fields
+    }
 
 
 def _coerced(document: Any, type_name: str, field: str, value: str) -> Any:
@@ -1131,13 +1167,11 @@ def _coerced(document: Any, type_name: str, field: str, value: str) -> Any:
     and a sizing sentinel in a numeric field stays a string too, because that is what the reader
     does with both.
     """
-    description = next(
-        (item for item in document.describe(type_name).fields if item.name == field),
-        None,
-    )
-    # A field that also accepts a sizing keyword is described as a union, ``number|string``, and is
-    # numeric for the reader all the same.
-    kinds = set(description.field_type.split("|")) if description is not None else set()
+    return _coerced_as(_field_kinds(document, type_name).get(field, frozenset()), value)
+
+
+def _coerced_as(kinds: frozenset[str], value: str) -> Any:
+    """Text coerced under the kinds a field's description names: a number, an integer, or text."""
     if not kinds & {"number", "integer"}:
         return value
     try:

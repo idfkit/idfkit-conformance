@@ -57,6 +57,8 @@ export const EXPECTED_INTROSPECTION = 'expected.introspection.json';
 export const EXPECTED_DOCS_URL = 'expected.docs-url.json';
 export const EXPECTED_TYPE_LOOKUP = 'expected.type-lookup.json';
 export const EXPECTED_AFTER_EPJSON = 'expected.after.epJSON';
+/** The case input with its operations made textually, from which `expected.after.epJSON` is generated. */
+export const AFTER_IDF = 'after.idf';
 
 export const CASES_DIR = 'cases';
 export const MANIFEST_FILE = 'manifest.json';
@@ -379,7 +381,7 @@ export class Operation {
    * One change a case applies to its document between the read and the write.
    *
    * Language-neutral, exactly as `WriterOptions` is: `type` and `name` identify the object, and
-   * each runner maps the four kinds onto its own library's mutators. Parsed into this rather than
+   * each runner maps the five kinds onto its own library's mutators. Parsed into this rather than
    * left as a bare object so that a malformed operation is a load error naming the case, rather
    * than a property access failing inside a run where it reads as a library failure.
    *
@@ -388,10 +390,14 @@ export class Operation {
    * exception is an extensible wrapper key such as `vertices`, whose value is the whole list of
    * groups; each member of each group is text, coerced the same way.
    *
+   * `refused` names, for an `update` declared refused, the entries the library must report as
+   * refused. A refusal is only checkable if it says what was refused: without it, a library whose
+   * `update` threw on every call would pass every refused case.
+   *
    * @param {{ op: OperationKind, type: string, name: string, field?: string | null,
    *           value?: string | null, to?: string | null,
    *           fields?: Readonly<Record<string, FieldValue>> | null,
-   *           outcome?: OperationOutcome }} fields
+   *           outcome?: OperationOutcome, refused?: readonly string[] }} fields
    */
   constructor({
     op,
@@ -402,6 +408,7 @@ export class Operation {
     to = null,
     fields = null,
     outcome = OperationOutcome.APPLIED,
+    refused = [],
   }) {
     /** @type {OperationKind} */
     this.op = op;
@@ -415,7 +422,7 @@ export class Operation {
     this.value = value ?? null;
     /** @type {string | null} */
     this.to = to ?? null;
-    /** @type {Readonly<Record<string, string>> | null} */
+    /** @type {Readonly<Record<string, FieldValue>> | null} */
     this.fields =
       fields === null
         ? null
@@ -431,6 +438,8 @@ export class Operation {
           );
     /** @type {OperationOutcome} */
     this.outcome = outcome;
+    /** @type {readonly string[]} */
+    this.refused = Object.freeze([...refused]);
 
     checkNonEmpty(this.type, 'type', ManifestError);
 
@@ -462,6 +471,20 @@ export class Operation {
     if (this.op !== OperationKind.UPDATE && this.outcome !== OperationOutcome.APPLIED) {
       throw new ManifestError(`operation ${repr(this.op)} takes no 'outcome'`);
     }
+    if (this.outcome === OperationOutcome.REFUSED && this.refused.length === 0) {
+      throw new ManifestError(
+        "an 'update' declared refused requires 'refused', the entries the library must name"
+      );
+    }
+    if (this.outcome !== OperationOutcome.REFUSED && this.refused.length > 0) {
+      throw new ManifestError("'refused' belongs only to an 'update' declared refused");
+    }
+    if (this.fields !== null) {
+      const unknown = this.refused.filter((entry) => !Object.hasOwn(this.fields ?? {}, entry));
+      if (unknown.length > 0) {
+        throw new ManifestError(`'refused' names ${repr(unknown)}, which the group does not contain`);
+      }
+    }
     Object.freeze(this);
   }
 
@@ -485,6 +508,7 @@ export class Operation {
       );
     }
     if (this.outcome !== OperationOutcome.APPLIED) entry.outcome = this.outcome;
+    if (this.refused.length > 0) entry.refused = [...this.refused];
     return entry;
   }
 }
@@ -1958,7 +1982,17 @@ function readFieldValue(value, path, where) {
   );
 }
 
-const OPERATION_KEYS = new Set(['op', 'type', 'name', 'field', 'value', 'to', 'fields', 'outcome']);
+const OPERATION_KEYS = new Set([
+  'op',
+  'type',
+  'name',
+  'field',
+  'value',
+  'to',
+  'fields',
+  'outcome',
+  'refused',
+]);
 
 /**
  * Read the optional `operations` list, or an empty array when the case declares none.
@@ -2019,6 +2053,15 @@ function readOperations(raw, options) {
     if (kind !== OperationKind.UPDATE && rawOutcome !== undefined) {
       throw new ManifestError(`${options.path}: ${at}: operation ${repr(kind)} takes no 'outcome'`);
     }
+    const rawRefused = block['refused'] ?? [];
+    if (
+      !Array.isArray(rawRefused) ||
+      !rawRefused.every((item) => typeof item === 'string' && item !== '')
+    ) {
+      throw new ManifestError(
+        `${options.path}: ${at}.refused: must be a list of non-empty field names, got ${repr(rawRefused)}`
+      );
+    }
 
     const rawValue = block['value'];
     try {
@@ -2034,6 +2077,7 @@ function readOperations(raw, options) {
           rawOutcome === undefined || rawOutcome === null
             ? OperationOutcome.APPLIED
             : readEnum(block, 'outcome', OperationOutcome, inner),
+        refused: rawRefused,
       });
     } catch (error) {
       // Re-thrown with the file and the case position, so a malformed operation names the case
@@ -2345,6 +2389,57 @@ function sameMembers(left, right) {
 }
 
 /**
+ * Tie a case's `after.idf` to the operations it declares, as far as bytes can.
+ *
+ * `expected.after.epJSON` is the oracle's reading of `after.idf`, so a wrong `after.idf` yields a
+ * wrong expectation that both libraries could still agree with. The oracle cannot say whether the
+ * text matches the operations; these checks catch the two mistakes it can be held to. A case whose
+ * every operation is an `update` declared refused claims that nothing changed, so its `after.idf`
+ * must equal its input byte for byte. Any other case claims a change, so its `after.idf` must
+ * differ from its input. An `update` is only visible to `post-operation-epjson`, so a case
+ * declaring one must declare that assertion too.
+ *
+ * @param {ManifestEntry} entry
+ * @param {string} caseDir
+ */
+function checkPostOperation(entry, caseDir) {
+  const declares = entry.assertions.includes(Assertion.POST_OPERATION_EPJSON);
+  if (!declares) {
+    if (entry.operations.some((operation) => operation.op === OperationKind.UPDATE)) {
+      throw new CaseError(
+        `${caseDir}: declares an 'update' operation without 'post-operation-epjson', the only ` +
+          'assertion that shows what an update produced'
+      );
+    }
+    return;
+  }
+  if (entry.operations.length === 0) {
+    throw new CaseError(`${caseDir}: declares 'post-operation-epjson' but no operations`);
+  }
+  const after = join(caseDir, AFTER_IDF);
+  if (!isFile(after)) {
+    throw new CaseError(`${caseDir}: declares 'post-operation-epjson' but has no ${AFTER_IDF}`);
+  }
+  // An object-notation input has no text to compare with after.idf byte for byte.
+  if (entry.input !== InputFile.IDF) return;
+  const unchanged = readFileSync(after).equals(readFileSync(join(caseDir, entry.input)));
+  const refusedOnly = entry.operations.every(
+    (operation) =>
+      operation.op === OperationKind.UPDATE && operation.outcome === OperationOutcome.REFUSED
+  );
+  if (refusedOnly && !unchanged) {
+    throw new CaseError(
+      `${caseDir}: every operation is refused, so ${AFTER_IDF} must equal the input byte for byte`
+    );
+  }
+  if (!refusedOnly && unchanged) {
+    throw new CaseError(
+      `${caseDir}: the operations change the document, so ${AFTER_IDF} must differ from the input`
+    );
+  }
+}
+
+/**
  * @typedef {object} LoadCorpusOptions
  * @property {boolean} [requireDivergences]
  */
@@ -2375,6 +2470,7 @@ export function loadCorpus(root, { requireDivergences = true } = {}) {
     }
     const record = loadCase(caseDir);
     checkAgreement(entry, record, manifestPath);
+    checkPostOperation(entry, caseDir);
     if (!isFile(join(caseDir, entry.input))) {
       throw new CaseError(`${caseDir}: declared input ${repr(entry.input)} is missing`);
     }

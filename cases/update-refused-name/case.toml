@@ -5,7 +5,10 @@ and its `name`; the whole group is refused and the object is unchanged. Renaming
 operation because it also retargets every reference to the object, which a field write does not.
 
 Tagged naming because the hazard is the name being treated as an ordinary field. Both languages
-refuse it (idfkit-unification feature 015, FR-004 (b)). after.idf is byte-identical to the input.
+refuse it (idfkit-unification feature 015, FR-004 (b)). after.idf is byte-identical to the input,
+so post-operation-epjson is the assertion that shows nothing was applied; preserved-text excludes
+the touched zone and holds only the rest of the file. The runner requires the error to name `name`
+as a refused entry.
 """
 tags = ["tier1", "naming"]
 energyplus_version = "26.1.0"

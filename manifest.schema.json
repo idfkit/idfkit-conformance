@@ -265,6 +265,13 @@
           "description": "What the 'update' is declared to do: 'applied' (the default) applies the whole group; 'refused' declares that the library refuses the group and changes nothing. A runner fails the case when the library does otherwise. Forbidden on every other kind.",
           "type": "string",
           "enum": ["applied", "refused"]
+        },
+        "refused": {
+          "description": "The entries of the group that the library must report as refused, each by the name the group gives it. Required on an 'update' declared 'refused', forbidden otherwise. Each runner fails the case unless the library's error carries, for each one, a line beginning '  - <entry>:'. Without it a refusal is not checkable: a library whose update raised on every call would pass every refused case.",
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
         }
       },
       "allOf": [
@@ -287,6 +294,11 @@
           "if": { "properties": { "op": { "const": "update" } }, "required": ["op"] },
           "then": { "required": ["fields"] },
           "else": { "not": { "required": ["outcome"] } }
+        },
+        {
+          "if": { "properties": { "outcome": { "const": "refused" } }, "required": ["outcome"] },
+          "then": { "required": ["refused"] },
+          "else": { "not": { "required": ["refused"] } }
         }
       ]
     },

@@ -7,8 +7,11 @@ group is refused, so the valid entry is not applied either.
 Before this case, the second language applied entries up to the first unknown name and then threw,
 leaving the object half edited. A refusal that leaves no change is the behaviour both languages now
 share (idfkit-unification feature 015, FR-003, FR-004 (a)). after.idf is byte-identical to the
-input, so post-operation-epjson asserts the converted input, and preserved-text, with no object
-touched, asserts the whole file.
+input, so post-operation-epjson asserts the converted input: it is the assertion that shows nothing
+was applied. preserved-text cannot show that, because it excludes every object an operation touched
+and a partly applied group touches the zone; it holds the rest of the file. The operation's
+`refused` list makes the runner require that the error name `x_orign` as a refused entry, so an
+update that failed for any other reason does not pass.
 """
 tags = ["tier1"]
 energyplus_version = "26.1.0"
