@@ -17,10 +17,12 @@
 # read that such issues "must land together"; idfkit-js 10 landed alone on 2026-09-10 and the
 # register followed it, one entry at a time, with the python half of the same bug still recorded.
 #
-# Counts, recounted from this file when the five update cases landed: 28 entries over 7 issues and
-# 14 cases, 17 against python and 11 against typescript, on a corpus of 74 cases and 226 assertions.
-# The 16 entries for the update cases all track idfkit#235 and are removed, library by library, by
-# the pull requests that land each side. Before them, and after idfkit#179 to idfkit#182 were fixed,
+# Counts, recounted from this file when idfkit landed IDFObject.update and its ten python entries
+# for the update cases were removed: 18 entries over 7 issues and 12 cases, 7 against python and 11
+# against typescript, on a corpus of 74 cases and 226 assertions. The six typescript entries for the
+# update cases track idfkit#235 and are removed when @idfkit/core lands its side. When the five
+# update cases landed, the file held 28 entries over 7 issues and 14 cases, 17 against python and
+# 11 against typescript. Before them, and after idfkit#179 to idfkit#182 were fixed,
 # the file held 12 entries over 6 issues and 9 cases, 7 against python and 5 against typescript, on
 # a corpus of 69 cases and 211 assertions. Before that fix it held 17 entries, although this
 # paragraph still stated the 21 counted against idfkit 1.0.0rc2 and @idfkit/core 0.3.0-rc.3 with
@@ -229,94 +231,14 @@ object. Losing an object in silence is the hazard, and the corpus settled that r
 malformed-truncated-object before this case existed.'''
 
 # ---------------------------------------------------------------------------
-# update: the multi-field update, before either library lands its side
+# update: the multi-field update, before @idfkit/core lands its side
 # ---------------------------------------------------------------------------
 #
-# idfkit#235 tracks both languages. The python entries record that idfkit main has no
-# IDFObject.update. The typescript entries record that @idfkit/core main applies entries up to the
+# idfkit#235 tracks both languages. The ten python entries, which recorded that idfkit main had no
+# IDFObject.update, were removed when idfkit landed it. The typescript entries record that @idfkit/core main applies entries up to the
 # first one it rejects, names that entry in its own wording rather than as a refused entry, and does
 # not examine the extensible list's groups. Measured against idfkit-js b44819b. update-all-valid and
 # update-wrapper-key pass in typescript already and carry no typescript entry.
-
-[[divergence]]
-case      = "update-all-valid"
-library   = "python"
-assertion = "post-operation-epjson"
-issue     = "https://github.com/idfkit/idfkit/issues/235"
-observed  = '''idfkit has no IDFObject.update, so the runner reports that the library has no update method on objects and applies nothing further. Removed by the idfkit pull request that adds the method.'''
-expected  = '''The Office zone's X, Y and Z origins become 10, 5 and 2.5 and its multiplier 3, and every other byte of the file is unchanged.'''
-
-[[divergence]]
-case      = "update-all-valid"
-library   = "python"
-assertion = "preserved-text"
-issue     = "https://github.com/idfkit/idfkit/issues/235"
-observed  = '''idfkit has no IDFObject.update, so the runner reports that the library has no update method on objects and applies nothing further. Removed by the idfkit pull request that adds the method.'''
-expected  = '''The Office zone's X, Y and Z origins become 10, 5 and 2.5 and its multiplier 3, and every other byte of the file is unchanged.'''
-
-[[divergence]]
-case      = "update-refused-unknown-name"
-library   = "python"
-assertion = "post-operation-epjson"
-issue     = "https://github.com/idfkit/idfkit/issues/235"
-observed  = '''idfkit has no IDFObject.update, so the runner reports that the library has no update method on objects and applies nothing further. Removed by the idfkit pull request that adds the method.'''
-expected  = '''The group is refused because x_orign is not a field of Zone, and the Office zone, including its valid x_origin entry, is unchanged.'''
-
-[[divergence]]
-case      = "update-refused-unknown-name"
-library   = "python"
-assertion = "preserved-text"
-issue     = "https://github.com/idfkit/idfkit/issues/235"
-observed  = '''idfkit has no IDFObject.update, so the runner reports that the library has no update method on objects and applies nothing further. Removed by the idfkit pull request that adds the method.'''
-expected  = '''The group is refused because x_orign is not a field of Zone, and the Office zone, including its valid x_origin entry, is unchanged.'''
-
-[[divergence]]
-case      = "update-refused-name"
-library   = "python"
-assertion = "post-operation-epjson"
-issue     = "https://github.com/idfkit/idfkit/issues/235"
-observed  = '''idfkit has no IDFObject.update, so the runner reports that the library has no update method on objects and applies nothing further. Removed by the idfkit pull request that adds the method.'''
-expected  = '''The group is refused because it names name, and the Office zone, including its valid x_origin entry, is unchanged.'''
-
-[[divergence]]
-case      = "update-refused-name"
-library   = "python"
-assertion = "preserved-text"
-issue     = "https://github.com/idfkit/idfkit/issues/235"
-observed  = '''idfkit has no IDFObject.update, so the runner reports that the library has no update method on objects and applies nothing further. Removed by the idfkit pull request that adds the method.'''
-expected  = '''The group is refused because it names name, and the Office zone, including its valid x_origin entry, is unchanged.'''
-
-[[divergence]]
-case      = "update-wrapper-key"
-library   = "python"
-assertion = "post-operation-epjson"
-issue     = "https://github.com/idfkit/idfkit/issues/235"
-observed  = '''idfkit has no IDFObject.update, so the runner reports that the library has no update method on objects and applies nothing further. Removed by the idfkit pull request that adds the method.'''
-expected  = '''The Office Wall's four vertices are replaced by the three given and its Number of Vertices becomes 3, and every other byte of the file is unchanged.'''
-
-[[divergence]]
-case      = "update-wrapper-key"
-library   = "python"
-assertion = "preserved-text"
-issue     = "https://github.com/idfkit/idfkit/issues/235"
-observed  = '''idfkit has no IDFObject.update, so the runner reports that the library has no update method on objects and applies nothing further. Removed by the idfkit pull request that adds the method.'''
-expected  = '''The Office Wall's four vertices are replaced by the three given and its Number of Vertices becomes 3, and every other byte of the file is unchanged.'''
-
-[[divergence]]
-case      = "update-refused-wrapper-contents"
-library   = "python"
-assertion = "post-operation-epjson"
-issue     = "https://github.com/idfkit/idfkit/issues/235"
-observed  = '''idfkit has no IDFObject.update, so the runner reports that the library has no update method on objects and applies nothing further. Removed by the idfkit pull request that adds the method.'''
-expected  = '''The group is refused because the second vertices group carries bogus, which is not an extensible field of BuildingSurface:Detailed, and the Office Wall, including its Surface Type, is unchanged.'''
-
-[[divergence]]
-case      = "update-refused-wrapper-contents"
-library   = "python"
-assertion = "preserved-text"
-issue     = "https://github.com/idfkit/idfkit/issues/235"
-observed  = '''idfkit has no IDFObject.update, so the runner reports that the library has no update method on objects and applies nothing further. Removed by the idfkit pull request that adds the method.'''
-expected  = '''The group is refused because the second vertices group carries bogus, which is not an extensible field of BuildingSurface:Detailed, and the Office Wall, including its Surface Type, is unchanged.'''
 
 [[divergence]]
 case      = "update-refused-unknown-name"
