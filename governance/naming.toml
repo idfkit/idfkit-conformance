@@ -556,6 +556,58 @@ the EnergyPlus object type as the schema spells it.
 rename_count = { python = 0, typescript = 0 }
 
 [[entry]]
+concept    = "read a field by name"
+python     = "IDFObject.get"
+typescript = "IdfObject.get"
+kind       = "aligned"
+notes = """
+Both take a schema field name and return the stored value. Python's takes an optional default, which
+is the dict idiom; TypeScript returns undefined for an absent field. Unrelated to eppy, whose
+compatibility members are excluded separately.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "write one field by name"
+python     = ""
+typescript = "IdfObject.set"
+kind       = "divergent"
+divergence_reason = """
+Python writes one field by name with the item operator, obj[field] = value, or by attribute when the
+name is known in advance. A named method beside the operator would be a second public spelling of
+one operation. TypeScript has no item-assignment operator for this, so it names the method. This is
+the operator-overloading divergence that Principle I records rather than reconciles.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "apply several fields to an object"
+python     = "IDFObject.update"
+typescript = "IdfObject.update"
+kind       = "divergent"
+divergence_reason = """
+The return value only. TypeScript returns the object so calls chain, which is the JavaScript idiom
+for a builder-style mutator. Python returns None, which is the convention of dict.update and of
+ExtensibleGroup.update for a method that mutates in place. The name, the accepted groups, the
+refused entries and the all-or-nothing behaviour are the same in both, and the conformance cases
+update-* prove it.
+"""
+notes = """
+Registered ahead of the Python implementation, as this file's header requires: IDFObject.update does
+not exist yet, and TypeScript's IdfObject.update does not yet examine every entry before applying
+any. Both land under idfkit-unification feature 015.
+
+Not the eppy dot-path IDFDocument.update({"Zone.Office.x_origin": 10}), which is a document member,
+takes "Type.Name.field" keys, and remains excluded with the rest of the eppy compatibility surface.
+The two share a bare name and nothing else.
+
+Python also accepts keyword arguments, and a mapping and keywords together with dict.update
+precedence. TypeScript accepts one object. Both are the same group: a mapping from schema field
+name to value.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
 concept    = "version"
 python     = "doc.version"
 typescript = "doc.version"
