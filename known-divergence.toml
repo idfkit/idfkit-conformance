@@ -17,7 +17,11 @@
 # read that such issues "must land together"; idfkit-js 10 landed alone on 2026-09-10 and the
 # register followed it, one entry at a time, with the python half of the same bug still recorded.
 #
-# Counts, recounted from this file when @idfkit/core landed its side of the multi-field update
+# Counts, recounted from this file when idfkit stopped storing a blank fixed field as "" (idfkit#183)
+# and its two python round-trip entries, for numeric-zero-against-blank and
+# positional-trailing-unset-no-extensible, were removed with the positional section they emptied: 10
+# entries over 5 issues and 7 cases, 5 against python and 5 against typescript, on a corpus of 74
+# cases and 226 assertions. Before that, when @idfkit/core landed its side of the multi-field update
 # (idfkit-js#80 and #81) and its six typescript entries for the update cases were removed: 12
 # entries over 6 issues and 9 cases, 7 against python and 5 against typescript, on a corpus of 74
 # cases and 226 assertions. No entry for the update cases remains, and none tracks idfkit#235. When
@@ -120,26 +124,6 @@ assertion = "epjson"
 issue     = "https://github.com/idfkit/idfkit-js/issues/9"
 observed  = '''/AirTerminal:SingleDuct:VAV:Reheat/Reheat Terminal/maximum_flow_fraction_during_reheat is "AUTOCALCULATE", the file's as-written casing, with neither canonicalisation nor a remap to the field's declared sentinel.'''
 expected  = '''"Autosize", the one sentinel that field's schema enum ["", "Autosize"] names. Fixing the casing bug alone (numeric-autocalculate-casing) would yield "Autocalculate" here and still be wrong.'''
-
-[[divergence]]
-case      = "numeric-zero-against-blank"
-library   = "python"
-assertion = "round-trip"
-issue     = "https://github.com/idfkit/idfkit/issues/183"
-observed  = '''Re-parsing Python's own write_idf output yields a Zone of 4 fields against the original 7: /Zone/0/fields is length 4 on the left and 7 on the right. The parsed document keeps the three trailing blank slots (type, multiplier, ceiling_height) as the empty string, write_idf drops them, so the write is lossy against the model. The epjson assertion passes because write_epjson strips those same empty strings, which is exactly why only assertion 3 sees this.'''
-expected  = '''Re-parsing deep-equals the original document. Either the parser stops at the last set field, as the TypeScript core does and as the oracle output implies, or the writer preserves what the parser kept. The model and the two writers must not disagree about whether a trailing blank is a field.'''
-
-# ---------------------------------------------------------------------------
-# positional
-# ---------------------------------------------------------------------------
-
-[[divergence]]
-case      = "positional-trailing-unset-no-extensible"
-library   = "python"
-assertion = "round-trip"
-issue     = "https://github.com/idfkit/idfkit/issues/183"
-observed  = '''The Zone spelled out with eight explicit blank commas parses to 12 fields, the eight blanks held as the empty string including the numeric ones, then write_idf drops them and re-parsing yields 4: /Zone/1/fields is length 4 on the left and 12 on the right. The Zone truncated with an early semicolon holds 4 fields from the start and round-trips cleanly, so only the blank-comma spelling is lossy.'''
-expected  = '''Re-parsing deep-equals the original document. The two spellings, truncated at the semicolon and written out as blank commas, mean the same thing, converge on the same epJSON already, and must also converge after a write.'''
 
 # ---------------------------------------------------------------------------
 # malformed
