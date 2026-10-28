@@ -1741,7 +1741,8 @@ Both carry `kind`, one of `not-found`, `unreachable`, `http` and `invalid-respon
 the HTTP code when `kind` is `http` and absent otherwise (idfkit/idfkit-js#88). The vocabulary is
 shared and spelled identically, so that a caller branches on the field rather than on message text,
 which each library stays free to reword. `not-found` is the only kind that says a retry will not
-help. The union has no exported name on either side: TypeScript spells it `GeocodingError['kind']`,
+help, so an ipapi.co error payload that reports a rate limit or an exhausted quota is `http` with
+status 429 on both sides, not `not-found`. The union has no exported name on either side: TypeScript spells it `GeocodingError['kind']`,
 and Python keeps its `Literal` alias private, so the register gains no entry for it.
 """
 rename_count = { python = 0, typescript = 0 }
