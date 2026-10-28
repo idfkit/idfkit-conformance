@@ -17,7 +17,12 @@
 # read that such issues "must land together"; idfkit-js 10 landed alone on 2026-09-10 and the
 # register followed it, one entry at a time, with the python half of the same bug still recorded.
 #
-# Counts, recounted from this file when idfkit stopped storing a blank fixed field as "" (idfkit#183)
+# Counts, recounted from this file when idfkit stopped dropping an unterminated final object in
+# silence (idfkit#187) and its three python entries, parse-outcome and diagnostics on
+# malformed-truncated-object and parse-outcome on preserve-unterminated-final, were removed with the
+# two malformed sections they emptied: 7 entries over 4 issues and 5 cases, 2 against python and 5
+# against typescript, on a corpus of 74 cases and 226 assertions. Before that, when idfkit stopped
+# storing a blank fixed field as "" (idfkit#183)
 # and its two python round-trip entries, for numeric-zero-against-blank and
 # positional-trailing-unset-no-extensible, were removed with the positional section they emptied: 10
 # entries over 5 issues and 7 cases, 5 against python and 5 against typescript, on a corpus of 74
@@ -86,18 +91,6 @@ expected  = '''The Material:NoMass object is keyed "试验", carrying {"roughnes
 # ---------------------------------------------------------------------------
 
 # ---------------------------------------------------------------------------
-# malformed
-# ---------------------------------------------------------------------------
-
-[[divergence]]
-case      = "malformed-truncated-object"
-library   = "python"
-assertion = "parse-outcome"
-issue     = "https://github.com/idfkit/idfkit/issues/187"
-observed  = '''Reading succeeds in about 30 ms and returns a document of Version and Building only. The unterminated GlobalGeometryRules object is discarded with no diagnostic of any kind, because _OBJECT_PATTERN at idf_parser.py:297 matches only text that reaches a semicolon, so an unterminated tail matches nothing at all.'''
-expected  = '''Reading fails. ConvertInputFormat refuses the file, with "UpperLeft" plus its newline matching no member of the starting_vertex_position enumeration, and the TypeScript core refuses it too, with "Unterminated object near UpperLeft (missing semicolon) (line 8)". Losing an object in silence is the hazard: the caller cannot distinguish this file from one that never held the object. The second half of the bug is recorded in the case itself: the same pattern nests a quantified group inside a quantified group and backtracks exponentially in the length of the unterminated tail, 34 ms at thirteen characters and over 100 s at thirty.'''
-
-# ---------------------------------------------------------------------------
 # naming
 # ---------------------------------------------------------------------------
 
@@ -124,20 +117,6 @@ assertion = "epjson"
 issue     = "https://github.com/idfkit/idfkit-js/issues/9"
 observed  = '''/AirTerminal:SingleDuct:VAV:Reheat/Reheat Terminal/maximum_flow_fraction_during_reheat is "AUTOCALCULATE", the file's as-written casing, with neither canonicalisation nor a remap to the field's declared sentinel.'''
 expected  = '''"Autosize", the one sentinel that field's schema enum ["", "Autosize"] names. Fixing the casing bug alone (numeric-autocalculate-casing) would yield "Autocalculate" here and still be wrong.'''
-
-# ---------------------------------------------------------------------------
-# malformed
-# ---------------------------------------------------------------------------
-
-[[divergence]]
-case      = "malformed-truncated-object"
-library   = "python"
-assertion = "diagnostics"
-issue     = "https://github.com/idfkit/idfkit/issues/187"
-observed  = '''No diagnostic at all. The returning path hands back a document of Version and Building and an empty findings list, so a caller cannot tell this file from one that never held a GlobalGeometryRules object.'''
-expected  = '''One finding, {"code": "ParseError", "line": 8, "typeName": "GlobalGeometryRules"}, which is what the TypeScript core reports for the same input.
-
-The same root cause as this case's accepted parse-outcome divergence, and the same issue: _OBJECT_PATTERN at idf_parser.py:43 matches only text that reaches a semicolon, so an unterminated tail matches nothing at all. A finding cannot be built for an object the scanner never saw. Fixing 187 fixes both halves, and both entries go together.'''
 
 # ---------------------------------------------------------------------------
 # types
@@ -199,19 +178,9 @@ The same root cause as this case's accepted parse-outcome divergence, and the sa
 # their siblings.
 #
 # 185 is now fixed and its entry here went with the rest of its siblings, which is what the
-# sentence above predicted. 187 is still open, so its two entries below stay. The paragraph is kept
-# rather than rewritten, because it named the condition correctly before either bug was fixed.
-
-[[divergence]]
-case      = "preserve-unterminated-final"
-library   = "python"
-assertion = "parse-outcome"
-issue     = "https://github.com/idfkit/idfkit/issues/187"
-observed  = '''Reading succeeds and returns a document holding Version alone. The unterminated Zone
-is discarded with no diagnostic of any kind, which is the same root cause and the same pattern as
-malformed-truncated-object: _OBJECT_PATTERN matches only text that reaches a semicolon, so an
-unterminated tail matches nothing at all.'''
-expected  = '''Reading fails, as it does in the TypeScript core, which reports an unterminated
-object. Losing an object in silence is the hazard, and the corpus settled that reasoning in
-malformed-truncated-object before this case existed.'''
-
+# sentence above predicted. 187 is now fixed too (idfkit#243): an unterminated final object is a
+# ParseError finding at the object's start line, raised in strict mode and returned by
+# load_idf_with_diagnostics otherwise. Its entry here went with its two siblings on
+# malformed-truncated-object, the parse-outcome and diagnostics entries, and the malformed section
+# they emptied went with them. This section now holds no entry. The paragraph is kept rather than
+# rewritten, because it named the condition correctly before either bug was fixed.
