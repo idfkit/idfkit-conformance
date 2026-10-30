@@ -324,6 +324,29 @@ The flag is the first language's alone. `geometry-check.mjs` refuses it by name 
 the second language has no mutating counterpart to choose. An unqualified run of either prints
 nothing about it, so the two transcripts stay identical.
 
+## What extraction costs
+
+Nothing here constrains it and no assertion reads it. The figure is recorded so that a later
+regression has a baseline, which it did not have while this check was being written because no
+consumer had yet run extraction over a model worth timing.
+
+Measured by the first consumer to build against the published package, on
+`ASHRAE901_OutPatientHealthCare_STD2019_Denver`: 1,160 `BuildingSurface:Detailed` and 117
+`FenestrationSurface:Detailed`, 1,277 geometry objects in all.
+
+| Operation | Time |
+| --- | --- |
+| `getScene` over the document | median 3.3 ms, min 2.2, max 6.5, five warm runs |
+| Parsing the same file | 135 ms |
+
+All 1,277 resolve, with nothing unresolved and nothing unattempted.
+
+Extraction is about two per cent of the cost of obtaining the document it reads. The consequence
+worth writing down is the one that saved that consumer a worker: whatever draws, bundles or measures
+a scene downstream owns essentially the whole budget, and moving extraction off the main thread buys
+nothing at this scale. The figure is JavaScript's. The first language is not timed here, because no
+consumer has asked for a figure and an unused measurement rots.
+
 ## What this check does not cover
 
 Stated here rather than left implied, alongside the corpus's other declared coverage gaps.
