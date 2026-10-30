@@ -114,9 +114,6 @@ and hands back four thousand changed lines has made its own work unreviewable.
     path = "pyproject.toml"
     locator = "project.dependencies[idfkit]"
     form = "exact"
-    [consumer.libraries.lag]
-    kind = "not-yet"
-    issue = "https://github.com/idfkit/idfkit-mcp/pull/75"
 
   [[consumer.rehearsal]]
   library = "python"
@@ -150,9 +147,6 @@ to the deferred text-editor slice.
     path = "levels.json"
     locator = "libraries[name=idfkit].level"
     form = "exact"
-    [consumer.libraries.lag]
-    kind = "not-yet"
-    issue = "https://github.com/idfkit/idfkit-lsp/issues/17"
 
   # The model server, which serves IDF text through the language service. Scoped, and not behind on
   # that account: its optional peer on the shared name exists so it can tell a user what to install.
@@ -172,9 +166,6 @@ to the deferred text-editor slice.
     path = "levels.json"
     locator = "libraries[name=@idfkit/core].level"
     form = "exact"
-    [consumer.libraries.lag]
-    kind = "not-yet"
-    issue = "https://github.com/idfkit/idfkit-lsp/issues/17"
 
   # CLAUDE.md and README.md teach calls in prose to every agent and reader of this repository, and no
   # type checker reads either. The rename scan does (R5, T046).
@@ -207,11 +198,6 @@ role = "builds"
     path = "pyproject.toml"
     locator = "project.dependencies[idfkit]"
     form = "exact"
-    # Not deliberate. The bump workflow opened the pull request below and it has not merged, so
-    # this is an adoption in progress rather than a policy (T019).
-    [consumer.libraries.lag]
-    kind = "not-yet"
-    issue = "https://github.com/idfkit/idfkit-docs/pull/30"
 
   # This repository has no type checker and no suite of its own. The rehearsal lays pyright over the
   # scripts that import idfkit without adding it to any manifest, which is the one instrument that
@@ -295,9 +281,6 @@ regenerate the whole file, which src/save/write.test.ts asserts against by the a
     path = "package.json"
     locator = 'dependencies["@idfkit/geometry"]'
     form = "exact"
-    [consumer.libraries.lag]
-    kind = "not-yet"
-    issue = "https://github.com/idfkit/idfkit-app/issues/226"
 
   [[consumer.rehearsal]]
   library = "javascript"
