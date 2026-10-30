@@ -154,8 +154,11 @@ to the deferred text-editor slice.
     kind = "not-yet"
     issue = "https://github.com/idfkit/idfkit-lsp/issues/17"
 
-  # The model server, which serves IDF text through the language service. Scoped, and not behind on
-  # that account: its optional peer on the shared name exists so it can tell a user what to install.
+  # The model server, which serves IDF text through the language service. It imports the library
+  # only through the shared name, an exact dependency since @idfkit/idfkit was published
+  # (idfkit-lsp#34), and pins the scoped packages beside it so each sits at an exact level and its
+  # types are importable. Those runtime dependencies are what the door is read from, so it stays
+  # `scoped`; the locators below name them for the same reason.
   [[consumer.libraries]]
   library = "javascript"
   entry_point = "scoped"
@@ -172,9 +175,6 @@ to the deferred text-editor slice.
     path = "levels.json"
     locator = "libraries[name=@idfkit/core].level"
     form = "exact"
-    [consumer.libraries.lag]
-    kind = "not-yet"
-    issue = "https://github.com/idfkit/idfkit-lsp/issues/17"
 
   # CLAUDE.md and README.md teach calls in prose to every agent and reader of this repository, and no
   # type checker reads either. The rename scan does (R5, T046).
