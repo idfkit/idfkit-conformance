@@ -1,18 +1,18 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://github.com/idfkit/idfkit-brand/releases/download/identity-2026.1/mark-on-dark.svg">
+    <source media="(prefers-color-scheme: light)" srcset="https://github.com/idfkit/idfkit-brand/releases/download/identity-2026.1/mark-on-light.svg">
+    <img alt="idfkit" width="72" src="https://github.com/idfkit/idfkit-brand/releases/download/identity-2026.1/tile.svg">
+  </picture>
+</p>
+
 # idfkit-conformance
 
-A cross-language conformance corpus for the two idfkit libraries:
+The conformance corpus and governance registers that hold idfkit and idfkit-js to one behaviour.
 
-- **`idfkit`**, the Python library.
-- **`@idfkit/core`**, the TypeScript library.
+[idfkit](https://idfkit.com) · [Developers](https://developers.idfkit.com) · [EnergyPlus docs](https://docs.idfkit.com) · [Envelop](https://app.idfkit.com) · [MCP](https://mcp.idfkit.com) · [Shoebox](https://shoebox.idfkit.com) · [GitHub](https://github.com/idfkit)
 
-Both read and write the same EnergyPlus formats, IDF and epJSON. Two implementations of one
-schema-driven format drift silently, because each side passes its own suite. Passing your own tests
-is not evidence. This repository holds the evidence that is external to both.
-
-Expectations are produced by EnergyPlus `ConvertInputFormat`, generated **offline** and committed
-alongside each case. Neither library's CI needs EnergyPlus installed, and neither library's output
-is ever the expectation. The corpus can therefore report both libraries as wrong, which is what
-happened on the first fixture written.
+[![Release](https://img.shields.io/github/v/release/idfkit/idfkit-conformance?filter=governance-*&label=governance)](https://github.com/idfkit/idfkit-conformance/releases) [![Build status](https://img.shields.io/github/actions/workflow/status/idfkit/idfkit-conformance/governance.yml?branch=main)](https://github.com/idfkit/idfkit-conformance/actions/workflows/governance.yml?query=branch%3Amain) [![License](https://img.shields.io/github/license/idfkit/idfkit-conformance)](https://github.com/idfkit/idfkit-conformance/blob/main/LICENSE)
 
 ## Read this first: the coverage this corpus does NOT have
 
@@ -156,6 +156,22 @@ The second needs a read that succeeds while rejecting a statement, which neither
 today. The assertion is declared rather than dropped so that a library which later reads one of
 these files starts being held to the property with no corpus change, and so that the gap is visible
 as a skip in every run rather than as an absence nobody sees.
+
+## What this repository holds
+
+A cross-language conformance corpus for the two idfkit libraries:
+
+- **`idfkit`**, the Python library.
+- **`@idfkit/core`**, the TypeScript library.
+
+Both read and write the same EnergyPlus formats, IDF and epJSON. Two implementations of one
+schema-driven format drift silently, because each side passes its own suite. Passing your own tests
+is not evidence. This repository holds the evidence that is external to both.
+
+Expectations are produced by EnergyPlus `ConvertInputFormat`, generated **offline** and committed
+alongside each case. Neither library's CI needs EnergyPlus installed, and neither library's output
+is ever the expectation. The corpus can therefore report both libraries as wrong, which is what
+happened on the first fixture written.
 
 ## Why `known-divergence.toml` ships populated
 
