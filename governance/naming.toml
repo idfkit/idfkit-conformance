@@ -2650,9 +2650,10 @@ Python gives every failure the library raises one catchable base, so `except Idf
 whole library's errors in one clause. That is the convention every Python package a reader already
 imports follows, and it is why the sixteen classes in `exceptions.py` all derive from it.
 
-JavaScript's core throws exactly one type, `IdfParseError`, and only when `ParseOptions.strict` is
-left on. Everything else it reports as a value. A base class there would be a class with one
-subclass and nothing to catch, which names a hierarchy the library does not have.
+JavaScript's core throws two types: `IdfParseError`, only when `ParseOptions.strict` is left on, and
+`IncomparableVersionsError`, only from `diffDocuments`. Everything else it reports as a value. A base
+class there would hold two unrelated failures that no caller handles alike, which names a hierarchy
+the library does not have.
 """
 rename_count = { python = 0, typescript = 0 }
 
@@ -4504,6 +4505,134 @@ Part of `idf-language-service`, second-language-only by decision and recorded on
 with absence_kind = "never". The same discriminated shape again, for `declarationAt`. Listed here so
 that a Python counterpart is never added without the ledger's `never` being amended first.
 """
+rename_count = { python = 0, typescript = 0 }
+
+# ---------------------------------------------------------------------------
+# Entries: comparing two documents (TypeScript first; Python registered ahead, FR-007)
+# ---------------------------------------------------------------------------
+#
+# Written in TypeScript first (idfkit/idfkit-js#92). The Python names are registered ahead of the
+# port (idfkit/idfkit#256). The parity ledger records the capability as `document-diff`.
+
+[[entry]]
+concept    = "diff two documents"
+python     = "diff_documents"
+typescript = "diffDocuments"
+kind       = "aligned"
+notes      = """
+Written in TypeScript first, in `@idfkit/core`; registered ahead of the Python port. Compares two
+documents of one version object by object. Not `idfkit.migration.document_diff`, which summarises two
+versions type by type for a migration and is a different capability (`version-migration`).
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "the difference between two documents"
+python     = "DocumentDelta"
+typescript = "DocumentDelta"
+kind       = "aligned"
+notes      = "Named after `SchemaDelta`. Python registered ahead of the port."
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "documents of two versions compared"
+python     = "IncomparableVersionsError"
+typescript = "IncomparableVersionsError"
+kind       = "aligned"
+canonical_form = "IncomparableVersions"
+notes      = """
+Python registered ahead of the port. Distinct from `a version mismatch` (Python
+`VersionMismatchError`), which is a model's version against the installed EnergyPlus and carries a
+migration chain.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "one object's difference between two documents"
+python     = "ObjectDelta"
+typescript = "ObjectDelta"
+kind       = "aligned"
+notes      = "Python registered ahead of the port."
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "an object added between two documents"
+python     = "ObjectAdded"
+typescript = "ObjectAdded"
+kind       = "aligned"
+notes      = "Python registered ahead of the port."
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "an object removed between two documents"
+python     = "ObjectRemoved"
+typescript = "ObjectRemoved"
+kind       = "aligned"
+notes      = "Python registered ahead of the port."
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "an object changed between two documents"
+python     = "ObjectChanged"
+typescript = "ObjectChanged"
+kind       = "aligned"
+notes      = "Python registered ahead of the port."
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "an object renamed between two documents"
+python     = "ObjectRenamed"
+typescript = "ObjectRenamed"
+kind       = "aligned"
+notes      = "Python registered ahead of the port."
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "one field's difference between two documents"
+python     = "FieldChange"
+typescript = "FieldChange"
+kind       = "aligned"
+notes      = "Python registered ahead of the port."
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "a positional field's difference"
+python     = "FieldValueChange"
+typescript = "FieldValueChange"
+kind       = "aligned"
+notes      = "Python registered ahead of the port."
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "a field's difference inside an extensible repeat"
+python     = "GroupFieldChange"
+typescript = "GroupFieldChange"
+kind       = "aligned"
+notes      = "Python registered ahead of the port."
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "an extensible repeat added"
+python     = "GroupAdded"
+typescript = "GroupAdded"
+kind       = "aligned"
+notes      = "Python registered ahead of the port."
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "an extensible repeat removed"
+python     = "GroupRemoved"
+typescript = "GroupRemoved"
+kind       = "aligned"
+notes      = "Python registered ahead of the port."
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "a reference rewritten by a rename"
+python     = "ReferenceRewrite"
+typescript = "ReferenceRewrite"
+kind       = "aligned"
+notes      = "Python registered ahead of the port."
 rename_count = { python = 0, typescript = 0 }
 
 # ---------------------------------------------------------------------------
