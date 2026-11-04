@@ -213,6 +213,28 @@ role = "builds"
     kind = "not-yet"
     issue = "https://github.com/idfkit/idfkit-docs/pull/30"
 
+  # The Monaco editor that renders IDF code blocks on every page (idf-editor/). It takes its syntax
+  # layer from @idfkit/core, its hover answers from @idfkit/language and its schemas from
+  # @idfkit/schemas, whose data files it fetches from jsDelivr at the installed version. The three
+  # are released in lockstep and pinned together; the built bundle is committed under
+  # scripts/assets/, so a bump is a rebuild as well as a manifest change.
+  [[consumer.libraries]]
+  library = "javascript"
+  entry_point = "scoped"
+  means = "direct"
+    [[consumer.libraries.declared_at]]
+    path = "idf-editor/package.json"
+    locator = 'dependencies["@idfkit/core"]'
+    form = "exact"
+    [[consumer.libraries.declared_at]]
+    path = "idf-editor/package.json"
+    locator = 'dependencies["@idfkit/schemas"]'
+    form = "exact"
+    [[consumer.libraries.declared_at]]
+    path = "idf-editor/package.json"
+    locator = 'dependencies["@idfkit/language"]'
+    form = "exact"
+
   # This repository has no type checker and no suite of its own. The rehearsal lays pyright over the
   # scripts that import idfkit without adding it to any manifest, which is the one instrument that
   # sees a renamed schema accessor before a conversion run does. Named file by file rather than as
@@ -224,6 +246,13 @@ role = "builds"
   install = "uv-wheel"
   typecheck = "uv run --with pyright pyright scripts/convert.py scripts/schema_utils.py scripts/version_manager.py"
   no_test_reason = "No test suite. The conversion that exercises idfkit runs only against an EnergyPlus LaTeX checkout, so the type check over scripts/ is the whole rehearsal."
+
+  [[consumer.rehearsal]]
+  library = "javascript"
+  install = "npm-tarball"
+  workdir = "idf-editor"
+  typecheck = "npm run typecheck"
+  no_test_reason = "No test suite. The editor bundle is a thin adapter over @idfkit/core and @idfkit/language, so the type check against the candidate is the whole rehearsal."
 
 [[consumer]]
 id = "idfkit-developers"
