@@ -31,7 +31,8 @@ def test_first_language_waves_put_the_delivery_paths_second() -> None:
 def test_second_language_waves_ignore_first_language_edges() -> None:
     # idfkit-plugin depends on idfkit-lsp, which resolves both languages. The plugin resolves only
     # the first, so the second language's adoption neither includes it nor waits for it (FR-021).
-    assert _ids(_real(), "javascript") == [["envelop", "idfkit-lsp", "idfkit-shoebox"]]
+    # idfkit-docs resolves both languages directly, so it sits in the second language's first wave.
+    assert _ids(_real(), "javascript") == [["envelop", "idfkit-docs", "idfkit-lsp", "idfkit-shoebox"]]
 
 
 def test_every_target_dispatches_the_workflow_for_its_library() -> None:
