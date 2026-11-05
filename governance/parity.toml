@@ -793,6 +793,35 @@ names      = [
 ]
 
 
+# Python: none. idfkit.migration.document_diff is a different capability (version-migration): a
+#         type-level summary across two versions, with no object matching, values or renames.
+# TypeScript: diffDocuments and its result types, in @idfkit/core, landing in idfkit/idfkit-js#92 for
+#             Envelop's Changes tab.
+[[capability]]
+id         = "document-diff"
+title      = "Comparing two documents"
+tier       = "tier-2"
+python     = "absent"
+typescript = "complete"
+absence_kind = "not-yet"
+issue      = "https://github.com/idfkit/idfkit/issues/256"
+names      = [
+  "diff two documents",
+  "the difference between two documents",
+  "documents of two versions compared",
+  "one object's difference between two documents",
+  "an object added between two documents",
+  "an object removed between two documents",
+  "an object changed between two documents",
+  "an object renamed between two documents",
+  "one field's difference between two documents",
+  "a positional field's difference",
+  "a field's difference inside an extensible repeat",
+  "an extensible repeat added",
+  "an extensible repeat removed",
+  "a reference rewritten by a rename",
+]
+
 # ---------------------------------------------------------------------------
 # Tier 3: deliberately not ported in this feature (FR-034, research R15).
 #
