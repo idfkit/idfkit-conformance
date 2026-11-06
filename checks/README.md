@@ -15,7 +15,7 @@ criterion and is what arrived first:
 
 | Claim | Status |
 | ----- | ------ |
-| Reading a file from disk | still open; the runners hand each library a string |
+| Reading a file from disk | still open for TypeScript: `run.mjs` hands the library a string; `run.py` hands `idfkit` the path |
 | Retrieving weather | still open; resolving a station is not a document |
 | Computing figures from a weather file | **`weather-monthly`**, below |
 | Resolving a surface's coordinates | **`geometry-vertices`**, below |
