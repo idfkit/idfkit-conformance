@@ -351,6 +351,10 @@ after_merge = "Publish an idfkit version to the package index. Every project tha
   glob = "src/idfkit/writers.py"
   reason = "The comment uses 26.1 as an example of a four-character version identifier when describing column drift."
 
+  [[project.pin]]
+  glob = "src/idfkit/simulation/_external_files.py"
+  reason = "The docstring records a property measured across the schemas bundled at the time, 8.9 through 26.2. A later adoption does not extend the measurement."
+
   [[project.ignore]]
   pattern = 'scripts/adopt_energyplus\.py (register|sweep-row) \d+\.\d+\.\d+|python -m idfkit\.download \d+\.\d+\.\d+'
   reason = "A usage example in a module docstring. The argument illustrates the form of the command, and does not state the supported range."
@@ -1513,9 +1517,19 @@ after_merge = "Run the conversion and publication of the release's documentation
   pattern = 'through v\d+\.\d+\.\d+ \((?P<release>\d+) versions\)'
   form = "count"
 
+  # The dev-server launcher serves the build of the designated latest release.
+  [[project.statement]]
+  path = ".claude/launch.json"
+  pattern = 'cd build/v(?P<release>\d+\.\d+) &&'
+  form = "line"
+
   [[project.generated]]
   glob = "scripts/config.py"
   by_step = "target-list"
+
+  [[project.pin]]
+  glob = "scripts/assets/idf-editor.js"
+  reason = "A committed build of the @idfkit packages at the pinned javascript level. The releases it lists are those that level bundles, and it is rebuilt when that level moves, never by an adoption step of this project."
 
 [[project]]
 id = "idfkit-developers"
@@ -2235,6 +2249,10 @@ after_merge = "None. The plugin is installed from its default branch."
   pattern = '\(currently (?P<release>\d+\.\d+\.\d+)\)'
   form = "full"
   occurrences = 2
+
+  [[project.pin]]
+  glob = "tests/**"
+  reason = "Test fixtures write models declaring the release they were authored against, 26.2."
 
 [[project]]
 id = "idfkit-mcp-deployment"
