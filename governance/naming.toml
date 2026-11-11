@@ -4591,7 +4591,8 @@ python     = "HVACTopology.uses"
 typescript = "HvacTopology.uses"
 kind       = "aligned"
 notes      = """
-Every field that names the node, each as `a use of a node`.
+Every field that names the node, each as `a use of a node`, parent objects and fields with no
+connection type included.
 
 Registered before the TypeScript implementation is written.
 """
@@ -4643,7 +4644,9 @@ python     = "HVACTopology.ports"
 typescript = "HvacTopology.ports"
 kind       = "aligned"
 notes      = """
-Every node-naming field of one object, as uses.
+Every node-naming field of one object, as uses, ordered by stream. A Zone or Space answers with
+the uses of its equipment connections. An object the view does not know answers with nothing,
+where the walks raise.
 
 Registered before the TypeScript implementation is written.
 """
@@ -4772,7 +4775,10 @@ python     = "NodeUse"
 typescript = "NodeUse"
 kind       = "aligned"
 notes      = """
-One field of one object that names a node, with the role, fluid, stream and rule behind it.
+One field of one object that names a node: the node, the object, its category, the field, the
+connection type (absent for a field no rule classifies), the stream, the fluid, whether the object
+is a parent, the NodeList it came through, and a tag. The tag is `ems_key` for an EMS sensor or
+actuator use and absent for every port-rule use; it does not identify the rule.
 
 Registered before the TypeScript implementation is written.
 """
@@ -4798,7 +4804,8 @@ typescript = "LoopMembership"
 kind       = "aligned"
 notes      = """
 Where an object sits in a loop: the loop, its kind (`air`, `plant`, `condenser` or
-`zone_equipment`), its side, its branch and its position. Returned by a member that lands later;
+`zone_equipment`), its side (`supply` or `demand`, absent for zone equipment), its branch, its
+position, and the stream that carries the membership. Returned by a member that lands later;
 the type is exported now.
 
 Registered before the TypeScript implementation is written.
@@ -4812,7 +4819,9 @@ typescript = "TopologyFinding"
 kind       = "aligned"
 notes      = """
 One connection finding: a code, the effective severity after the version cap, the objects or node
-it concerns, and the provenance of the rules it relied on. The severity takes the three values of
+it concerns, a message, the field with its expected and actual values, the severity before a cap
+and the reason for it, and one provenance: the weakest among the rules it relied on. It always
+names at least one object or a node. The severity takes the three values of
 `validation severity` (`error`, `warning`, `info`), but Python types it as its own string literal
 rather than that enumeration, so the two do not compare equal.
 
@@ -4838,7 +4847,9 @@ python     = "ObjectKey"
 typescript = "ObjectKey"
 kind       = "aligned"
 notes      = """
-An object's type and name, as a value. One concept, whichever derived view exports it. Not
+An object's type and name, as a value, compared case-insensitively on both, as EnergyPlus does.
+The type may be a pseudo-type (`Node`, `Aggregate`, `Unresolved`), and an unnamed object is keyed
+by its zone or space, or else its type. One concept, whichever derived view exports it. Not
 `IdfObject.key`, which in TypeScript is an object's slot in its collection.
 
 Registered before the TypeScript implementation is written.
