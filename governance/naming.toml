@@ -3722,15 +3722,14 @@ python     = "IDFDocument.revision"
 typescript = "IdfDocument.revision"
 kind       = "aligned"
 notes      = """
-A per-document change counter. A change made through the document's own operations bumps it: an
-object added or removed through the document, a field assigned, an object renamed. Inspecting the
-document never bumps it. A derived view compares it to decide whether a cached copy is still
+A per-document change counter. A change to the document's objects bumps it: an object added or
+removed, through the document or one of its collections, a field assigned, an object renamed.
+Inspecting the document never bumps it. A derived view compares it to decide whether a cached copy is still
 valid: `the HVAC topology view` is cached per document and revision.
 
-Two equal values do not prove the document unchanged. In Python, adding or removing through a
-collection (`IDFCollection.add`, `IDFCollection.remove`, so also `idfobjects[...]`) and writing an
-object's raw field storage bypass it, and assigning an extensible group bumps it once per group
-written. Only that it increases is promised, never by how much.
+One write bypasses it: in Python, a value put directly into an object's raw field storage
+(`obj.data[...]`), which is a plain dictionary; assign the field instead. Assigning an extensible
+group list bumps it once per group written. Only that it increases is promised, never by how much.
 
 An in-memory count and nothing more: not persisted, not a version number or a timestamp, and
 meaningless across documents. It says nothing about what a write would produce; that is
@@ -4688,9 +4687,9 @@ kind       = "aligned"
 notes      = """
 The connection findings for the view, with severities capped by the model's version.
 
-Computed on first call, not when the view is built, and read partly from the live document. A view
-held across an edit can therefore report findings that hold at neither revision; ask
-`build the HVAC topology view` again after editing.
+Computed on first call, not when the view is built. A first call on a view whose document has
+changed since the build raises rather than mix the two revisions; findings computed before the
+edit are still returned. Ask `build the HVAC topology view` again after editing.
 
 Registered before the TypeScript implementation is written.
 """
