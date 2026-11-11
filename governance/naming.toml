@@ -4660,8 +4660,9 @@ kind       = "aligned"
 notes      = """
 The flow edges reached against the direction of flow from a component, a zone or space, a node
 name or a NodeList name, within a hop limit. A set of component categories keeps the edges that
-reach a component of those categories; the walk still passes through the others. There is no
-fluid filter: a walk crosses from air to water where a component joins both.
+reach a component of those categories; the walk still passes through the others. A fluid keeps the
+walk on edges carrying it, which are the only ones followed or returned; without one the walk
+follows every stream and can cross from air to water at a coil.
 
 Registered before the TypeScript implementation is written.
 """
@@ -4673,7 +4674,7 @@ python     = "HVACTopology.downstream"
 typescript = "HvacTopology.downstream"
 kind       = "aligned"
 notes      = """
-The mirror of `walk upstream`, with the same start forms and the same category filter.
+The mirror of `walk upstream`, with the same start forms, category filter and fluid filter.
 
 Registered before the TypeScript implementation is written.
 """
