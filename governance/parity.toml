@@ -792,6 +792,59 @@ names      = [
   "the design day manager",
 ]
 
+# Python: idfkit.hvac (src/idfkit/hvac/): HVACTopology, check_topology, category_of,
+#         ComponentCategory, ConnectionType, Fluid, NodeUse, FlowEdge, LoopMembership,
+#         TopologyFinding, NodeRenameResult, and ObjectKey, Coverage, UncoveredPart re-exported from
+#         idfkit._graph_common. The view is cached against IDFDocument.revision, the document's
+#         change counter, which is a document member and so, like the others, is in no row here.
+# TypeScript: none. IdfDocument has no change counter either; idfkit-js#96 adds one with the port.
+#
+# Added after the unification feature, by feature 014 (model knowledge graph, research R-02), which
+# lands it in Python first. Tier 2 on the same reasoning as the rows above: graph traversal over the
+# document's own objects, with no runtime dependency that would make it permanently Python's, so the
+# absence is `not-yet`. The tables it reads from (node fields, port rules, categories, version caps)
+# are committed data and port as data.
+#
+# Registered now: the view and the members that ship with it. `memberships`, `loops`, `chain`,
+# `zones_served` and the document's node rename land later in the same feature, and join this
+# row's names in the change that registers them.
+[[capability]]
+id         = "hvac-topology"
+title      = "HVAC topology and connection checks"
+tier       = "tier-2"
+python     = "complete"
+typescript = "absent"
+absence_kind = "not-yet"
+issue      = "https://github.com/idfkit/idfkit-js/issues/96"
+names      = [
+  "the HVAC topology view",
+  "build the HVAC topology view",
+  "the nodes of a model",
+  "the uses of a node",
+  "the producers of a node",
+  "the consumers of a node",
+  "the controls on a node",
+  "the ports of an object",
+  "walk upstream",
+  "walk downstream",
+  "check the HVAC topology",
+  "what the HVAC topology view covers",
+  "unresolved EMS keys",
+  "an HVAC component category",
+  "an HVAC connection type",
+  "the fluid at a node",
+  "a use of a node",
+  "a flow edge",
+  "a loop membership",
+  "an HVAC topology finding",
+  "the result of renaming a node",
+  "a key naming one object",
+  "the coverage of a derived view",
+  "a part a derived view could not cover",
+  "the category of an object type",
+  "check HVAC topology",
+]
+
 
 # ---------------------------------------------------------------------------
 # Tier 3: deliberately not ported in this feature (FR-034, research R15).

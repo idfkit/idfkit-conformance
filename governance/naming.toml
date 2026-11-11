@@ -3717,6 +3717,30 @@ The anchoring behind the record stays internal in both. A consumer wanting the l
 rename_count = { python = 0, typescript = 0 }
 
 [[entry]]
+concept    = "a document's revision"
+python     = "IDFDocument.revision"
+typescript = "IdfDocument.revision"
+kind       = "aligned"
+notes      = """
+A per-document change counter. Every change to the document's objects bumps it exactly once: an
+object added, an object removed, a field assigned, an object renamed. Reading never bumps it. Two
+equal values mean the document has not changed in between, which is how a derived view decides
+that a cached copy is still valid: `the HVAC topology view` is cached per document and revision.
+
+An integer that only ever increases within one process, and nothing more. It is not persisted, it
+starts again on every read, and it says nothing about the text a write would produce; the
+objects a preserving write will rewrite is a different question with its own name. Not a version
+number and not a timestamp, so it is not compared across documents.
+
+Python implements it. Registered ahead of the TypeScript implementation (FR-007), which arrives
+with the HVAC topology port (idfkit/idfkit-js#96, ledger row `hvac-topology`). Like the other
+document members it is listed in no ledger row: the TypeScript parity gate resolves
+`IdfDocument.revision` through the class, which TypeScript exports, so a row recording it absent
+would read as a false claim.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
 concept    = "where an object's characters sit in the retained source"
 python     = "IDFDocument.region_of"
 typescript = "IdfDocument.regionOf"
@@ -4503,6 +4527,336 @@ divergence_reason = """
 Part of `idf-language-service`, second-language-only by decision and recorded on the parity ledger
 with absence_kind = "never". The same discriminated shape again, for `declarationAt`. Listed here so
 that a Python counterpart is never added without the ledger's `never` being amended first.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+# ---------------------------------------------------------------------------
+# Entries: HVAC topology (registered ahead of the port, FR-007)
+# ---------------------------------------------------------------------------
+#
+# The Python originals are in idfkit/src/idfkit/hvac/, the `idfkit.hvac` capability unit (feature
+# 014, research R-02). The parity ledger records the second language as not yet ported, under
+# `hvac-topology`.
+#
+# Not registered yet, because they do not ship yet: `HVACTopology.memberships`, `.loops`, `.chain`,
+# `.zones_served` and `IDFDocument.rename_node`. They land later in the same feature, and each is
+# registered in the change that precedes it.
+
+[[entry]]
+concept    = "the HVAC topology view"
+python     = "HVACTopology"
+typescript = "HvacTopology"
+kind       = "divergent"
+divergence_reason= """
+The acronym casing rule above: PEP 8 keeps `HVAC` capitalised inside a CapWords name, and the
+Google TypeScript style guide writes it as an ordinary word. Both spellings are correct in their
+own ecosystem, as `IDFDocument` and `IdfDocument` are.
+"""
+notes      = """
+How the objects of a model connect through their nodes. A node is a name shared by the fields of
+the objects it joins, which the reference graph never sees, so this is a view of its own rather
+than part of `references`. Derived from the document, read-only, and cached per document and
+`a document's revision`. Registered before the TypeScript implementation is written.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "build the HVAC topology view"
+python     = "HVACTopology.from_document"
+typescript = "HvacTopology.fromDocument"
+kind       = "aligned"
+notes      = """
+The view for a document. Built once per document and revision and returned from the cache until the document changes.
+
+Registered before the TypeScript implementation is written.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "the nodes of a model"
+python     = "HVACTopology.nodes"
+typescript = "HvacTopology.nodes"
+kind       = "aligned"
+notes      = """
+Every node name the view found, sorted.
+
+Registered before the TypeScript implementation is written.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "the uses of a node"
+python     = "HVACTopology.uses"
+typescript = "HvacTopology.uses"
+kind       = "aligned"
+notes      = """
+Every field that names the node, with its object, connection role, fluid and the rule that classified it.
+
+Registered before the TypeScript implementation is written.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "the producers of a node"
+python     = "HVACTopology.producers"
+typescript = "HvacTopology.producers"
+kind       = "aligned"
+notes      = """
+The objects that write fluid into the node: the uses whose connection role is an outlet.
+
+Registered before the TypeScript implementation is written.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "the consumers of a node"
+python     = "HVACTopology.consumers"
+typescript = "HvacTopology.consumers"
+kind       = "aligned"
+notes      = """
+The objects that take fluid from the node: the uses whose connection role is an inlet.
+
+Registered before the TypeScript implementation is written.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "the controls on a node"
+python     = "HVACTopology.controls"
+typescript = "HvacTopology.controls"
+kind       = "aligned"
+notes      = """
+The uses that read or set the node without carrying fluid through it: sensors, actuators and setpoints, EMS sensor and actuator keys included.
+
+Registered before the TypeScript implementation is written.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "the ports of an object"
+python     = "HVACTopology.ports"
+typescript = "HvacTopology.ports"
+kind       = "aligned"
+notes      = """
+Every node-naming field of one object, as uses.
+
+Registered before the TypeScript implementation is written.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "walk upstream"
+python     = "HVACTopology.upstream"
+typescript = "HvacTopology.upstream"
+kind       = "aligned"
+notes      = """
+The flow edges reached against the direction of flow from a component, a zone or space, a node name or a NodeList name, within a hop limit and optionally kept to a fluid and to component categories.
+
+Registered before the TypeScript implementation is written.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "walk downstream"
+python     = "HVACTopology.downstream"
+typescript = "HvacTopology.downstream"
+kind       = "aligned"
+notes      = """
+The mirror of `walk upstream`, with the same start forms and filters.
+
+Registered before the TypeScript implementation is written.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "check the HVAC topology"
+python     = "HVACTopology.check"
+typescript = "HvacTopology.check"
+kind       = "aligned"
+notes      = """
+The connection findings for the view, with severities capped by the model's version. The same findings as `check HVAC topology`, reached from a view the caller already holds.
+
+Registered before the TypeScript implementation is written.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "what the HVAC topology view covers"
+python     = "HVACTopology.coverage"
+typescript = "HvacTopology.coverage"
+kind       = "aligned"
+notes      = """
+What the view could not account for: HVAC templates, EMS programs, types without a port rule. A property on both sides.
+
+Registered before the TypeScript implementation is written.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "unresolved EMS keys"
+python     = "HVACTopology.unresolved_ems"
+typescript = "HvacTopology.unresolvedEms"
+kind       = "aligned"
+notes      = """
+EMS sensor keys and actuator component names that resolved to no object, so the view could not attach them as controls. Program text is never searched.
+
+Registered before the TypeScript implementation is written.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "an HVAC component category"
+python     = "ComponentCategory"
+typescript = "ComponentCategory"
+kind       = "aligned"
+notes      = """
+The closed vocabulary of component categories: heating coil, cooling coil, fan, pump, terminal unit and so on, with `other` for the rest. Adding a member is a minor change; renaming one is a rename.
+
+Registered before the TypeScript implementation is written.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "an HVAC connection type"
+python     = "ConnectionType"
+typescript = "ConnectionType"
+kind       = "aligned"
+notes      = """
+The role EnergyPlus gives a node field, in EnergyPlus's own words from its node connection report: Inlet, Outlet, Internal, ZoneNode, Sensor, Actuator, OutsideAir, ReliefAir, ZoneInlet, ZoneReturn, ZoneExhaust, Setpoint.
+
+Registered before the TypeScript implementation is written.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "the fluid at a node"
+python     = "Fluid"
+typescript = "Fluid"
+kind       = "aligned"
+notes      = """
+Air, water, steam, refrigerant, or unknown.
+
+Registered before the TypeScript implementation is written.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "a use of a node"
+python     = "NodeUse"
+typescript = "NodeUse"
+kind       = "aligned"
+notes      = """
+One field of one object that names a node, with the role, fluid, stream and rule behind it.
+
+Registered before the TypeScript implementation is written.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "a flow edge"
+python     = "FlowEdge"
+typescript = "FlowEdge"
+kind       = "aligned"
+notes      = """
+One step of a walk: from one object to the next through a node, of kind component, branch junction or zone.
+
+Registered before the TypeScript implementation is written.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "a loop membership"
+python     = "LoopMembership"
+typescript = "LoopMembership"
+kind       = "aligned"
+notes      = """
+Where an object sits in a plant, condenser or air loop: the loop, its side, its branch and its position. Returned by a member that lands later; the type is exported now.
+
+Registered before the TypeScript implementation is written.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "an HVAC topology finding"
+python     = "TopologyFinding"
+typescript = "TopologyFinding"
+kind       = "aligned"
+notes      = """
+One connection finding: a code, the effective severity after the version cap, the objects or node it concerns, and the provenance of the rules it relied on.
+
+Registered before the TypeScript implementation is written.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "the result of renaming a node"
+python     = "NodeRenameResult"
+typescript = "NodeRenameResult"
+kind       = "aligned"
+notes      = """
+What a node rename changed: the old and new names, the number of fields updated and the objects touched. The rename itself lands later; the type is exported now.
+
+Registered before the TypeScript implementation is written.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "a key naming one object"
+python     = "ObjectKey"
+typescript = "ObjectKey"
+kind       = "aligned"
+notes      = """
+An object's type and name, as a value. Defined once in a private module shared by the graph views and re-exported by each, so it is one concept however many views export it.
+
+Registered before the TypeScript implementation is written.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "the coverage of a derived view"
+python     = "Coverage"
+typescript = "Coverage"
+kind       = "aligned"
+notes      = """
+Whether a derived view is partial, and the parts it could not cover. Shared by the graph views in the same way as `a key naming one object`.
+
+Registered before the TypeScript implementation is written.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "a part a derived view could not cover"
+python     = "UncoveredPart"
+typescript = "UncoveredPart"
+kind       = "aligned"
+notes      = """
+One kind of thing a view could not account for, with a count, examples and the reason. Shared like `the coverage of a derived view`.
+
+Registered before the TypeScript implementation is written.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "the category of an object type"
+python     = "category_of"
+typescript = "categoryOf"
+kind       = "aligned"
+notes      = """
+The component category for an object type, read from the type alone and never from an object's name.
+
+Registered before the TypeScript implementation is written.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "check HVAC topology"
+python     = "check_topology"
+typescript = "checkTopology"
+kind       = "aligned"
+notes      = """
+The convenience form of `check the HVAC topology`: build the view for a document and return its findings.
+
+Registered before the TypeScript implementation is written.
 """
 rename_count = { python = 0, typescript = 0 }
 
