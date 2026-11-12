@@ -114,9 +114,6 @@ and hands back four thousand changed lines has made its own work unreviewable.
     path = "pyproject.toml"
     locator = "project.dependencies[idfkit]"
     form = "exact"
-    [consumer.libraries.lag]
-    kind = "not-yet"
-    issue = "https://github.com/idfkit/idfkit-mcp/pull/75"
 
   [[consumer.rehearsal]]
   library = "python"
