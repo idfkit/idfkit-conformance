@@ -207,11 +207,6 @@ role = "builds"
     path = "pyproject.toml"
     locator = "project.dependencies[idfkit]"
     form = "exact"
-    # Not deliberate. The bump workflow opened the pull request below and it has not merged, so
-    # this is an adoption in progress rather than a policy (T019).
-    [consumer.libraries.lag]
-    kind = "not-yet"
-    issue = "https://github.com/idfkit/idfkit-docs/pull/30"
 
   # The Monaco editor that renders IDF code blocks on every page (idf-editor/). It takes its syntax
   # layer from @idfkit/core, its hover answers from @idfkit/language and its schemas from
