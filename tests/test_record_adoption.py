@@ -16,6 +16,26 @@ TEXT = (ROOT / "governance" / "consumers.toml").read_text(encoding="utf-8")
 PARITY = {c["id"] for c in tomllib.loads((ROOT / "governance" / "parity.toml").read_text())["capability"]}
 
 
+def _not_yet(text: str, consumer: str, library: str) -> str:
+    """Write a not-yet lag into one resolution, so a test does not depend on which lags the live register holds."""
+    placeholder = "Placeholder written by the tests."
+    edited = decline(text, consumer, library, placeholder, PARITY)
+    return edited.replace(
+        f'kind = "deliberate"\n    reason = "{placeholder}"\n',
+        f'kind = "not-yet"\n    issue = "https://github.com/idfkit/{consumer}/issues/1"\n',
+    )
+
+
+LAGGED = TEXT
+for _consumer, _library in [
+    ("idfkit-mcp", "python"),
+    ("idfkit-docs", "python"),
+    ("idfkit-lsp", "python"),
+    ("idfkit-lsp", "javascript"),
+]:
+    LAGGED = _not_yet(LAGGED, _consumer, _library)
+
+
 def _lag(text: str, consumer: str, library: str) -> object:
     resolution = Register.from_toml(tomllib.loads(text)).consumer(consumer).resolution(library)
     assert resolution is not None
@@ -23,15 +43,15 @@ def _lag(text: str, consumer: str, library: str) -> object:
 
 
 def test_closing_a_lag_removes_that_lag_and_nothing_else() -> None:
-    edited = close_lag(TEXT, "idfkit-mcp", "python", PARITY)
+    edited = close_lag(LAGGED, "idfkit-mcp", "python", PARITY)
     assert _lag(edited, "idfkit-mcp", "python") is None
     assert _lag(edited, "idfkit-docs", "python") is not None
-    assert TEXT.count("\n#") == edited.count("\n#"), "a comment was lost"
-    assert len(TEXT.splitlines()) - len(edited.splitlines()) == 3
+    assert LAGGED.count("\n#") == edited.count("\n#"), "a comment was lost"
+    assert len(LAGGED.splitlines()) - len(edited.splitlines()) == 3
 
 
 def test_closing_one_language_leaves_the_other() -> None:
-    edited = close_lag(TEXT, "idfkit-lsp", "javascript", PARITY)
+    edited = close_lag(LAGGED, "idfkit-lsp", "javascript", PARITY)
     assert _lag(edited, "idfkit-lsp", "javascript") is None
     assert _lag(edited, "idfkit-lsp", "python") is not None
 
@@ -47,7 +67,8 @@ def test_declining_writes_a_deliberate_lag() -> None:
 
 
 def test_declining_replaces_a_not_yet_lag() -> None:
-    edited = decline(TEXT, "idfkit-docs", "python", "Moves only when EnergyPlus adds a schema version.", PARITY)
+    assert _lag(LAGGED, "idfkit-docs", "python").kind == "not-yet"  # type: ignore[attr-defined]
+    edited = decline(LAGGED, "idfkit-docs", "python", "Moves only when EnergyPlus adds a schema version.", PARITY)
     lag = _lag(edited, "idfkit-docs", "python")
     assert lag is not None and lag.kind == "deliberate" and lag.issue is None  # type: ignore[attr-defined]
 
