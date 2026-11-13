@@ -29,6 +29,7 @@ import argparse
 import json
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -165,7 +166,11 @@ def rehearse_python(rehearsal: Rehearsal, root: Path, candidate: Candidate, base
         return [Check("setup", sync.command, None, sync, "consumer")]
     declared = {step: _run(cmd, workdir, env) for step, cmd in _commands(rehearsal)} if baseline else {}
     python = workdir / ".venv" / "bin" / "python"
-    install = _run(f"uv pip install --python {python} --no-deps --reinstall {candidate.files[0]}", workdir, {**os.environ})
+    install = _run(
+        f"uv pip install --python {shlex.quote(str(python))} --no-deps --reinstall {shlex.quote(candidate.files[0])}",
+        workdir,
+        {**os.environ},
+    )
     if install.exit_code != 0:
         return [Check("install", install.command, None, install, "library")]
     checks = []
@@ -343,7 +348,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"\nNo {args.library} candidate at {args.candidate}. A rehearsal with nothing to rehearse is not a pass.", file=sys.stderr)
         return EXIT_NO_CANDIDATE
 
-    result = rehearse(register, args.consumer, args.library, candidate, args.root.resolve(), naming, baseline=not args.no_baseline)
+    result = rehearse(register, args.consumer, args.library, candidate, args.root, naming, baseline=not args.no_baseline)
     summary = render(result)
     print(summary)
     if step_summary := os.environ.get("GITHUB_STEP_SUMMARY"):
