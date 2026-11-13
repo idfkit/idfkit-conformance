@@ -156,7 +156,9 @@ def _commands(rehearsal: Rehearsal) -> list[tuple[str, str]]:
 
 
 def rehearse_python(rehearsal: Rehearsal, root: Path, candidate: Candidate, baseline: bool) -> list[Check]:
-    workdir = root / rehearsal.workdir
+    # Absolute, because every command runs with this as its cwd: a relative `--python` would be
+    # resolved a second time from inside it and name an environment that does not exist.
+    workdir = (root / rehearsal.workdir).resolve()
     env = {**os.environ, "UV_NO_SYNC": "1"}
     sync = _run("uv sync --frozen --all-extras --all-groups", workdir, {**os.environ})
     if sync.exit_code != 0:
@@ -341,7 +343,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"\nNo {args.library} candidate at {args.candidate}. A rehearsal with nothing to rehearse is not a pass.", file=sys.stderr)
         return EXIT_NO_CANDIDATE
 
-    result = rehearse(register, args.consumer, args.library, candidate, args.root, naming, baseline=not args.no_baseline)
+    result = rehearse(register, args.consumer, args.library, candidate, args.root.resolve(), naming, baseline=not args.no_baseline)
     summary = render(result)
     print(summary)
     if step_summary := os.environ.get("GITHUB_STEP_SUMMARY"):

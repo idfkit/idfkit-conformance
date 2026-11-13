@@ -4,7 +4,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from rehearse import EXIT_NO_CANDIDATE, Run, _attribute, _package_of_tarball, find_candidate, main
+import pytest
+import rehearse as rehearse_module
+from consumers import Rehearsal
+from rehearse import EXIT_NO_CANDIDATE, Candidate, Run, _attribute, _package_of_tarball, find_candidate, main
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -125,3 +128,30 @@ def test_a_through_provider_consumer_rehearses_through_its_providers(tmp_path: P
         ]
     )
     assert code == 0
+
+
+def test_a_relative_root_installs_into_the_consumer_environment(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """The workflow passes `--root consumer`, and every command runs with the consumer as its cwd.
+
+    A `--python` path relative to the repository root is then resolved a second time from inside the
+    consumer, names a `consumer/consumer/.venv` that does not exist, and the install fails before the
+    candidate is ever rehearsed. Every python rehearsal in CI failed this way until the path was absolute.
+    """
+    (tmp_path / "consumer" / "server").mkdir(parents=True)
+    monkeypatch.chdir(tmp_path)
+    calls: list[tuple[str, Path]] = []
+
+    def record(command: str, cwd: Path, env: dict[str, str]) -> Run:
+        calls.append((command, cwd))
+        return Run(command, 0, "", ())
+
+    monkeypatch.setattr(rehearse_module, "_run", record)
+    rehearsal = Rehearsal(library="python", install="wheel", typecheck="pyright", test=None, workdir="server")
+    candidate = Candidate("python", ("/wheels/idfkit-9.9.9-py3-none-any.whl",), "abc", "9.9.9")
+
+    rehearse_module.rehearse_python(rehearsal, Path("consumer"), candidate, baseline=False)
+
+    install = next(command for command, _ in calls if command.startswith("uv pip install"))
+    interpreter = Path(install.split("--python ", 1)[1].split(" ", 1)[0])
+    assert interpreter == tmp_path.resolve() / "consumer" / "server" / ".venv" / "bin" / "python"
+    assert all(cwd.is_absolute() for _, cwd in calls)
