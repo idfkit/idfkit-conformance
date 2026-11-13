@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from consumers import Register
@@ -66,7 +66,7 @@ class FakeGitHub:
 
 
 def _clock():
-    now = [datetime(2026, 9, 11, tzinfo=timezone.utc)]
+    now = [datetime(2026, 9, 11, tzinfo=UTC)]
 
     def tick() -> datetime:
         now[0] += timedelta(seconds=1)
@@ -148,10 +148,40 @@ def test_the_report_says_where_it_stopped() -> None:
     assert "stopped in wave 1" in text and "`a` (failed)" in text
 
 
+def _rehearse(github: FakeGitHub, timeout: float = 100):
+    return rehearse(_register(), "python", "abc123", github, timeout=timeout, poll=0, clock=_clock(), sleep=lambda s: None)
+
+
 def test_rehearsal_fans_out_only_to_consumers_with_their_own_commands() -> None:
     assert rehearsal_targets(_register(), "python") == [("a", "o/a")]
-    outcomes = rehearse(_register(), "python", "abc123", FakeGitHub(refuse={"o/a"}))
+    outcomes = _rehearse(FakeGitHub(refuse={"o/a"}))
     assert [o.status for o in outcomes] == ["dispatch-failed"]
+    assert exit_code(outcomes) == 1
+
+
+def test_a_rehearsal_waits_for_the_consumer_run_and_passes_only_on_success() -> None:
+    github = FakeGitHub()
+    outcomes = _rehearse(github)
+    assert [o.status for o in outcomes] == ["succeeded"]
+    assert ("find", "o/a") in github.events
+    assert outcomes[0].run_url == "https://github.com/o/a/actions/runs/1"
+    assert exit_code(outcomes) == 0
+    assert "Every consumer's rehearsal of the candidate succeeded." in summary(outcomes, "python", "candidate abc123", rehearsal=True)
+
+
+def test_a_failed_consumer_rehearsal_fails_the_library_run() -> None:
+    outcomes = _rehearse(FakeGitHub({"o/a": "failure"}))
+    assert [o.status for o in outcomes] == ["failed"]
+    assert outcomes[0].reason == "rehearse-candidate.yml concluded failure"
+    assert exit_code(outcomes) == 1
+    text = summary(outcomes, "python", "candidate abc123", rehearsal=True)
+    assert "did not pass every rehearsal" in text and "`a` (failed)" in text
+    assert "succeeded" not in text.splitlines()[-1]
+
+
+def test_a_rehearsal_that_never_concludes_times_out_rather_than_passing() -> None:
+    outcomes = _rehearse(FakeGitHub({"o/a": None}), timeout=5)
+    assert [o.status for o in outcomes] == ["timed-out"]
     assert exit_code(outcomes) == 1
 
 

@@ -26,9 +26,12 @@ Exit codes: 0 every target adopted; 1 a dispatch did not land, or a run failed o
 dispatch failed and no run failed, and at least one target was rejected or held behind a rejection,
 which is the normal state of wave 2 until a provider publishes a release on the new level.
 
-`--rehearse-ref` is the same fan-out without waves or waiting, for `rehearse-all.yml`: it dispatches
+`--rehearse-ref` is the same fan-out without waves, for `rehearse-all.yml`: it dispatches
 `rehearse-candidate.yml` to every consumer with a rehearsal of that library that is not
-`through-provider`, and fails if any dispatch does not land.
+`through-provider`, then waits for every one of those runs to conclude. It fails if any dispatch
+does not land, or if any rehearsal fails or does not conclude in time, so the library's run is red
+whenever a consumer's rehearsal is. Waiting blocks only the library's rehearsal run; no consumer's
+own work waits on it (FR-013).
 """
 
 from __future__ import annotations
@@ -41,14 +44,14 @@ import sys
 import time
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import asdict, dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any, Protocol
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from adoption import _fetch_json, check_order, pypi_released_on, waves  # noqa: E402
-from consumers import Register  # noqa: E402
+from adoption import _fetch_json, check_order, pypi_released_on, waves
+from consumers import Register
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -134,7 +137,7 @@ def adopt(
     *,
     timeout: float = 3600.0,
     poll: float = 20.0,
-    clock: Callable[[], datetime] = lambda: datetime.now(timezone.utc),
+    clock: Callable[[], datetime] = lambda: datetime.now(UTC),
     sleep: Callable[[float], None] = time.sleep,
 ) -> list[Outcome]:
     outcomes: list[Outcome] = []
@@ -168,27 +171,41 @@ def adopt(
             outcome.status = "dispatched"
             in_flight.append((outcome, started))
 
-        for outcome, started in in_flight:
-            deadline = clock() + timedelta(seconds=timeout)
-            run: RunState | None = None
-            while clock() < deadline:
-                run = dispatcher.find_run(outcome.repository, outcome.workflow, started) if run is None else dispatcher.state(outcome.repository, run.run_id)
-                if run is not None:
-                    outcome.run_url = run.url
-                    if run.conclusion is not None:
-                        break
-                sleep(poll)
-            if run is None or run.conclusion is None:
-                outcome.status = "timed-out"
-                outcome.reason = f"no concluded run within {int(timeout)}s of the dispatch"
-            elif run.conclusion == "success":
-                outcome.status = "succeeded"
-            else:
-                outcome.status = "failed"
-                outcome.reason = f"the bump workflow concluded {run.conclusion}"
+        _await(in_flight, dispatcher, timeout=timeout, poll=poll, clock=clock, sleep=sleep)
+        for outcome, _ in in_flight:
             if outcome.status != "succeeded":
                 blocked[outcome.consumer] = outcome.status
     return outcomes
+
+
+def _await(
+    in_flight: Sequence[tuple[Outcome, datetime]],
+    dispatcher: Dispatcher,
+    *,
+    timeout: float,
+    poll: float,
+    clock: Callable[[], datetime],
+    sleep: Callable[[float], None],
+) -> None:
+    """Wait for each dispatched run to conclude and record succeeded, failed or timed-out on its outcome."""
+    for outcome, started in in_flight:
+        deadline = clock() + timedelta(seconds=timeout)
+        run: RunState | None = None
+        while clock() < deadline:
+            run = dispatcher.find_run(outcome.repository, outcome.workflow, started) if run is None else dispatcher.state(outcome.repository, run.run_id)
+            if run is not None:
+                outcome.run_url = run.url
+                if run.conclusion is not None:
+                    break
+            sleep(poll)
+        if run is None or run.conclusion is None:
+            outcome.status = "timed-out"
+            outcome.reason = f"no concluded run within {int(timeout)}s of the dispatch"
+        elif run.conclusion == "success":
+            outcome.status = "succeeded"
+        else:
+            outcome.status = "failed"
+            outcome.reason = f"{outcome.workflow} concluded {run.conclusion}"
 
 
 def rehearsal_targets(register: Register, library: str) -> list[tuple[str, str]]:
@@ -200,17 +217,33 @@ def rehearsal_targets(register: Register, library: str) -> list[tuple[str, str]]
     )
 
 
-def rehearse(register: Register, library: str, candidate_ref: str, dispatcher: Dispatcher) -> list[Outcome]:
+def rehearse(
+    register: Register,
+    library: str,
+    candidate_ref: str,
+    dispatcher: Dispatcher,
+    *,
+    timeout: float = 3600.0,
+    poll: float = 20.0,
+    clock: Callable[[], datetime] = lambda: datetime.now(UTC),
+    sleep: Callable[[float], None] = time.sleep,
+) -> list[Outcome]:
+    """Dispatch every rehearsal, then wait for each one, so a consumer's failure is the library run's failure."""
     outcomes = []
+    in_flight: list[tuple[Outcome, datetime]] = []
     for consumer_id, repository in rehearsal_targets(register, library):
         outcome = Outcome(consumer_id, repository, REHEARSE_WORKFLOW, 1)
+        outcomes.append(outcome)
+        started = clock()
         try:
             dispatcher.dispatch(repository, REHEARSE_WORKFLOW, {"library": library, "candidate_ref": candidate_ref})
-            outcome.status = "dispatched"
         except DispatchError as error:
             outcome.status = "dispatch-failed"
             outcome.reason = f"the dispatch did not land: {error}"
-        outcomes.append(outcome)
+            continue
+        outcome.status = "dispatched"
+        in_flight.append((outcome, started))
+    _await(in_flight, dispatcher, timeout=timeout, poll=poll, clock=clock, sleep=sleep)
     return outcomes
 
 
@@ -223,13 +256,24 @@ def exit_code(outcomes: Sequence[Outcome]) -> int:
     return 0
 
 
-def summary(outcomes: Sequence[Outcome], library: str, level: str) -> str:
-    lines = [f"## {library} {level}: adoption", "", "| Wave | Consumer | Status | Run | Why |", "| --- | --- | --- | --- | --- |"]
+def summary(outcomes: Sequence[Outcome], library: str, level: str, *, rehearsal: bool = False) -> str:
+    kind = "rehearsal" if rehearsal else "adoption"
+    lines = [f"## {library} {level}: {kind}", "", "| Wave | Consumer | Status | Run | Why |", "| --- | --- | --- | --- | --- |"]
     for o in outcomes:
         run = f"[run]({o.run_url})" if o.run_url else ""
         lines.append(f"| {o.wave} | `{o.consumer}` | {o.status} | {run} | {o.reason or ''} |")
-    stopped = [o for o in outcomes if o.status not in {"succeeded", "dispatched"}]
+    stopped = [o for o in outcomes if o.status != "succeeded"]
     lines.append("")
+    if rehearsal:
+        if not stopped:
+            lines.append("Every consumer's rehearsal of the candidate succeeded.")
+        else:
+            lines.append(
+                "**The candidate did not pass every rehearsal**: "
+                + ", ".join(f"`{o.consumer}` ({o.status})" for o in stopped)
+                + ". Each linked run names the failing step and whose it is."
+            )
+        return "\n".join(lines)
     if not stopped:
         lines.append("Every consumer was offered the level and its bump workflow succeeded.")
     else:
@@ -256,20 +300,20 @@ def main(argv: Sequence[str] | None = None, *, dispatcher: Dispatcher | None = N
     register = Register.load(args.register)
     gh = dispatcher or GhDispatcher()
     if args.rehearse_ref:
-        outcomes = rehearse(register, args.library, args.rehearse_ref, gh)
-        title = f"rehearsal of {args.rehearse_ref}"
+        outcomes = rehearse(register, args.library, args.rehearse_ref, gh, timeout=args.timeout_minutes * 60)
+        title = f"candidate {args.rehearse_ref}"
     else:
         outcomes = adopt(register, args.library, args.level, gh, pypi_released_on(_fetch_json), timeout=args.timeout_minutes * 60)
         title = args.level
 
-    text = summary(outcomes, args.library, title)
+    text = summary(outcomes, args.library, title, rehearsal=bool(args.rehearse_ref))
     print(text)
     if step_summary := os.environ.get("GITHUB_STEP_SUMMARY"):
         with open(step_summary, "a", encoding="utf-8") as handle:
             handle.write(text + "\n")
     report: dict[str, Any] = {
         "schema_version": 1,
-        "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "generated_at": datetime.now(UTC).isoformat(timespec="seconds"),
         "library": args.library,
         "level": args.level,
         "rehearse_ref": args.rehearse_ref,
