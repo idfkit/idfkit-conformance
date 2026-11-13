@@ -73,7 +73,7 @@
 #   that same change, never afterwards.
 #
 #   Tracking issues are real, not placeholders. Every `absence_kind = "not-yet"` entry carries the
-#   URL of an open issue in idfkit-js, opened at governance-2026.3. The gate rejects a `not-yet`
+#   URL of an open issue in idfkit-js, opened before the row was added. The gate rejects a `not-yet`
 #   entry with no issue, so a fabricated URL would be worse than a missing one: it would pass and
 #   dead-link the reader. Check that an issue exists before writing its address here.
 
@@ -790,6 +790,60 @@ issue      = "https://github.com/idfkit/idfkit-js/issues/20"
 names      = [
   "apply ASHRAE sizing conditions",
   "the design day manager",
+]
+
+# Python: idfkit.hvac (src/idfkit/hvac/): HVACTopology, check_topology, category_of,
+#         ComponentCategory, ConnectionType, Fluid, NodeUse, FlowEdge, LoopMembership,
+#         TopologyFinding, NodeRenameResult
+# TypeScript: none, and no change counter on the document either; idfkit-js#96 adds both.
+#
+# Added by feature 014 (model knowledge graph, research R-02), after the unification feature. Tier 2
+# like the rows above: graph traversal over the document's own objects, whose tables (node fields,
+# port rules, categories, version caps) port as data.
+#
+# Three kinds of name are deliberately left out of `names`:
+#
+#   - The document's change counter, and later its node rename. A row whose TypeScript side is
+#     absent cannot list a member of a class TypeScript already exports: the TypeScript gate checks
+#     such a name through its class and would report the row as claiming an absence that is not one.
+#   - The key, coverage and uncovered-part types the hvac unit re-exports from a module it shares
+#     with later derived views. The Python gate credits a row with every unit that exports one of
+#     its names, so listing them here would let the next such unit land without a row of its own.
+#   - The one-call check, which is excluded from TypeScript as a duplicate.
+#
+# The view's later members (memberships, loops, chain, zones served) join `names` when they are
+# registered.
+[[capability]]
+id         = "hvac-topology"
+title      = "HVAC topology and connection checks"
+tier       = "tier-2"
+python     = "complete"
+typescript = "absent"
+absence_kind = "not-yet"
+issue      = "https://github.com/idfkit/idfkit-js/issues/96"
+names      = [
+  "the HVAC topology view",
+  "build the HVAC topology view",
+  "the nodes of a model",
+  "the uses of a node",
+  "the producers of a node",
+  "the consumers of a node",
+  "the controls on a node",
+  "the ports of an object",
+  "walk upstream",
+  "walk downstream",
+  "check the HVAC topology",
+  "what the HVAC topology view covers",
+  "unresolved EMS keys",
+  "an HVAC component category",
+  "an HVAC connection type",
+  "the fluid at a node",
+  "a use of a node",
+  "a flow edge",
+  "a loop membership",
+  "an HVAC topology finding",
+  "the result of renaming a node",
+  "the category of an object type",
 ]
 
 
