@@ -2,12 +2,21 @@
 
 from __future__ import annotations
 
+import shlex
 from pathlib import Path
 
 import pytest
-import rehearse as rehearse_module
 from consumers import Rehearsal
-from rehearse import EXIT_NO_CANDIDATE, Candidate, Run, _attribute, _package_of_tarball, find_candidate, main
+from rehearse import (
+    EXIT_NO_CANDIDATE,
+    Candidate,
+    Run,
+    _attribute,
+    _package_of_tarball,
+    find_candidate,
+    main,
+    rehearse_python,
+)
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -138,6 +147,8 @@ def test_a_relative_root_installs_into_the_consumer_environment(tmp_path: Path, 
     candidate is ever rehearsed. Every python rehearsal in CI failed this way until the path was absolute.
     """
     (tmp_path / "consumer" / "server").mkdir(parents=True)
+    # A space in the path, as a local checkout may have, must survive the shell.
+    candidate_file = "/wheels with space/idfkit-9.9.9-py3-none-any.whl"
     monkeypatch.chdir(tmp_path)
     calls: list[tuple[str, Path]] = []
 
@@ -145,13 +156,15 @@ def test_a_relative_root_installs_into_the_consumer_environment(tmp_path: Path, 
         calls.append((command, cwd))
         return Run(command, 0, "", ())
 
-    monkeypatch.setattr(rehearse_module, "_run", record)
+    monkeypatch.setattr("rehearse._run", record)
     rehearsal = Rehearsal(library="python", install="wheel", typecheck="pyright", test=None, workdir="server")
-    candidate = Candidate("python", ("/wheels/idfkit-9.9.9-py3-none-any.whl",), "abc", "9.9.9")
+    candidate = Candidate("python", (candidate_file,), "abc", "9.9.9")
 
-    rehearse_module.rehearse_python(rehearsal, Path("consumer"), candidate, baseline=False)
+    rehearse_python(rehearsal, Path("consumer"), candidate, baseline=False)
 
-    install = next(command for command, _ in calls if command.startswith("uv pip install"))
-    interpreter = Path(install.split("--python ", 1)[1].split(" ", 1)[0])
+    installs = [shlex.split(command) for command, _ in calls if command.startswith("uv pip install")]
+    assert len(installs) == 1, calls
+    interpreter = Path(installs[0][installs[0].index("--python") + 1])
     assert interpreter == tmp_path.resolve() / "consumer" / "server" / ".venv" / "bin" / "python"
+    assert installs[0][-1] == candidate_file
     assert all(cwd.is_absolute() for _, cwd in calls)
