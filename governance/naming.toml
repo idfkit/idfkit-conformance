@@ -3673,6 +3673,29 @@ correct word for its own setting; the register's job is to say so out loud.
 rename_count = { python = 0, typescript = 0 }
 
 [[entry]]
+concept    = "store choice values in the schema's spelling"
+python     = "IDFDocument.normalize_choices"
+typescript = ""
+kind       = "divergent"
+divergence_reason = """
+Python's `normalize_choices` is a property of the document: with it on, the default, a choice value
+read from a file or written through `add()`, assignment or `update()` is stored in the spelling the
+schema declares, so a surface the file calls `WALL` reads `"Wall"`. It is read-only, set through the
+constructor and the loaders' `normalize_choices` keyword, and is not a type parameter.
+
+Python needs the switch because its generated stubs type a choice field as a `Literal` of the
+schema's spellings, and EnergyPlus matches choices without regard to case, so without normalization
+an exhaustive `match` that type-checks falls through on a model someone else wrote. The switch lets a
+reader that needs the author's own text keep it.
+
+Registered as Python-only. No TypeScript counterpart is recorded here; whether `@idfkit/core` stores
+the author's or the schema's spelling, and whether it wants the same switch, is for the
+cross-language review of this entry to settle. Distinct from `strict field access`: that setting
+concerns unknown field names, this one the spelling of values.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
 concept    = "a document's schema"
 python     = "IDFDocument.schema"
 typescript = "IdfDocument.schema"
