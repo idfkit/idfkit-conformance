@@ -2827,6 +2827,28 @@ is a result there rather than a class.
 rename_count = { python = 0, typescript = 0 }
 
 [[entry]]
+concept    = "a required field that is not set"
+python     = "MissingRequiredFieldError"
+typescript = ""
+kind       = "divergent"
+divergence_reason = """
+Python raises when code reads, by attribute, a field that every supported release requires with no
+default and the object does not hold. The generated stubs type such a read as the field's value
+type, never `None` (`material.thickness` is a `float`), so returning `None` there would contradict
+the type a checker accepted; raising is what keeps the type true. Only an object EnergyPlus would
+refuse can lack such a field: one loaded from an incomplete file, or created with validation off.
+The class derives from `AttributeError`, so `IDFObject.get` (registered as `read a field by name`)
+and `getattr` with a default remain the way to ask whether the field is set, and still return `None`.
+
+TypeScript reports the same condition as values, as the rest of that side does: `IdfObject.get`
+returns `undefined` for an absent field, and validation reports the missing field as a finding in a
+`ValidationResult`. A thrown class there would be a second public shape for a failure the library
+already reports.
+"""
+notes      = "Python's implementation is idfkit#303 (https://github.com/idfkit/idfkit/pull/303), where the class lives in `idfkit.exceptions`."
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
 concept    = "the local simulation error types"
 python     = "EnergyPlusNotFoundError, ExpandObjectsError, SimulationError"
 typescript = ""
