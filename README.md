@@ -18,10 +18,13 @@ The conformance corpus and governance registers that hold idfkit and idfkit-js t
 
 Partial coverage is easy to mistake for complete coverage. Six gaps are open.
 
-### EnergyPlus 26.1.0 only
+### EnergyPlus 26.1.0 only, outside the version cases
 
-Every case declares `energyplus_version = "26.1.0"`, and every committed expectation was produced by
-that release. Bracketing the corpus with an older release, 9.2.0 for example, would catch
+62 of the 74 cases declare `energyplus_version = "26.1.0"`. The other twelve declare one older
+release each: eleven are `versions` cases (9.0.1, 9.5.0, 9.6.0, and 22.1.0 through 25.2.0), which
+hold the same three objects and differ only in the version identifier, so they pin how a version
+resolves to a schema rather than how content changes between releases; the twelfth,
+`tier1-introspection-field-order`, declares 9.4.0. Bracketing the corpus with an older release, 9.2.0 for example, would catch
 version-sensitive drift: schema changes, field renames, extensible-group reshaping. Nothing here
 catches that today. This is a known gap, not a closed question.
 
@@ -43,10 +46,13 @@ input takes: what the error carried if the read failed, what the returning path 
 `recoverable` names the returning path explicitly, which a case needs when its input fails a strict
 read and the recoverable behaviour is still worth checking.
 
-### Neither library's file reading is tested
+### The TypeScript library's file reading is not tested
 
-The runners decode the input file themselves and hand a string to the parser, so that comparison
-rule 6 fixes the encoding rather than leaving it to each library:
+The two runners fix the encoding of comparison rule 6 in different ways. `run.mjs` decodes the
+input file itself and hands a string to the parser. `run.py` hands `idfkit.parse_idf` the path and
+passes the encoding explicitly, so Python's path-taking reader runs, but with the encoding the
+runner chose; for assertion 4 it calls `idfkit.load_idf_with_diagnostics` with the path and the
+library's default encoding:
 
 ```js
 const text = readFileSync(job.inputPath).toString('latin1');
@@ -58,9 +64,8 @@ document = idfkit.parse_idf(job.input_path, encoding=IDF_ENCODING)
 ```
 
 That is deliberate, and it is what makes an encoding difference a finding rather than noise. The
-cost is that the read-from-disk entry points, `loadIdf` in TypeScript and the path-taking form in
-Python, are never exercised. A bug that lives in the decode step rather than in the parse step is
-invisible to every case in this corpus, no matter how many cases are added.
+cost is that the TypeScript read-from-disk entry point, `loadIdf`, is never exercised. A bug that lives in the decode step rather than in the parse step is
+invisible to every TypeScript run of this corpus, no matter how many cases are added.
 
 This is not hypothetical. `loadIdf` refuses any IDF file carrying a UTF-8 byte-order mark, because
 the mark survives a latin-1 decode as three visible characters and the version detector then anchors
@@ -71,8 +76,8 @@ See [idfkit-js#28](https://github.com/idfkit/idfkit-js/issues/28).
 
 Closing this gap needs a check that calls each library's own reader, which no `input.idf` plus
 `expected.epJSON` pair can express. That is what the `checks/` directory is for. It exists now, and
-its one member, `weather-monthly`, is about a weather file rather than about this gap: reading an
-IDF from disk is still open.
+its two members, `weather-monthly` and `geometry-vertices`, are about a weather file and about
+surface coordinates rather than about this gap: reading an IDF from disk is still open.
 
 A second consequence, worth stating separately: cases are curated from a sweep of the EnergyPlus
 example files, so the corpus only sees hazards that EnergyPlus's own files exhibit. Byte-order marks,
@@ -81,9 +86,9 @@ cases were donated in `conformance-2026.9` to close part of that, and they close
 and the write; they do not close it for the read from disk, which is this section's subject.
 
 **Assertion 9 lives on this side of the boundary too.** `preserved-text` proves that a library
-reproduces the text its read was GIVEN, not that it reproduces a file's bytes. The runners decode
-the input themselves, as above, so what the assertion holds each library to is a string in, the same
-string out. Two defects live on the other side of that line and neither is closed by it: the
+reproduces the text its read was GIVEN, not that it reproduces a file's bytes. The runners fix the
+encoding, as above, and compare the written string against the input as the runner decoded it, so
+what the assertion holds each library to is a string in, the same string out. Two defects live on the other side of that line and neither is closed by it: the
 TypeScript reader refuses an IDF file carrying a byte-order mark, recorded above against
 idfkit-js#28, and Python's `save_idf` opens its destination without `newline=""`, so the standard
 library translates every line feed to the platform's own convention on the way out. On Windows a
@@ -132,18 +137,20 @@ number precisely so the next byte comparison cannot be added by precedent.
 The bytes do differ, and the differences are real. Round-tripping one file through both writers
 gives 2-space indentation against 4, insertion order against sorted order, a `!-Generator idfkit`
 header on one side only, and different comment capitalisation. None of it is a defect, none of it
-is hidden, and neither writer was changed to make the other's output appear: the parity ledger
-records `write` as `partial` on both sides with the differences stated, which is where a claim
-about output belongs.
+is hidden, and neither writer was changed to make the other's output appear. The parity ledger records
+`write` as `complete` on both sides, and its comment on that entry names where the default-output
+differences are now stated: `docs/explanation/two-writers-one-model.md` in idfkit-developers. The
+five `writer-option-*` cases prove the writer controls structurally, by re-reading, not by bytes.
 
 So a green run is a statement about what each library understood, never about what it typed.
 
-### Three byte-hazard cases declare an assertion neither library can evaluate
+### Four byte-hazard cases declare an assertion neither library can evaluate
 
 `preserve-empty`, `preserve-comments-only` and `preserve-duplicate-name` declare `preserved-text`
 and it is skipped in both languages, because both readers refuse their inputs and a refused read
-leaves nothing to write. `preserve-unterminated-final` is skipped on the TypeScript side alone, for
-the same reason.
+leaves nothing to write. `preserve-unterminated-final` is now skipped in both languages too: its
+declared parse outcome is a failure, and the run of 2026-11-06 recorded below skipped it on each
+side.
 
 The first three fail for one cause between them: both libraries resolve their schema from a Version
 statement in the file, and an empty file, a file of comments and a file whose duplicate name stops
@@ -216,32 +223,39 @@ Both runners implement the same exit contract.
 | A failure is not in the allowlist | 1 | Case id, library, assertion, the differing value, and the path to both sides |
 | An allowlisted case now passes | 1 | Case id, and the instruction to remove the stale entry |
 | A case's `expected.epJSON` is missing while `truth = "oracle"` | 1 | Case id |
+| An assertion could not be evaluated, or an allowlist entry can never be exercised | 1 | Case id, assertion, and the reason |
+| The run cannot start: `--library` names no usable checkout, or `--case`/`--tag` selects no case | 2 | The reason, on standard error |
 
-**Case count**: 74 cases, 226 assertions, at level `conformance-2026.17`. The runtime below was
-measured at `conformance-2026.7`, on 56 cases and 148 assertions, and has not been remeasured since.
+**Case count**: 74 cases, 226 assertions, at level `conformance-2026.21`, the newest corpus tag on
+`main`. The case set has not changed since `conformance-2026.17`.
 
-**Measured runtime** (SC-005), measured 2026-09-03. No runner invokes EnergyPlus: every assertion
-reads, writes, validates or introspects, so the corpus runs anywhere the libraries install.
+**Measured runtime** (SC-005), measured 2026-11-06 at `conformance-2026.21` (74 cases, 226
+assertions), against idfkit `v1.2.0` and against `@idfkit/core` at idfkit-js `v0.4.0` and at
+idfkit-js `main` commit `06f739a`. No runner invokes EnergyPlus: every assertion reads, writes,
+validates or introspects, so the corpus runs anywhere the libraries install.
 
-| Library | Wall clock | Result |
-| ------- | ---------- | ------ |
-| Python `idfkit` | 0.65 to 0.96 s | 132 passed, 16 failed, 0 skipped; 14 allowlisted |
-| TypeScript `@idfkit/core` | 0.11 to 0.20 s | 141 passed, 7 failed, 0 skipped; 6 allowlisted |
+| Library | Wall clock | Result | Exit |
+| ------- | ---------- | ------ | ---- |
+| Python `idfkit` `v1.2.0` (declares `conformance-2026.21`) | 0.82 to 1.13 s | 220 passed, 2 failed, 4 skipped; 2 allowlisted | 0 |
+| TypeScript `@idfkit/core`, idfkit-js `main` `06f739a` (declares `conformance-2026.19`) | 0.16 to 2.27 s | 217 passed, 5 failed, 4 skipped; 5 allowlisted | 0 |
+| TypeScript `@idfkit/core`, idfkit-js `v0.4.0` (declares `conformance-2026.15`) | 0.16 to 0.27 s | 211 passed, 11 failed, 4 skipped; 5 allowlisted | 1 |
 
 A range rather than a figure, from repeated runs on one machine. A single number implies a
 precision that a warm cache and a busy laptop do not support, and the only question the budget
-asks is which side of five minutes this falls on.
+asks is which side of five minutes this falls on. One TypeScript run of nine against `main` took
+593 s and did not recur in the next three; it is excluded from the range.
 
-The budget is under 5 minutes per library. Both runners are three orders of magnitude inside it, so
-the budget is not a constraint on how the corpus grows: at this rate the case set could grow past
-10,000 cases before the limit came into view. Nothing is skipped: the diagnostics assertion was the
-last deferred one and feature 002 landed it, so every assertion every case declares is evaluated.
+The budget is under 5 minutes per library. Both runners are more than two orders of
+magnitude inside it, so the budget is not a constraint on how the corpus grows. Four assertions are
+skipped in each language: `preserved-text` on the four cases described under "Four byte-hazard
+cases declare an assertion neither library can evaluate", whose declared parse outcome is a
+failure.
 
-Most failures above are recorded entries in `known-divergence.toml`, which is why the corpus lands
-with its disagreements visible rather than hidden. **Both runners currently exit 1**: landing
-assertion 4 found two divergences that are not yet in the allowlist, `malformed-stray-comment` on
-Python only and `malformed-missing-semicolon` on both, and neither can be recorded until it has a
-real tracking issue. Both runners return to 0 when those two are filed and entered.
+Every failure in the runs against idfkit `v1.2.0` and idfkit-js `main` is a recorded entry in
+`known-divergence.toml`, so both exit 0. The run against idfkit-js `v0.4.0` exits 1: that release
+declares `conformance-2026.15`, and the six failures outside the allowlist are on three `update-*`
+cases (`preserved-text` and `post-operation-epjson` on each), whose TypeScript entries were removed
+in `conformance-2026.19`.
 
 ## Layout
 
@@ -250,8 +264,8 @@ cases/
   <case-id>/
     case.toml                   # title, tags, EnergyPlus version, why this case exists
     input.idf                   # or input.epJSON
-    expected.epJSON             # generated by ConvertInputFormat, committed
-    expected.diag.json          # expected diagnostics; malformed cases only, not yet compared
+    expected.epJSON             # generated by ConvertInputFormat, committed; truth = oracle cases
+    expected.diag.json          # expected diagnostics; cases declaring assertion 4
     expected.validation.json    # expected validation findings; tier1 cases
     expected.introspection.json # expected type descriptions; tier1 cases
     expected.docs-url.json      # expected documentation addresses; tier1 cases
@@ -259,38 +273,58 @@ cases/
     after.idf                   # the input with the case's operations made textually
     expected.after.epJSON       # generated by ConvertInputFormat from after.idf, committed
 manifest.json            # index: every case, its tags, which assertions apply
+manifest.schema.json     # the JSON Schema manifest.json declares
 runners/
   run.py                 # Python runner, over cases/
   run.mjs                # JavaScript runner, over cases/
+  model.py, model.mjs    # case, manifest and register loading shared by each language's runners
+  compare.py, compare.mjs # the comparator that implements compare.md
   weather_check.py       # Python entry point for checks/weather-monthly
   weather-check.mjs      # JavaScript entry point for checks/weather-monthly
+  geometry_check.py      # Python entry point for checks/geometry-vertices
+  geometry-check.mjs     # JavaScript entry point for checks/geometry-vertices
   compare.md             # the normative comparison rules
   validate.md            # the normative validation semantics, which assertion 5 checks
+  tests/                 # the runners' own tests, in both languages
 checks/
   README.md              # why a claim lands here rather than in cases/, and what a check owes
-  <check-id>/
+  <check-id>/            # weather-monthly, geometry-vertices
     check.md             # what is claimed, the oracle, the assertions, the coverage it lacks
     fixtures/            # the check's own inputs, committed rather than fetched
     expected/            # the check's own committed expectations
 tools/
-  regenerate.sh          # re-run ConvertInputFormat over every input.idf and after.idf (maintainer task)
+  regenerate.sh          # re-run ConvertInputFormat over oracle inputs and after.idf files (maintainer task)
   seed_tier1.py          # draft the Tier 1 expectations (maintainer task; read its header)
-governance/              # naming.toml and parity.toml, read at a pinned governance tag
+  bootstrap_sweep.py, sweep_js.mjs # the bootstrap sweep that wrote sweep-report.json
+  validate_governance.py, check_consumers.py # well-formedness of the governance files
+  consumers.py, check_consumer_self.py, sweep_consumers.py # the consumer register and its checks
+  rehearse.py, rename_scan.py # the candidate rehearsal run by rehearse.yml
+  adoption.py, adoption_statements.py, dispatch_waves.py, record_adoption.py, surface_statements.py
+  energyplus/            # the EnergyPlus release adoption procedure (roster, watch, scan, adopt)
+governance/              # naming.toml, parity.toml, consumers.toml, energyplus.toml; README.md
+energyplus/              # the adoption procedure's README and one record per adopted release
+tests/                   # tests for tools/ and the governance files
+.github/workflows/       # this repository's CI and the reusable workflows consumers call
+sweep-report.json        # output of the bootstrap sweep the initial cases were curated from
 known-divergence.toml    # accepted failures, each with an issue link
 ```
 
 `checks/` holds the cross-library claims that are not expressible as an input file with an expected
 epJSON. The contract reserved it at landing and said the directory would be created when the first
-such check was written; `weather-monthly` is that first one. `manifest.json` indexes them in its
-own `checks` section, separate from the two case sections and shaped differently, because a check
-has no input document, no epJSON expectation and no place in either. `checks/README.md` says what a
-check owes; the manifest says which ones exist and which libraries have a recorded result.
+such check was written; `weather-monthly` is that first one and `geometry-vertices` the second.
+`manifest.json` has its own `checks` section, separate from the two case sections and shaped
+differently, because a check has no input document, no epJSON expectation and no place in either.
+`checks/README.md` says what a check owes. The manifest's `checks` section lists `weather-monthly`
+only; `geometry-vertices` is described in `checks/README.md` and its own `check.md` but has no
+manifest entry.
 
 A check runs from its own entry point rather than from `run.py` or `run.mjs`. Those run cases, and
 a case is a shape this claim does not have.
 
     node runners/weather-check.mjs --library /path/to/idfkit-js
     python runners/weather_check.py --library /path/to/idfkit
+    node runners/geometry-check.mjs --library /path/to/idfkit-js
+    python runners/geometry_check.py --library /path/to/idfkit
 
 ## The assertions
 
@@ -304,6 +338,8 @@ a case is a shape this claim does not have.
 | 6 | Type descriptions match `expected.introspection.json` | now |
 | 7 | Documentation addresses match `expected.docs-url.json` | now |
 | 8 | Collection lookups by object type name match `expected.type-lookup.json` | now |
+| 9 | `preserved-text`: a preserving read, the case's operations and a write reproduce the input byte for byte outside the objects the operations touched | now |
+| 10 | `post-operation-epjson`: after the case's operations, canonical epJSON equals `expected.after.epJSON`, and an `update` declared refused is refused | now |
 
 Assertion 8 is the one assertion that is not about a document at all. It asks what a library
 returns when a caller names an object type, which is where the two libraries disagreed most
@@ -338,10 +374,10 @@ Cases are grouped by the hazard each one pins, not by feature area.
 | `numeric` | autosize, autocalculate, scientific notation, integer-typed fields, zero |
 | `types` | Unknown object types, case-variant type names (`ZONE` against `Zone`), and the collection a caller reaches when naming one |
 | `references` | Dangling, self-referential, case-insensitive name matching |
-| `versions` | At least one case per supported version, including `Version, 9.0` mapping to schema 9.0.1 |
+| `versions` | One case each for 9.0.1 (including `Version, 9.0` mapping to schema 9.0.1), 9.5.0, 9.6.0 and 22.1.0 through 26.1.0, plus two 26.1.0 cases on reading the version statement (its canonical string form, and a `Version` object late in the file); 8.9.0, 9.1.0 to 9.4.0 and 26.2.0, which idfkit `v1.2.0` supports, have no `versions` case |
 | `encoding` | latin-1 high bytes in names and comments |
-| `malformed` | Missing semicolon, truncated object, stray comment. Diagnostics only |
-| `tier1` | The capabilities ported into the JavaScript library under the API unification: validation, type introspection, documentation addresses (FR-023) |
+| `malformed` | Missing semicolon, truncated object, stray comment and unknown object type, compared on diagnostics; and three `preserve-*` inputs both readers refuse (empty, comments only, unterminated final statement), which declare `preserved-text` |
+| `tier1` | The Tier 1 capabilities this corpus can express: validation, type introspection and documentation addresses (FR-023), the writer controls (`writer-option-*`), multi-field object update (`update-*`), and unknown-type diagnostics (`malformed-unknown-type-*`) |
 
 Cases are not invented from the specification. The initial set came from running both libraries and
 `ConvertInputFormat` across the full EnergyPlus example set, recording every three-way disagreement,
@@ -356,9 +392,11 @@ Maintainer task, and the only step that needs EnergyPlus:
 tools/regenerate.sh
 ```
 
-It runs `ConvertInputFormat -f epJSON -o expected/ cases/<id>/input.idf` over every case, skips
-versions it cannot find locally, and reports which it skipped. A full set of EnergyPlus installs is
-roughly 13.6 GB, which is exactly why CI never does this.
+It runs `ConvertInputFormat -f epJSON` on `cases/<id>/input.idf` for every case with
+`truth = "oracle"`, writing `expected.epJSON`, and on `cases/<id>/after.idf` for every case that
+declares `post-operation-epjson`, writing `expected.after.epJSON`. Convention cases without that
+assertion are skipped without error. It skips versions it cannot find locally and reports which it
+skipped. A full set of EnergyPlus installs is large, which is why CI never does this.
 
 Note that `ConvertInputFormat` validates before it converts, so most cases carry `Building` and
 `GlobalGeometryRules` even when testing something unrelated to either. The `tier1` cases do not:
@@ -371,6 +409,8 @@ authority:
 ```bash
 tools/seed_tier1.py --library ../idfkit <case-id>
 ```
+
+It imports `tomllib` and therefore needs Python 3.11 or newer, unlike the runners.
 
 It writes the three `expected.*.json` files from the Python library. Read its header before using
 it. The output is a draft that a maintainer must check against the rule that governs it, and
@@ -386,15 +426,41 @@ diverge:
 - Python: `[tool.idfkit.conformance] level` in `pyproject.toml`.
 - JavaScript: `idfkit.conformance` in `packages/core/package.json`.
 
-Neither library exposes that value at runtime yet. `idfkit.CONFORMANCE_LEVEL` and the exported
-`CONFORMANCE_LEVEL` constant are specified and not written, so a caller who wants to know which
-level a build claims has to read the config file the way CI does. An earlier version of this
-section described them as though they existed, which is the failure this corpus is here to catch,
-committed in its own README.
+Both libraries also expose the value at runtime: `idfkit.CONFORMANCE_LEVEL` (generated into
+`src/idfkit/_conformance.py` from `pyproject.toml`; exported in idfkit `v1.2.0`) and the
+`CONFORMANCE_LEVEL` constant exported by `@idfkit/core` (`packages/core/src/conformance.ts`; exported
+in idfkit-js `v0.4.0`).
 
 The two libraries release on independent schedules. Matching version numbers must never be read as
 agreement. The declared level is the claim, and it is the stronger claim precisely because it is
 tested.
+
+## Governance registers
+
+`governance/` holds four files, released together under a second tag series, `governance-YYYY.N`,
+separate from the corpus series. `governance/README.md` is the full description.
+
+| File | What it records |
+| ---- | --------------- |
+| `naming.toml` | The naming register: each concept shared by the two libraries, its spelling on each side, and each accepted difference |
+| `parity.toml` | The parity ledger: each capability, its tier, and whether each language implements it completely, partially or not at all |
+| `consumers.toml` | The consumer register: each workspace project that resolves either library or teaches a reader to install one, and where that project declares its level |
+| `energyplus.toml` | The version roster: each project with content that depends on the EnergyPlus version, and the steps and checks for adopting a release; it names no EnergyPlus version |
+
+Each library declares the governance tag it reads (`[tool.idfkit.governance] level` in
+`pyproject.toml`, `idfkit.governance` in `packages/core/package.json`), and consumers call this
+repository's reusable workflows at a pinned governance tag:
+
+| Workflow | Trigger | What it does |
+| -------- | ------- | ------------ |
+| `check-consumer.yml` | `workflow_call` | Fails a consumer's build when its repository no longer matches its entry in `consumers.toml` |
+| `rehearse.yml` | `workflow_call` | Runs one consumer against an unpublished candidate of one library; consumers call it from their own `rehearse-candidate.yml` |
+| `adopt-energyplus.yml` | `workflow_call` | Adopts one EnergyPlus release inside one project, following `energyplus.toml` |
+| `governance.yml` | pull request, push | Validates the governance files and runs `tests/` and `runners/tests/` |
+| `sweep-consumers.yml` | schedule, dispatch | Reads every registered consumer's level and looks for unregistered dependants |
+| `energyplus-watch.yml` | schedule, dispatch | Detects upstream EnergyPlus releases and advances open adoptions |
+| `record-adoption.yml` | dispatch | Opens a pull request recording what an adoption changed in `consumers.toml` |
+| `check-identity.yml` | pull request, push | Calls idfkit-brand's `check-touchpoint.yml` |
 
 ## Contributing
 
