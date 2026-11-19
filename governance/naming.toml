@@ -2800,6 +2800,73 @@ language.
 rename_count = { python = 0, typescript = 0 }
 
 [[entry]]
+concept    = "a missing object name"
+python     = "ObjectNotFoundError"
+typescript = ""
+kind       = "divergent"
+divergence_reason = """
+Python raises when a document has no object of a type by the name looked up: `doc["Zone"]["name"]`,
+`doc.rename()` and the dotted `doc.update()`. It derives from `KeyError`, as `UnknownObjectTypeError`
+does, so a subscript miss fails the way a subscript is expected to, and it carries the closest
+existing names ("did you mean") and the names that do exist.
+
+Registered as Python-only, following `UnknownObjectTypeError`. Whether `@idfkit/core` throws, returns
+`undefined` or reports a diagnostic for a name lookup that misses is for the cross-language review of
+this entry to settle.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "a file in the other input format"
+python     = "FileFormatError"
+typescript = ""
+kind       = "divergent"
+divergence_reason = """
+Python has one loader per format, `load_idf` and `load_epjson`, and raises this when a file in the
+other format is passed to one of them (epJSON to `load_idf`, IDF to `load_epjson`), naming the loader
+to use and the format detected. It derives from `IDFParseError` and from `ValueError`, the latter
+because `load_epjson` raised `json.JSONDecodeError`, a `ValueError`, for an IDF file before.
+
+Registered as Python-only. Whether the TypeScript readers need the same condition, or dispatch on the
+content instead, is for the cross-language review of this entry to settle.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "a simulation-result lookup that matches no output or several"
+python     = "ResultLookupError"
+typescript = ""
+kind       = "divergent"
+divergence_reason = """
+Python raises when a lookup in a simulation's results finds no output, or several where it needs
+exactly one: `SQLResult.get_timeseries`, `get_tabular_value` and `get_tabular_float`, and
+`ESOResult.get_column` / `CSVResult.get_column`. It derives from `KeyError`, so code catching
+`KeyError` keeps working, and carries the closest names the results do have and the keys or
+frequencies that could be passed instead.
+
+Registered as Python-only: simulation execution and result parsing exist only in the Python library
+today. If a TypeScript reader of EnergyPlus outputs is added, its name for this condition is decided
+here first.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "a simulation output the run did not produce"
+python     = "OutputNotFoundError"
+typescript = ""
+kind       = "divergent"
+divergence_reason = """
+Python raises when a simulation result is asked to parse an output file the run did not write
+(`SimulationResult.sql`, `csv`, `eso`, `mtr`, `html`, `variables` and their async counterparts). The
+message names the output object to add to the model or, for a failed run, where to read why. It
+derives from `FileNotFoundError`; a caller tests for an output without raising through its path
+(`result.sql_path is None`).
+
+Registered as Python-only: simulation execution exists only in the Python library today.
+"""
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
 concept    = "a migration that failed"
 python     = "MigrationError"
 typescript = ""
@@ -3055,6 +3122,14 @@ notes      = """
 Registered before it is written. The single letter is a word of the name in both languages, so
 Python's snake_case separates it and TypeScript's camelCase capitalises it.
 """
+rename_count = { python = 0, typescript = 0 }
+
+[[entry]]
+concept    = "a footprint in counter-clockwise order"
+python     = "counter_clockwise_footprint"
+typescript = "counterClockwiseFootprint"
+kind       = "aligned"
+notes      = "Registered before the TypeScript function is written. Returns the footprint in counter-clockwise order seen from above, reversing a clockwise one, which is the order extrusion (`create_block`, `ZonedBlock`, `add_shading_block`) assumes."
 rename_count = { python = 0, typescript = 0 }
 
 [[entry]]
